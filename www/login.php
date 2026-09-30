@@ -4,6 +4,10 @@ require __DIR__ . '/app/bootstrap.php';
 if (current_admin()) {
     redirect('index.php');
 }
+// 관리자 계정이 하나도 없으면(처음 설치) 첫 관리자 만들기 화면으로
+if ((int) db_value('SELECT COUNT(*) FROM admins') === 0 && is_file(__DIR__ . '/install.php')) {
+    redirect('install.php');
+}
 
 $error = null;
 if (is_post()) {

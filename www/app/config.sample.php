@@ -8,7 +8,9 @@
  */
 return [
     // 호스팅 관리 화면에서 확인한 DB 접속 정보
+    // (PC 버전은 실행 프로그램이 설정 파일을 자동으로 만들며 'driver' => 'sqlite' 를 씁니다)
     'db' => [
+        'driver'  => 'mysql',
         'host'    => 'localhost',
         'port'    => 3306,
         'name'    => '',   // DB 이름

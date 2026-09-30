@@ -5,6 +5,9 @@
  * 기능을 추가하면서 DB 구조가 바뀌면 아래 migrations() 목록 끝에 새 번호로 추가합니다.
  * 파일을 서버에 올린 뒤 첫 접속 때 아직 적용되지 않은 번호만 순서대로 실행됩니다.
  * 이미 적용된 번호의 내용은 절대 수정하지 않습니다.
+ *
+ * SQL 은 MySQL 형식으로 씁니다. PC 버전(SQLite)에서는 ddl_for_driver() 가 자동으로 바꿔 실행합니다.
+ * (CREATE TABLE 외의 문장은 두 DB 에서 모두 동작하는 문법으로 씁니다. 예: ALTER TABLE ... ADD COLUMN ...)
  */
 declare(strict_types=1);
 
@@ -181,7 +184,8 @@ function run_migrations(): void
         return;
     }
     // 동시에 두 명이 접속해도 한 번만 실행되도록 잠급니다.
-    if ((int) db_value("SELECT GET_LOCK('endgame_migrate', 30)") !== 1) {
+    $unlock = migration_lock();
+    if ($unlock === null) {
         return;
     }
     try {
@@ -191,14 +195,33 @@ function run_migrations(): void
                 continue;
             }
             foreach ($statements as $sql) {
-                db()->exec($sql);
+                foreach (ddl_for_driver($sql) as $one) {
+                    db()->exec($one);
+                }
             }
-            db_exec(
-                "INSERT INTO settings (k, v) VALUES ('schema_version', ?) ON DUPLICATE KEY UPDATE v = VALUES(v)",
-                [(string) $version]
-            );
+            db_upsert('settings', ['k' => 'schema_version', 'v' => (string) $version], ['k'], ['v' => '{new.v}']);
         }
     } finally {
-        db_value("SELECT RELEASE_LOCK('endgame_migrate')");
+        $unlock();
     }
+}
+
+/** 잠금을 걸고, 푸는 함수를 돌려줍니다. 잠그지 못하면 null. */
+function migration_lock(): ?callable
+{
+    if (db_driver() === 'sqlite') {
+        $file = dirname((string) config('db', [])['path']) . '/migrate.lock';
+        $fh = @fopen($file, 'c');
+        if (!$fh || !flock($fh, LOCK_EX)) {
+            return null;
+        }
+        return function () use ($fh) {
+            flock($fh, LOCK_UN);
+            fclose($fh);
+        };
+    }
+    if ((int) db_value("SELECT GET_LOCK('endgame_migrate', 30)") !== 1) {
+        return null;
+    }
+    return fn() => db_value("SELECT RELEASE_LOCK('endgame_migrate')");
 }

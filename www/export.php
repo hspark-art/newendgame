@@ -51,13 +51,11 @@ switch ($type) {
         csv_start("채팅_{$b['broadcast_date']}_{$stamp}.csv");
         csv_row(['시간', '아이디', '접속아이디', '닉네임', '내용', '종류', '방송인', '매니저', '구독', '팬', '열혈']);
         @set_time_limit(600);
-        db()->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
-        $st = db_query("SELECT sent_at, user_id, raw_user_id, nickname, message, kind, badges FROM chat_messages WHERE $where ORDER BY sent_at, id", $params);
-        while ($r = $st->fetch()) {
+        db_stream("SELECT sent_at, user_id, raw_user_id, nickname, message, kind, badges FROM chat_messages WHERE $where ORDER BY sent_at, id", $params, function (array $r) {
             $bd = (int) $r['badges'];
             csv_row([$r['sent_at'], $r['user_id'], $r['raw_user_id'], $r['nickname'], $r['message'], $r['kind'] === 'emoticon' ? '이모티콘' : '채팅',
                 $bd & BADGE_BJ ? 'Y' : '', $bd & BADGE_MANAGER ? 'Y' : '', $bd & BADGE_SUBSCRIBER ? 'Y' : '', $bd & BADGE_FAN ? 'Y' : '', $bd & BADGE_TOPFAN ? 'Y' : '']);
-        }
+        });
         break;
     }
 

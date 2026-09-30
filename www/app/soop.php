@@ -113,6 +113,9 @@ function soop_http_post(string $url, string $body): string
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS      => 3,
         ]);
+        if (PHP_OS_FAMILY === 'Windows' && defined('CURLSSLOPT_NATIVE_CA')) {
+            curl_setopt($ch, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+        }
         $response = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $error = curl_error($ch);

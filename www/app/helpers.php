@@ -13,7 +13,19 @@ function config(string $key, mixed $default = null): mixed
 function app_configured(): bool
 {
     $db = config('db');
-    return is_array($db) && !empty($db['name']) && !empty($db['user']);
+    if (!is_array($db)) {
+        return false;
+    }
+    if (($db['driver'] ?? 'mysql') === 'sqlite') {
+        return !empty($db['path']);
+    }
+    return !empty($db['name']) && !empty($db['user']);
+}
+
+/** PC 버전(내 컴퓨터에서 실행)인지 */
+function is_desktop(): bool
+{
+    return (bool) config('desktop', false);
 }
 
 // ── 출력·이동 ──────────────────────────────────────────────

@@ -141,7 +141,7 @@ function ingest_events(int $broadcastId, array $events, string $source): array
                 array_push($params, $broadcastId, $c['uid'], $c['collector_id'], $c['sent_at'], $c['raw_user_id'], $c['user_id'],
                     $c['nickname'], $c['message'], $c['kind'], $c['badges'], $source, $now);
             }
-            $inserted = db_exec('INSERT IGNORE INTO chat_messages (broadcast_id, uid, collector_id, sent_at, raw_user_id, user_id, nickname, message, kind, badges, source, created_at) VALUES ' . implode(',', $rows), $params);
+            $inserted = db_exec(db_insert_ignore() . ' INTO chat_messages (broadcast_id, uid, collector_id, sent_at, raw_user_id, user_id, nickname, message, kind, badges, source, created_at) VALUES ' . implode(',', $rows), $params);
             $result['chats'] += $inserted;
             $result['duplicates'] += count($chunk) - $inserted;
         }
@@ -153,7 +153,7 @@ function ingest_events(int $broadcastId, array $events, string $source): array
                 array_push($params, $broadcastId, $d['uid'], $d['collector_id'], $d['sent_at'], $d['type'], $d['subtype'], $d['raw_user_id'],
                     $d['user_id'], $d['nickname'], $d['amount'], $d['target_user_id'], $d['target_nickname'], $d['extra'], $source, $now);
             }
-            $inserted = db_exec('INSERT IGNORE INTO donations (broadcast_id, uid, collector_id, sent_at, type, subtype, raw_user_id, user_id, nickname, amount, target_user_id, target_nickname, extra, source, created_at) VALUES ' . implode(',', $rows), $params);
+            $inserted = db_exec(db_insert_ignore() . ' INTO donations (broadcast_id, uid, collector_id, sent_at, type, subtype, raw_user_id, user_id, nickname, amount, target_user_id, target_nickname, extra, source, created_at) VALUES ' . implode(',', $rows), $params);
             $result['donations'] += $inserted;
             $result['duplicates'] += count($chunk) - $inserted;
         }
@@ -234,28 +234,30 @@ function cross_collector_filter(int $broadcastId, array $items, array $collector
     return $kept;
 }
 
-/** 수집창 상태를 기록합니다. */
+/** 수집창 상태를 기록합니다. (빈 값은 기존 값 유지, 숫자는 더하기) */
 function touch_collector(string $collectorId, int $broadcastId, array $fields, int $chatDelta = 0, int $donationDelta = 0): void
 {
     $now = now();
-    db_exec(
-        'INSERT INTO collectors (id, broadcast_id, admin_id, label, soop_broadcast_no, status, status_message, chat_count, donation_count, started_at, last_seen_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-            label = IF(VALUES(label) = \'\', label, VALUES(label)),
-            soop_broadcast_no = IF(VALUES(soop_broadcast_no) = \'\', soop_broadcast_no, VALUES(soop_broadcast_no)),
-            status = IF(VALUES(status) = \'\', status, VALUES(status)),
-            status_message = IF(VALUES(status) = \'\', status_message, VALUES(status_message)),
-            chat_count = chat_count + VALUES(chat_count),
-            donation_count = donation_count + VALUES(donation_count),
-            last_seen_at = VALUES(last_seen_at)',
-        [
-            $collectorId, $broadcastId, current_admin()['id'] ?? null,
-            mb_substr((string) ($fields['label'] ?? ''), 0, 100),
-            mb_substr((string) ($fields['soop_broadcast_no'] ?? ''), 0, 30),
-            mb_substr((string) ($fields['status'] ?? ''), 0, 20),
-            mb_substr((string) ($fields['status_message'] ?? ''), 0, 255),
-            $chatDelta, $donationDelta, $now, $now,
-        ]
-    );
+    $keep = fn(string $col, string $when = '') => "CASE WHEN {new." . ($when ?: $col) . "} = '' THEN $col ELSE {new.$col} END";
+    db_upsert('collectors', [
+        'id'                => $collectorId,
+        'broadcast_id'      => $broadcastId,
+        'admin_id'          => current_admin()['id'] ?? null,
+        'label'             => mb_substr((string) ($fields['label'] ?? ''), 0, 100),
+        'soop_broadcast_no' => mb_substr((string) ($fields['soop_broadcast_no'] ?? ''), 0, 30),
+        'status'            => mb_substr((string) ($fields['status'] ?? ''), 0, 20),
+        'status_message'    => mb_substr((string) ($fields['status_message'] ?? ''), 0, 255),
+        'chat_count'        => $chatDelta,
+        'donation_count'    => $donationDelta,
+        'started_at'        => $now,
+        'last_seen_at'      => $now,
+    ], ['id'], [
+        'label'             => $keep('label'),
+        'soop_broadcast_no' => $keep('soop_broadcast_no'),
+        'status'            => $keep('status'),
+        'status_message'    => $keep('status_message', 'status'),
+        'chat_count'        => 'chat_count + {new.chat_count}',
+        'donation_count'    => 'donation_count + {new.donation_count}',
+        'last_seen_at'      => '{new.last_seen_at}',
+    ]);
 }

@@ -5,7 +5,7 @@
  */
 declare(strict_types=1);
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 define('APP_ROOT', dirname(__DIR__));   // www 폴더
 const APP_DIR = __DIR__;                // www/app 폴더
 
@@ -21,7 +21,11 @@ require APP_DIR . '/migrate.php';
 
 // ── 설정 읽기 ──────────────────────────────────────────────
 $GLOBALS['APP_CONFIG'] = [];
+// 웹: www/app/config.php  /  PC 버전: www 바깥의 data/config.php (프로그램을 새 버전으로 바꿔도 설정·자료 유지)
 $configFile = APP_DIR . '/config.php';
+if (!is_file($configFile)) {
+    $configFile = dirname(APP_ROOT) . '/data/config.php';
+}
 if (is_file($configFile)) {
     $loaded = require $configFile;
     $GLOBALS['APP_CONFIG'] = is_array($loaded) ? $loaded : [];

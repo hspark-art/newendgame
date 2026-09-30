@@ -84,7 +84,7 @@ function page_footer(array $scripts = []): void
 {
     ?>
 </main>
-<footer class="footer muted small">v<?= h(APP_VERSION) ?></footer>
+<footer class="footer muted small">v<?= h(APP_VERSION) ?><?= is_desktop() ? ' · PC 버전' : '' ?></footer>
 <script src="assets/app.js?v=<?= h(APP_VERSION) ?>"></script>
 <?php foreach ($scripts as $src): ?>
 <script src="<?= h($src) ?>?v=<?= h(APP_VERSION) ?>"></script>

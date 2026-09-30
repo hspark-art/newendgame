@@ -152,23 +152,21 @@ function activity_ranking(int $bid, array $f, array $rule, string $sort, int $mi
     $where = 'broadcast_id = ?' . time_where($f, $params);
     $excluded = $f['exclude'] ? array_flip(excluded_ids($bid, false)) : [];
 
-    $pdo = db();
-    $pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
     $users = [];
-    try {
-        $st = db_query("SELECT user_id, nickname, message, badges, UNIX_TIMESTAMP(sent_at) AS ts FROM chat_messages WHERE $where ORDER BY user_id, sent_at, id", $params);
-        while ($r = $st->fetch(PDO::FETCH_NUM)) {
-            [$uid, $nick, $msg, $badges, $ts] = $r;
-            $ts = (float) $ts;
+    db_stream("SELECT user_id, nickname, message, badges, sent_at FROM chat_messages WHERE $where ORDER BY user_id, sent_at, id", $params,
+        function (array $r) use (&$users, $interval, $repeat, $slotSec) {
+            $uid = $r['user_id'];
+            $msg = $r['message'];
+            $ts = datetime_to_seconds((string) $r['sent_at']);
             if (!isset($users[$uid])) {
-                $users[$uid] = ['user_id' => $uid, 'nickname' => $nick, 'badges' => 0, 'total' => 0, 'effective' => 0,
-                    'slots' => [], 'first' => $ts, 'last' => $ts, 'lt' => null, 'lm' => null];
+                $users[$uid] = ['nickname' => '', 'badges' => 0, 'total' => 0, 'effective' => 0,
+                    'slots' => [], 'first' => $r['sent_at'], 'last' => $r['sent_at'], 'lt' => null, 'lm' => null];
             }
             $u = &$users[$uid];
-            $u['nickname'] = $nick;
-            $u['badges'] |= (int) $badges;
+            $u['nickname'] = $r['nickname'];
+            $u['badges'] |= (int) $r['badges'];
             $u['total']++;
-            $u['last'] = $ts;
+            $u['last'] = $r['sent_at'];
             $counted = $u['lt'] === null
                 || (($ts - $u['lt']) >= $interval && !($msg === $u['lm'] && ($ts - $u['lt']) < $repeat));
             if ($counted) {
@@ -177,12 +175,8 @@ function activity_ranking(int $bid, array $f, array $rule, string $sort, int $mi
                 $u['lm'] = $msg;
                 $u['slots'][(int) floor($ts / $slotSec)] = true;
             }
-            unset($u);
         }
-        $st->closeCursor();
-    } finally {
-        $pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
-    }
+    );
 
     $q = mb_strtolower($f['q']);
     $sumTotal = 0;
@@ -210,8 +204,8 @@ function activity_ranking(int $bid, array $f, array $rule, string $sort, int $mi
             'total'     => $u['total'],
             'effective' => $u['effective'],
             'slots'     => count($u['slots']),
-            'first_at'  => date('Y-m-d H:i:s', (int) $u['first']),
-            'last_at'   => date('Y-m-d H:i:s', (int) $u['last']),
+            'first_at'  => substr((string) $u['first'], 0, 19),
+            'last_at'   => substr((string) $u['last'], 0, 19),
         ];
     }
     usort($rows, match ($sort) {
@@ -225,6 +219,20 @@ function activity_ranking(int $bid, array $f, array $rule, string $sort, int $mi
         $rows = array_slice($rows, $offset, $limit);
     }
     return ['rows' => $rows, 'total' => $total, 'sum_total' => $sumTotal, 'sum_effective' => $sumEffective];
+}
+
+/** '2026-09-30 18:00:01.250' → 초 단위 숫자 (같은 분은 계산 결과를 재사용해 빠르게 처리) */
+function datetime_to_seconds(string $value): float
+{
+    static $minutes = [];
+    $minute = substr($value, 0, 16);
+    if (!isset($minutes[$minute])) {
+        if (count($minutes) > 5000) {
+            $minutes = [];
+        }
+        $minutes[$minute] = (int) strtotime($minute . ':00');
+    }
+    return $minutes[$minute] + (float) substr($value, 17);
 }
 
 function activity_rule_from_request(): array

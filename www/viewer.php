@@ -15,9 +15,13 @@ if ($user === '') {
 }
 
 $chatInfo = db_one(
-    'SELECT COUNT(*) AS cnt, MIN(sent_at) AS first_at, MAX(sent_at) AS last_at, BIT_OR(badges) AS badges FROM chat_messages WHERE broadcast_id = ? AND user_id = ?',
+    'SELECT COUNT(*) AS cnt, MIN(sent_at) AS first_at, MAX(sent_at) AS last_at FROM chat_messages WHERE broadcast_id = ? AND user_id = ?',
     [$id, $user]
 );
+$chatInfo['badges'] = 0;
+foreach (db_all('SELECT DISTINCT badges FROM chat_messages WHERE broadcast_id = ? AND user_id = ?', [$id, $user]) as $r) {
+    $chatInfo['badges'] |= (int) $r['badges'];
+}
 $nicknames = array_column(db_all(
     'SELECT nickname FROM (SELECT nickname, MAX(sent_at) AS t FROM chat_messages WHERE broadcast_id = ? AND user_id = ? GROUP BY nickname
       UNION ALL SELECT nickname, MAX(sent_at) AS t FROM donations WHERE broadcast_id = ? AND user_id = ? GROUP BY nickname) x

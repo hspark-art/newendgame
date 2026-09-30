@@ -1,0 +1,4 @@
+# Windows 용 파일은 줄바꿈(CRLF)·인코딩을 그대로 보존
+*.bat -text
+*.ps1 -text
+desktop/package/*.txt -text

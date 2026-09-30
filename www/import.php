@@ -48,7 +48,7 @@ function register_import_collector(string $collectorId, int $broadcastId, array 
     }
     $known[$collectorId] = true;
     db_exec(
-        "INSERT IGNORE INTO collectors (id, broadcast_id, admin_id, label, status, status_message, started_at, last_seen_at) VALUES (?, ?, ?, ?, 'imported', '백업 업로드', ?, ?)",
+        db_insert_ignore() . " INTO collectors (id, broadcast_id, admin_id, label, status, status_message, started_at, last_seen_at) VALUES (?, ?, ?, ?, 'imported', '백업 업로드', ?, ?)",
         [$collectorId, $broadcastId, current_admin()['id'] ?? null, $label, now(), now()]
     );
 }
@@ -97,8 +97,9 @@ if (is_post()) {
         $line = $first;
         $header = json_decode(trim($line), true);
         if (is_array($header) && ($header['format'] ?? '') === 'endgame-backup') {
-            if ((int) ($header['broadcast_id'] ?? 0) !== $id) {
-                $error = '이 백업 파일은 다른 방송 회차(번호 ' . (int) ($header['broadcast_id'] ?? 0) . ')의 것입니다. 해당 회차의 [백업 업로드]에서 올려주세요.';
+            if ((int) ($header['broadcast_id'] ?? 0) !== $id && !isset($_POST['allow_other'])) {
+                $error = '이 백업 파일은 다른 방송 회차(번호 ' . (int) ($header['broadcast_id'] ?? 0) . ')의 것입니다. '
+                    . '다른 PC 에서 수집한 파일이 맞다면 [다른 PC·회차의 백업 파일도 이 회차로 올리기]를 체크하고 다시 올려주세요.';
             }
             $line = $readLine();
         }
@@ -188,6 +189,7 @@ page_header('백업 업로드 · ' . $b['title'], ['menu' => 'broadcasts', 'broa
     <?= csrf_field() ?>
     <input type="hidden" name="id" value="<?= $id ?>">
     <label>파일 <input type="file" name="file" required accept=".jsonl,.gz,.csv,.txt,.tsv"></label>
+    <label class="check"><input type="checkbox" name="allow_other" value="1"> 다른 PC·회차의 백업 파일도 이 회차로 올리기 <span class="muted small">(다른 PC 에서 같은 방송을 수집한 파일을 합칠 때)</span></label>
     <button class="btn primary">업로드</button>
   </form>
   <p class="muted small">서버 업로드 한도: 파일 <?= h(ini_get('upload_max_filesize')) ?> / 요청 <?= h(ini_get('post_max_size')) ?></p>
@@ -200,6 +202,7 @@ page_header('백업 업로드 · ' . $b['title'], ['menu' => 'broadcasts', 'broa
     <li><strong>채팅 CSV</strong>: 첫 줄에 <code>시간, 아이디, 닉네임, 내용</code> 제목이 있는 파일(엑셀 저장 CSV 가능). 제목 줄이 없으면 이 순서로 읽습니다.
       시간은 <code>2026-10-01 20:15:03</code> 또는 <code>20:15:03</code>(방송일 기준) 형식을 씁니다. CSV 는 채팅만 올릴 수 있습니다.</li>
     <li>이미 저장된 기록은 자동으로 건너뛰므로 같은 파일을 다시 올려도 중복 저장되지 않습니다.</li>
+    <li>다른 PC 에서 같은 방송을 수집했다면, 그 PC 의 백업 파일을 올려 합칠 수 있습니다. 양쪽에 모두 있는 채팅·후원은 한 번만 저장됩니다.</li>
   </ul>
 </div>
 <?php

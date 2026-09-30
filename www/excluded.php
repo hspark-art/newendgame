@@ -15,11 +15,13 @@ if (is_post()) {
         if ($userId === '') {
             flash('error', 'SOOP 아이디를 입력해 주세요.');
         } else {
-            db_exec(
-                'INSERT INTO excluded_users (user_id, nickname, reason, created_by, created_at) VALUES (?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE nickname = VALUES(nickname), reason = VALUES(reason)',
-                [$userId, input_str('nickname', '', 100), input_str('reason', '', 200), $admin['id'], now()]
-            );
+            db_upsert('excluded_users', [
+                'user_id'    => $userId,
+                'nickname'   => input_str('nickname', '', 100),
+                'reason'     => input_str('reason', '', 200),
+                'created_by' => $admin['id'],
+                'created_at' => now(),
+            ], ['user_id'], ['nickname' => '{new.nickname}', 'reason' => '{new.reason}']);
             audit('excluded_add', $userId, input_str('reason', '', 200));
             flash('success', "{$userId} 를 제외 명단에 추가했습니다.");
         }

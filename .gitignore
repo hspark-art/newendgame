@@ -4,3 +4,7 @@ www/app/storage/
 node_modules/
 .DS_Store
 Thumbs.db
+# 배포 파일(빌드 결과)과 PC 버전 자료 폴더
+dist/
+data/
+php/

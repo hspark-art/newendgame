@@ -8,7 +8,7 @@ require __DIR__ . '/app/bootstrap.php';
 
 $checks = [
     ['PHP 8.1 이상', version_compare(PHP_VERSION, '8.1.0', '>='), 'PHP ' . PHP_VERSION],
-    ['PDO MySQL', extension_loaded('pdo_mysql'), ''],
+    db_driver() === 'sqlite' ? ['PDO SQLite (PC 버전 저장소)', extension_loaded('pdo_sqlite'), ''] : ['PDO MySQL', extension_loaded('pdo_mysql'), ''],
     ['OpenSSL (개인정보 암호화)', extension_loaded('openssl'), ''],
     ['mbstring (한글 처리)', extension_loaded('mbstring'), ''],
     ['cURL (SOOP 방송 정보 조회)', extension_loaded('curl') || ini_get('allow_url_fopen'), extension_loaded('curl') ? '' : 'cURL 없음 → allow_url_fopen 사용'],
@@ -50,7 +50,7 @@ if ($step === 'admin' && is_post()) {
         );
         attempt_login($username, $password);
         audit('install', $username, '첫 관리자 계정 생성');
-        flash('success', '설치가 완료되었습니다. 보안을 위해 서버에서 install.php 파일을 삭제해 주세요.');
+        flash('success', is_desktop() ? '준비가 끝났습니다. [+ 새 회차 등록]으로 시작하세요.' : '설치가 완료되었습니다. 보안을 위해 서버에서 install.php 파일을 삭제해 주세요.');
         redirect('index.php');
     }
 }
@@ -91,7 +91,8 @@ page_header('설치', ['bare' => true]);
     </div>
   <?php elseif ($step === 'admin'): ?>
     <div class="card">
-      <h2>2단계 · 첫 관리자 계정 만들기</h2>
+      <h2><?= is_desktop() ? '첫 관리자 계정 만들기' : '2단계 · 첫 관리자 계정 만들기' ?></h2>
+      <?php if (is_desktop()): ?><p class="muted small">이 프로그램에 로그인할 계정입니다. 수령자 개인정보가 저장되므로 비밀번호를 꼭 기억해 두세요.</p><?php endif; ?>
       <?php if ($error): ?><div class="alert alert-error"><?= h($error) ?></div><?php endif; ?>
       <form method="post" class="form">
         <?= csrf_field() ?>
@@ -105,7 +106,7 @@ page_header('설치', ['bare' => true]);
   <?php else: ?>
     <div class="card">
       <h2>설치 완료</h2>
-      <p>이미 설치가 끝났습니다. <strong>보안을 위해 서버에서 install.php 파일을 삭제해 주세요.</strong></p>
+      <p>이미 설치가 끝났습니다.<?php if (!is_desktop()): ?> <strong>보안을 위해 서버에서 install.php 파일을 삭제해 주세요.</strong><?php endif; ?></p>
       <p><a class="btn primary" href="login.php">로그인하러 가기</a></p>
     </div>
   <?php endif; ?>
