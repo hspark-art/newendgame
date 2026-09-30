@@ -16,6 +16,9 @@ const XLSX_MAX_UNPACKED = 80 * 1024 * 1024;   // 풀었을 때 합계
  */
 function xlsx_tables(string $bytes, array $tabs): array
 {
+    if (!class_exists('ZipArchive')) {
+        throw new ProviderError('이 PHP에 zip 확장이 없어 xlsx 파일을 읽을 수 없습니다. (php.ini의 extension=zip 확인)');
+    }
     if (strlen($bytes) > XLSX_MAX_BYTES) {
         throw new ProviderError('파일이 너무 큽니다 (최대 10MB).');
     }

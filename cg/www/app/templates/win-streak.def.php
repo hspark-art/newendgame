@@ -36,10 +36,12 @@ return [
     'verify' => static function (array $p, array $ds): array {
         $race = $p['race'] === '' ? null : $p['race'];
         $all = stats_win_streaks($ds['matches'], $ds['players'], $race, PHP_INT_MAX);
-        $issues = verify_population($ds, 'matches', players_of_race($ds['players'], $race), row_keys(['rank'], $p['count']));
+        $rows = row_keys(['rank', 'name', 'nick', 'streak', 'start', 'end'], $p['count']);
+        $issues = array_merge(verify_population($ds, 'matches', players_of_race($ds['players'], $race), $rows),
+            verify_race_known($ds, $race, $rows));
         foreach (array_slice($all, 0, $p['count']) as $i => $r) {
             $n = $i + 1;
-            $issues = array_merge($issues, verify_matches($ds, $r['player'], ["r$n.streak", "r$n.start", "r$n.end"]));
+            $issues = array_merge($issues, verify_matches($ds, $r['player'], ["r$n.rank", "r$n.name", "r$n.streak", "r$n.start", "r$n.end"]));
         }
         return $issues;
     },

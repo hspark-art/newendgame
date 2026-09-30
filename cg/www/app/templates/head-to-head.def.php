@@ -38,7 +38,8 @@ return [
         return $auto;
     },
     'verify' => static function (array $p, array $ds): array {
-        $fields = array_merge(['a.mw', 'b.mw'], row_keys(['date', 'sa', 'sb']));
+        // 제목("… 번째 맞대결")은 지난 대결 수로 정해지므로 함께 막는다
+        $fields = array_merge(['title', 'a.mw', 'b.mw'], row_keys(['date', 'sa', 'sb']));
         return array_merge(verify_matches($ds, $p['a']['player'], $fields), verify_matches($ds, $p['b']['player'], $fields));
     },
     'summary' => static fn(array $p, array $ctx): string => sprintf('%s vs %s · %d경기',

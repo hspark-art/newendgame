@@ -203,6 +203,7 @@ function stats_win_streaks(array $matches, array $players, ?string $race, int $l
     }
     $rows = [];
     foreach ($hist as $p => $list) {
+        $p = (string)$p; // 숫자로만 된 이름도 문자열로
         $best = null;
         $cur = 0;
         $start = null;

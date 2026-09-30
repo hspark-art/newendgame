@@ -39,10 +39,10 @@ return [
     },
     'verify' => static function (array $p, array $ds): array {
         $ranking = stats_prediction_ranking($ds['predictions'], $p['year']);
-        $issues = verify_population($ds, 'predictions', array_column($ranking, 'predictor'), row_keys(['rank']));
+        $issues = verify_population($ds, 'predictions', array_column($ranking, 'predictor'), row_keys(['rank', 'name', 'wins', 'losses']));
         foreach (array_slice($p['seats'] ?: array_column($ranking, 'predictor'), 0, 5) as $i => $id) {
             $n = $i + 1;
-            $issues = array_merge($issues, verify_predictor($ds, $id, ["r$n.wins", "r$n.losses"]));
+            $issues = array_merge($issues, verify_predictor($ds, (string)$id, ["r$n.rank", "r$n.name", "r$n.wins", "r$n.losses"]));
         }
         return $issues;
     },

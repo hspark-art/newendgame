@@ -468,10 +468,11 @@ function data_refresh(array $op, ?array $dataset = null): array
 function data_apply(array $ds, array $op, bool $fetched): array
 {
     $now = now();
+    $raw = $ds; // 캐시에는 닉네임을 합치기 전 원본을 둔다 (닉네임을 지우면 원래 값으로 돌아가게)
     $ds = dataset_with_player_info($ds);
-    return db_tx(function () use ($ds, $now, $op, $fetched) {
+    return db_tx(function () use ($ds, $raw, $now, $op, $fetched) {
         if ($fetched) {
-            dataset_cache_put($ds, $now);
+            dataset_cache_put($raw, $now);
             setting_set('data_check', json_enc(data_check_summary($ds, $now)));
         }
         $players = [];

@@ -257,3 +257,75 @@ test('sheet: 온라인·더블 찬스는 자동값 없음 → 직접 입력 전 
     assert_true((bool)$st['problems']);
     assert_same(false, panel_state(op())['source']['id'] === 'mock');
 });
+
+test('검토 반영: 표시되는 칸(제목·이름)까지 막음, 예측 탭 오류 시 자리 순서 행 차단', function () {
+    setup_sheet();
+    // 맞대결: 다선수(이상 경기 있음)와의 맞대결은 행·승수를 입력해도 제목(몇 번째)까지 확인해야 송출
+    $st = type_state('head-to-head', ['a' => ['player' => '가선수'], 'b' => ['player' => '다선수']]);
+    $iid = channel_get('preview')['instance_id'];
+    preview_save($iid, ['a.mw' => '1', 'b.mw' => '0', 'r1.date' => '2024-02-03', 'r1.sa' => '7', 'r1.sb' => '2'], op());
+    assert_throws(ActionError::class, fn() => take_now(), 'NOT_SENDABLE');
+    assert_true(str_contains(implode(' ', panel_state(op())['preview']['problems']), '제목'));
+    preview_save($iid, ['title' => '가선수 vs 다선수 끝장전 두 번째 맞대결'], op());
+    take_now();
+    // 예측: 자리 순서 페이지를 만든 뒤 예측 탭이 깨지면 이름·기록 행 전체가 막힌다
+    $r = page_add(['template' => 'prediction-ranking', 'params' => ['year' => '2026', 'seats' => ['이해설', '김중계']]], op());
+    data_refresh(op(), sheet_dataset(fx_tables(function (array &$t) {
+        $t['predictions'][4][8] = '보류';
+    }), 'api'));
+    cue_page($r['page_no']);
+    $p = implode(' ', panel_state(op())['preview']['problems']);
+    assert_true(str_contains($p, '승자 예측을 시트 순위표와 대조할 수 없습니다') && str_contains($p, '1행 이름'), $p);
+    assert_throws(ActionError::class, fn() => take_now(), 'NOT_SENDABLE');
+});
+
+test('검토 반영: 시트 집계에만 있는 선수·종족 열 불일치·주 종족 미정·숫자 이름', function () {
+    // Players 탭에만 있는 마선수 → 불일치 + 다승 순위 전체 행 차단
+    $ds = setup_sheet(function (array &$t) {
+        $t['players'][] = [9, '마선수', 'T', 30, 1, 'x', 10, 0, 'x', 10, 1, 'x', 10, 0, 'x'];
+        foreach ($t['matches'] as &$row) {
+            if (($row[2] ?? '') === '나선수' && ($row[0] ?? '') === '2024-03-02') {
+                $row[5] = 'P'; // 상대(다선수) 종족을 틀리게
+            }
+        }
+    });
+    $who = array_map(fn($m) => $m['kind'] . ':' . $m['who'], $ds['check']['mismatches']);
+    assert_same(['sets:마선수', 'matches:나선수'], $who);
+    $st = type_state('win-ranking', ['race' => '', 'count' => '2']);
+    assert_true(str_contains(implode(' ', $st['problems']), '시트 집계에만 있는 마선수'));
+    assert_true(str_contains(implode(' ', $st['problems']), '1행 이름'), '이름까지 막음');
+    // 주 종족을 정하지 못한 선수가 있으면 종족별 순위 확인 불가
+    $ds2 = sheet_dataset(fx_tables(), 'api');
+    $ds2['players']['라선수']['race'] = null;
+    assert_same(1, count(verify_race_known($ds2, 'T', ['r1.rank'])));
+    assert_same([], verify_race_known($ds2, null, ['r1.rank']), '전체 종족 순위는 해당 없음');
+    // 숫자로만 된 이름: 새로고침·연승 CG가 오류 없이 동작
+    $num = static function (array &$t) {
+        array_walk_recursive($t, function (&$v) {
+            if (is_string($v)) {
+                $v = str_replace('다선수', '1004', $v); // 연승 기록이 있는 선수
+            }
+        });
+    };
+    setup_sheet($num);
+    $st = type_state('win-streak', ['race' => '', 'count' => '4']);
+    $iid = channel_get('preview')['instance_id'];
+    assert_true(in_array('1004', array_column(instance_get($iid)['auto'] ? [instance_get($iid)['auto']] : [], 'r1.name'), true)
+        || in_array('1004', array_values(instance_get($iid)['auto']), true), '숫자 이름 선수가 연승 목록에 나옴');
+    data_refresh(op(), sheet_dataset(fx_tables($num), 'api'));
+    assert_same('OK', source_status()['status']);
+});
+
+test('검토 반영: 닉네임을 지우면 새로고침 뒤에도 사라짐, 마이그레이션 2는 다시 실행해도 안전', function () {
+    setup_sheet();
+    player_info_save(['player' => '가선수', 'nickname' => 'Ga'], op());
+    data_refresh(op(), sheet_dataset(fx_tables(), 'api'));
+    player_info_save(['player' => '가선수', 'nickname' => ''], op());
+    assert_same(null, dataset_or_null()['players']['가선수']['nickname']);
+    $st = type_state('win-ranking', ['race' => '', 'count' => '1']);
+    assert_same('', $st['view']['rows'][0]['nick']);
+    foreach (migrations()[2] as $step) {
+        $step instanceof Closure ? $step() : db()->exec(ddl($step));
+    }
+    assert_same(1, (int)db_value("SELECT COUNT(*) FROM cg_sources WHERE id = 'sheet'"));
+});

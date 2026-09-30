@@ -198,12 +198,14 @@ $op = guard_control();
         <h4>서비스 계정 키</h4>
         <p class="hint">시트는 공개하지 말고, 아래 서비스 계정 이메일에 "뷰어" 권한으로만 공유하세요. 키 파일은 이 프로그램의 비밀 폴더에만 저장되고 화면에 다시 표시되지 않습니다.</p>
         <p>등록된 키: <b id="dsKeyEmail">없음</b></p>
+        <p class="notice err" id="dsKeyPublic" hidden>키 보관 폴더가 웹 폴더 안에 있습니다. Apache의 .htaccess로만 막혀 있으니, app/config.php의 secrets_dir에 웹 폴더 밖 경로를 지정하세요.</p>
         <div class="dlg-btns left"><label class="btn">키 파일(JSON) 등록<input type="file" id="dsKeyFile" accept=".json,application/json" hidden></label>
           <button type="button" id="dsKeyRemove" class="btn">키 삭제</button></div>
         <h4>파일로 가져오기 (예비)</h4>
         <p class="hint">시트에 연결할 수 없을 때: Google 시트에서 "파일 → 다운로드 → Microsoft Excel(.xlsx)"로 받은 파일을 가져옵니다. 검증은 같은 방식으로 합니다.</p>
         <div class="dlg-btns left"><label class="btn">xlsx 파일 가져오기<input type="file" id="dsXlsx" accept=".xlsx" hidden></label></div>
         <p class="hint" id="dsOpenssl" hidden>이 PHP에 openssl 확장이 없어 시트에 직접 연결할 수 없습니다. xlsx 가져오기를 쓰세요.</p>
+        <p class="hint" id="dsZip" hidden>이 PHP에 zip 확장이 없어 xlsx 파일을 읽을 수 없습니다.</p>
       </div>
     </section>
     <div class="dlg-btns"><button value="close" class="btn">닫기</button></div>

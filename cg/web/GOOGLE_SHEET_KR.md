@@ -42,7 +42,10 @@
 
 키 파일 보관 위치:
 - PC: `%LOCALAPPDATA%\EndgameCG\secrets\`
-- 웹: `app/storage/secrets/`. 웹에서 직접 열 수 없게 막혀 있습니다. 가능하면 `app/config.php`의 `secrets_dir`에 웹 폴더 밖 경로를 지정하세요.
+- 웹: `app/storage/secrets/`. Apache의 `.htaccess`로 막혀 있습니다.
+  - 가능하면 `app/config.php`의 `secrets_dir`에 웹 폴더 밖 경로를 지정하세요.
+  - **Apache가 아닌 서버(nginx 등)는 `.htaccess`가 동작하지 않습니다.** 반드시 웹 폴더 밖으로 지정하세요.
+  - 키 폴더가 웹 폴더 안이면 데이터 설정 화면에 경고가 나옵니다.
 
 ## 4. 점검 화면 읽는 법
 [데이터 점검·설정 → 점검] 탭에서 확인합니다.

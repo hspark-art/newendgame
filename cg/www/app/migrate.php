@@ -81,14 +81,23 @@ function migrations(): array
             },
         ],
         // v0.3.0: Google 시트 연결 — 마지막 정상 데이터 보관, CG별 검증 사유, 선수 부가 정보(닉네임)
+        // MySQL은 DDL이 바로 커밋되므로, 중간에 실패해도 다시 실행할 수 있게 만든다
         2 => [
-            'CREATE TABLE cg_dataset_cache (source VARCHAR(30) NOT NULL PRIMARY KEY, fetched_at VARCHAR(19) NOT NULL,
+            'CREATE TABLE IF NOT EXISTS cg_dataset_cache (source VARCHAR(30) NOT NULL PRIMARY KEY, fetched_at VARCHAR(19) NOT NULL,
                 sha256 CHAR(64) NOT NULL, body {bigtext} NOT NULL) {opts}',
-            'ALTER TABLE cg_instances ADD COLUMN issues_json TEXT NULL',
-            'CREATE TABLE cg_player_info (player VARCHAR(40) NOT NULL PRIMARY KEY, nickname VARCHAR(20) NOT NULL,
+            static function (): void {
+                try {
+                    db_value('SELECT issues_json FROM cg_instances WHERE 1 = 0');
+                } catch (PDOException) {
+                    db()->exec('ALTER TABLE cg_instances ADD COLUMN issues_json TEXT NULL');
+                }
+            },
+            'CREATE TABLE IF NOT EXISTS cg_player_info (player VARCHAR(40) NOT NULL PRIMARY KEY, nickname VARCHAR(20) NOT NULL,
                 updated_at VARCHAR(19) NOT NULL) {opts}',
             static function (): void {
-                db_exec("INSERT INTO cg_sources (id, label, status) VALUES ('sheet', 'Google 시트', 'NEVER')");
+                if (db_value("SELECT COUNT(*) FROM cg_sources WHERE id = 'sheet'") == 0) {
+                    db_exec("INSERT INTO cg_sources (id, label, status) VALUES ('sheet', 'Google 시트', 'NEVER')");
+                }
             },
         ],
     ];

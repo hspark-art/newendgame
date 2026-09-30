@@ -614,6 +614,8 @@
       .forEach(function (x) { $(x[0]).value = (r.tabs || {})[x[1]] || ''; });
     $('dsKeyEmail').textContent = r.key_email || '없음';
     $('dsOpenssl').hidden = r.openssl;
+    $('dsZip').hidden = r.zip;
+    $('dsKeyPublic').hidden = !r.key_dir_public;
   }
 
   function saveSettings() {
@@ -624,13 +626,19 @@
     }).then(function (r) { renderSettings(r); toast('데이터 설정을 저장했습니다. [데이터 새로고침]으로 반영하세요.', 'ok'); });
   }
 
-  function readFile(input, asDataUrl) {
+  /** 파일 읽기. 파일이 없거나 너무 크거나 읽지 못하면 안내하고 끝낸다 (이어지는 동작은 실행되지 않음) */
+  function readFile(input, asDataUrl, maxBytes) {
     return new Promise(function (resolve) {
       var f = input.files[0];
       input.value = '';
       if (!f) { return; }
+      if (maxBytes && f.size > maxBytes) {
+        toast('파일이 너무 큽니다 (최대 ' + Math.round(maxBytes / 1048576) + 'MB).', 'err');
+        return;
+      }
       var reader = new FileReader();
       reader.onload = function () { resolve(reader.result); };
+      reader.onerror = function () { toast('파일을 읽지 못했습니다.', 'err'); };
       if (asDataUrl) { reader.readAsDataURL(f); } else { reader.readAsText(f); }
     });
   }
@@ -685,6 +693,12 @@
     Array.prototype.forEach.call(document.querySelectorAll('#dlgData .tab'), function (b) {
       b.onclick = function () { dataTab(b.getAttribute('data-tab')); };
     });
+    // 데이터 창의 입력칸에서 Enter: 창이 닫히지 않게 막고, 닉네임 칸이면 그 줄을 저장한다
+    $('dlgData').addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' || e.target.tagName !== 'INPUT' || e.isComposing) { return; }
+      e.preventDefault();
+      if (e.target.classList.contains('nick')) { e.target.closest('tr').querySelector('[data-act="nick"]').click(); }
+    });
     $('piBody').addEventListener('click', function (e) {
       if (e.target.getAttribute('data-act') !== 'nick') { return; }
       var tr = e.target.closest('tr');
@@ -699,7 +713,7 @@
       });
     };
     $('dsKeyFile').onchange = function () {
-      readFile(this, false).then(function (text) {
+      readFile(this, false, 65536).then(function (text) {
         api('data_key_save', { key: text }).then(function (r) {
           $('dsKeyEmail').textContent = r.client_email;
           toast('서비스 계정 키를 등록했습니다. 시트를 ' + r.client_email + ' 에 "뷰어"로 공유하세요.', 'ok');
@@ -711,7 +725,7 @@
         .then(function (ok) { if (ok) { api('data_key_remove').then(function () { $('dsKeyEmail').textContent = '없음'; }); } });
     };
     $('dsXlsx').onchange = function () {
-      readFile(this, true).then(function (url) {
+      readFile(this, true, 10 * 1048576).then(function (url) {
         toast('파일을 읽는 중…');
         api('data_import_xlsx', { file: String(url).replace(/^data:[^,]*,/, '') }).then(function (r) {
           toast('xlsx를 가져왔습니다. 자동값 변경 ' + r.changed + '건', 'ok');

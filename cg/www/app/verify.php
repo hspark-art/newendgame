@@ -80,14 +80,18 @@ function verify_predictor(array $ds, string $id, array $fields): array
 }
 
 /**
- * 순위형 CG: 순위는 후보 전체로 정해지므로 후보 중 하나라도 확실하지 않으면 순위 칸을 막는다.
+ * 순위형 CG: 순위는 후보 전체로 정해지므로 후보 중 하나라도 확실하지 않으면 행 전체(순위·이름·기록)를 막는다.
+ * 시트 집계에만 있는 선수(Results에 기록 없음)가 있어도 모집단이 확실하지 않은 것으로 본다.
  * @param string $kind sets | matches | predictions
  */
 function verify_population(array $ds, string $kind, array $ids, array $fields): array
 {
     $v = $ds['verify'] ?? null;
-    if ($v === null || !$ids) {
+    if ($v === null) {
         return [];
+    }
+    if (!$v[$kind]['available']) {
+        return [verify_issue($fields, '순위를 시트 집계와 대조할 수 없습니다')];
     }
     $bad = [];
     foreach ($ids as $id) {
@@ -97,15 +101,28 @@ function verify_population(array $ds, string $kind, array $ids, array $fields): 
             'predictions' => ($v['predictions']['predictors'][$id] ?? false) === true,
         };
         if (!$ok) {
-            $bad[] = $id;
+            $bad[] = (string)$id;
         }
     }
-    $available = $v[$kind]['available'];
-    if ($available && !$bad) {
+    $extra = $v[$kind]['extra'] ?? [];
+    $names = static fn(array $l) => implode(', ', array_slice($l, 0, 3)) . (count($l) > 3 ? ' 외 ' . (count($l) - 3) . '명' : '');
+    $issues = [];
+    if ($bad) {
+        $issues[] = verify_issue($fields, '순위 확인 불가: ' . $names($bad) . '의 기록이 시트 집계와 다릅니다');
+    }
+    if ($extra) {
+        $issues[] = verify_issue($fields, '순위 확인 불가: 시트 집계에만 있는 ' . $names($extra) . ' (Results에 기록 없음)');
+    }
+    return $issues;
+}
+
+/** 종족별 순위: 주 종족을 정하지 못한 선수가 있으면 그 종족 순위 모집단이 확실하지 않다 */
+function verify_race_known(array $ds, ?string $race, array $fields): array
+{
+    if (($ds['verify'] ?? null) === null || $race === null) {
         return [];
     }
-    return [verify_issue($fields, $available
-        ? '순위 확인 불가: ' . implode(', ', array_slice($bad, 0, 3)) . (count($bad) > 3 ? ' 외 ' . (count($bad) - 3) . '명' : '')
-            . '의 기록이 시트 집계와 다릅니다'
-        : '순위를 시트 집계와 대조할 수 없습니다')];
+    $unknown = array_map('strval', array_keys(array_filter($ds['players'], static fn($p) => ($p['race'] ?? null) === null)));
+    return $unknown ? [verify_issue($fields, '주 종족을 정하지 못한 선수가 있어 종족별 순위를 확인할 수 없습니다: '
+        . implode(', ', array_slice($unknown, 0, 3)))] : [];
 }

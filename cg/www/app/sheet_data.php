@@ -135,6 +135,7 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
     $sheetPlayers = isset($tables['players']) ? sheet_players_table($tables['players']) : null;
     $players = [];
     foreach ($setRecords as $pid => $rec) {
+        $pid = (string)$pid; // 숫자로만 된 이름도 문자열로
         $race = $sheetPlayers['rows'][$pid]['race'] ?? null;
         if (!in_array($race, RACES, true)) {
             arsort($rec['used']);
@@ -153,6 +154,7 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
     } else {
         $verify['sets']['available'] = true;
         foreach ($setRecords as $pid => $rec) {
+            $pid = (string)$pid;
             $row = $sheetPlayers['rows'][$pid] ?? null;
             foreach (['all', 'P', 'T', 'Z'] as $k) {
                 $calc = $rec[$k];
@@ -166,6 +168,17 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
                 }
             }
         }
+        // 시트 집계에만 있는 선수 (Results에 기록 없음) — 순위 모집단이 확실하지 않다
+        $verify['sets']['extra'] = [];
+        foreach ($sheetPlayers['rows'] as $pid => $row) {
+            $pid = (string)$pid;
+            if (isset($setRecords[$pid]) || ($row['all'] !== null && $row['all'][0] + $row['all'][1] === 0)) {
+                continue;
+            }
+            $verify['sets']['extra'][] = $pid;
+            $check['mismatches'][] = ['kind' => 'sets', 'who' => $pid, 'item' => '세트 전적',
+                'sheet' => $row['all'] === null ? '읽을 수 없음' : "{$row['all'][0]}승 {$row['all'][1]}패", 'calc' => 'Results에 기록 없음'];
+        }
     }
 
     // 검증 2: 선수별 끝장전 목록 (상대전적조회NEW 탭) + 이상 사례가 있는 선수
@@ -176,8 +189,8 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         $verify['matches']['available'] = true;
         $calcLists = [];
         foreach ($matches as $m) {
-            $calcLists[$m['playerA']][] = [$m['date'], $m['playerB'], $m['scoreA'], $m['scoreB']];
-            $calcLists[$m['playerB']][] = [$m['date'], $m['playerA'], $m['scoreB'], $m['scoreA']];
+            $calcLists[$m['playerA']][] = [$m['date'], $m['playerB'], $m['scoreA'], $m['scoreB'], (string)$m['raceA'], (string)$m['raceB']];
+            $calcLists[$m['playerB']][] = [$m['date'], $m['playerA'], $m['scoreB'], $m['scoreA'], (string)$m['raceB'], (string)$m['raceA']];
         }
         $withAnomaly = [];
         foreach ($matches as $m) {
@@ -186,11 +199,21 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
             }
         }
         foreach ($calcLists as $pid => $list) {
+            $pid = (string)$pid;
             $sheetList = $sheetMatches['rows'][$pid] ?? [];
             $diff = sheet_list_diff($list, $sheetList);
             $verify['matches']['players'][$pid] = $diff === null && !isset($withAnomaly[$pid]);
             if ($diff !== null) {
                 $check['mismatches'][] = ['kind' => 'matches', 'who' => $pid, 'item' => '끝장전 목록'] + $diff;
+            }
+        }
+        $verify['matches']['extra'] = [];
+        foreach ($sheetMatches['rows'] as $pid => $list) {
+            $pid = (string)$pid;
+            if (!isset($calcLists[$pid])) {
+                $verify['matches']['extra'][] = $pid;
+                $check['mismatches'][] = ['kind' => 'matches', 'who' => $pid, 'item' => '끝장전 목록',
+                    'sheet' => count($list) . '경기', 'calc' => 'Results에 기록 없음'];
             }
         }
     }
@@ -204,7 +227,7 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
     } else {
         $predictions = $pred['records'];
         foreach ($predictions as $r) {
-            $predictors[$r['predictor']] = ['id' => $r['predictor'], 'name' => $r['predictor']];
+            $predictors[$r['predictor']] = ['id' => (string)$r['predictor'], 'name' => (string)$r['predictor']];
         }
         if ($pred['ranking'] === null) {
             $check['unavailable'][] = '승자 예측 검증 불가: 순위표를 찾을 수 없음';
@@ -217,12 +240,22 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
                 $r['correct'] && $calc[$r['predictor']][1]++;
             }
             foreach ($calc as $id => [$total, $wins]) {
+                $id = (string)$id;
                 $s = $pred['ranking'][$id] ?? null;
                 $ok = $s !== null && $s === [$total, $wins];
                 $verify['predictions']['predictors'][$id] = $ok;
                 if (!$ok) {
                     $check['mismatches'][] = ['kind' => 'predictions', 'who' => $id, 'item' => '예측 전체·적중',
                         'sheet' => $s === null ? '순위표에 없음' : "{$s[0]}회 중 {$s[1]}회", 'calc' => "{$total}회 중 {$wins}회"];
+                }
+            }
+            $verify['predictions']['extra'] = [];
+            foreach ($pred['ranking'] as $id => [$total, $wins]) {
+                $id = (string)$id;
+                if (!isset($calc[$id]) && $total > 0) {
+                    $verify['predictions']['extra'][] = $id;
+                    $check['mismatches'][] = ['kind' => 'predictions', 'who' => $id, 'item' => '예측 전체·적중',
+                        'sheet' => "{$total}회 중 {$wins}회", 'calc' => '예측 기록 없음'];
                 }
             }
         }
@@ -421,7 +454,7 @@ function sheet_players_table(array $rows): array
 /**
  * 상대전적조회NEW 탭: 출전 날짜, 요일, 출전 선수, 종족, 상대 선수, 종족, 승(세트), 패(세트) …
  * 선수별 묶음 머리행("▶ 김명운 (Z종족)")처럼 날짜가 아닌 행은 건너뛴다.
- * @return array{error:?string, rows:array<string, list<array>>} 선수 => [[날짜, 상대, 세트 승, 세트 패], …]
+ * @return array{error:?string, rows:array<string, list<array>>} 선수 => [[날짜, 상대, 세트 승, 세트 패, 내 종족, 상대 종족], …]
  */
 function sheet_match_list_table(array $rows): array
 {
@@ -445,7 +478,7 @@ function sheet_match_list_table(array $rows): array
         if ($p === null || $o === null || $w === null || $l === null) {
             return ['error' => '상대전적조회NEW ' . ($i + 1) . '행을 읽을 수 없음', 'rows' => []];
         }
-        $out[$p][] = [$date, $o, $w, $l];
+        $out[$p][] = [$date, $o, $w, $l, strtoupper(cell_str($r[3] ?? '')), strtoupper(cell_str($r[5] ?? ''))];
     }
     return ['error' => $out ? null : '상대전적조회NEW 탭에 기록이 없음', 'rows' => $out];
 }
@@ -453,7 +486,7 @@ function sheet_match_list_table(array $rows): array
 /** 두 끝장전 목록 비교 (순서 무관). 같으면 null, 다르면 {sheet, calc} 첫 차이 설명 */
 function sheet_list_diff(array $calc, array $sheet): ?array
 {
-    $fmt = static fn(array $x) => sprintf('%s %s %d:%d', ...$x);
+    $fmt = static fn(array $x) => sprintf('%s %s %d:%d (%s/%s)', ...$x);
     $a = array_map($fmt, $calc);
     $b = array_map($fmt, $sheet);
     sort($a, SORT_STRING);

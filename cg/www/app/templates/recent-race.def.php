@@ -28,7 +28,9 @@ return [
         }
         return $auto;
     },
-    'verify' => static fn(array $p, array $ds): array => verify_matches($ds, $p['player'], row_keys(['date', 'a', 'sa', 'sb', 'b'])),
+    // 제목도 포함: 경기가 빠져 행이 줄어든 경우에도 운영자가 확인하기 전에는 송출하지 않는다
+    'verify' => static fn(array $p, array $ds): array => verify_matches($ds, $p['player'],
+        array_merge(['title'], row_keys(['date', 'a', 'sa', 'sb', 'b']))),
     'summary' => static fn(array $p, array $ctx): string => sprintf('%s vs %s · 최근 %d경기',
         pname($ctx['players'], $p['player']), $p['vs'], $p['count']),
     'present' => static function (array $f): array {

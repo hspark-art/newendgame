@@ -33,12 +33,21 @@ function secrets_dir(): string
     if (!is_dir($dir)) {
         @mkdir($dir, 0700, true);
     }
+    @chmod($dir, 0700);
     // 웹 폴더 안에 있을 때를 대비해 접근 차단 파일을 둔다 (Apache, app/.htaccess와 같은 방식)
     if (!is_file("$dir/.htaccess")) {
         @file_put_contents("$dir/.htaccess", "<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n"
             . "<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n");
     }
     return $dir;
+}
+
+/** 웹 버전: 키 폴더가 웹 문서 폴더 안이면 true (Apache .htaccess로만 막힘 → 웹 폴더 밖 secrets_dir 권장) */
+function secrets_in_web_root(): bool
+{
+    $root = realpath((string)($_SERVER['DOCUMENT_ROOT'] ?? ''));
+    $dir = realpath(secrets_dir());
+    return is_web() && $root !== false && $root !== '' && $dir !== false && str_starts_with($dir . '/', rtrim($root, '/') . '/');
 }
 
 function google_key_path(): string
@@ -70,11 +79,17 @@ function google_key_save(string $json, array $op): array
     }
     $path = google_key_path();
     $tmp = $path . '.tmp';
-    if (@file_put_contents($tmp, $json, LOCK_EX) === false) {
-        throw new ActionError('KEY_WRITE', '키 파일을 저장할 수 없습니다. 저장 폴더 권한을 확인하세요.', 500);
+    $old = umask(077); // 처음부터 본인만 읽을 수 있게 만든다
+    try {
+        $ok = @file_put_contents($tmp, $json, LOCK_EX) !== false;
+    } finally {
+        umask($old);
     }
     @chmod($tmp, 0600);
-    rename($tmp, $path);
+    if (!$ok || !@rename($tmp, $path)) {
+        @unlink($tmp);
+        throw new ActionError('KEY_WRITE', '키 파일을 저장할 수 없습니다. 저장 폴더 권한을 확인하세요.', 500);
+    }
     cg_log('data', 'KEY_SET', $op, ['detail' => '서비스 계정 키 등록: ' . $key['client_email']]);
     state_bump();
     return ['client_email' => $key['client_email']];
@@ -178,7 +193,9 @@ function data_settings_view(array $op): array
         'sheet_id' => $admin ? $cfg['id'] : ($cfg['id'] === '' ? '' : '설정됨'),
         'tabs' => $admin ? $cfg['tabs'] : [],
         'key_email' => $key['client_email'] ?? null,
+        'key_dir_public' => $admin && secrets_in_web_root(),
         'openssl' => extension_loaded('openssl'),
+        'zip' => class_exists('ZipArchive'),
     ];
 }
 
