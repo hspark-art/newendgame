@@ -219,5 +219,39 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await panel.screenshot({ path: path.join(OUT, 'panel-types.png') });
   assert(errors.length === 0, '9종 확인 중 브라우저 오류 없음' + (errors.length ? ': ' + errors.join(' | ') : ''));
 
+  // ---- 데이터 점검·설정 창 (XLSX_PATH: 합성 시트 xlsx가 있으면 가져오기까지 확인)
+  await panel.click('#btnData');
+  await panel.waitForSelector('#dlgData[open]');
+  await panel.waitForFunction(() => document.getElementById('dcSummary').textContent.includes('MOCK'));
+  assert(true, '데이터 점검 창: MOCK 데이터 표시');
+  await panel.click('#dlgData .tab[data-tab="players"]');
+  await panel.waitForSelector('#piBody tr[data-player="jang-yunchul"]');
+  await panel.fill('#piBody tr[data-player="jang-yunchul"] .nick', 'SnowFlake');
+  await panel.click('#piBody tr[data-player="jang-yunchul"] [data-act="nick"]');
+  await panel.waitForFunction(() => document.querySelector('#piBody tr[data-player="jang-yunchul"] .nick').value === 'SnowFlake');
+  await panel.click('#dlgData .tab[data-tab="settings"]');
+  await panel.waitForFunction(() => document.getElementById('dsSource').options.length === 2);
+  assert(!(await panel.isDisabled('#dsSave')), '데이터 설정: PC(관리자)는 설정 가능');
+  if (process.env.XLSX_PATH) {
+    await panel.setInputFiles('#dsXlsx', process.env.XLSX_PATH);
+    await panel.waitForFunction(() => document.getElementById('dcSummary').textContent.includes('xlsx 파일'), null, { timeout: 10000 });
+    const sum = await panel.textContent('#dcSummary');
+    assert(sum.includes('세트 40') && sum.includes('끝장전 5') && sum.includes('세트 전적 대조됨'), 'xlsx 가져오기 → 점검: 세트 40 · 끝장전 5 · 대조됨');
+    assert((await panel.textContent('#dcAnomaly')).includes('세트 수 4개'), '이상 경기 목록 표시');
+    await panel.waitForTimeout(600);
+    await panel.screenshot({ path: path.join(OUT, 'panel-data-check.png') });
+    await panel.click('#dlgData button[value="close"]');
+    await panel.waitForFunction(() => document.getElementById('srcStatus').textContent.includes('Google 시트(파일)'));
+    assert(true, '상단 상태: Google 시트(파일) · 정상');
+    // MOCK 선수로 만든 페이지는 송출 차단 안내
+    await panel.keyboard.press('1');
+    await panel.keyboard.press('Enter');
+    await panel.waitForFunction(() => document.getElementById('edNotice').textContent.includes('지금 데이터에 없는 선수'));
+    assert(true, '데이터 소스를 바꾸면 이전 선수 페이지는 송출 차단 안내');
+  } else {
+    await panel.click('#dlgData button[value="close"]');
+  }
+  assert(errors.length === 0, '데이터 창 확인 중 브라우저 오류 없음' + (errors.length ? ': ' + errors.join(' | ') : ''));
+
   await browser.close();
 })().catch((e) => { console.error(e.message || e); process.exit(1); });

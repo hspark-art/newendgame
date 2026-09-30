@@ -745,11 +745,13 @@
         });
       }
     });
-    $('dlgPage').addEventListener('close', function () {
-      // 닫은 뒤 포커스가 "페이지 추가" 버튼에 남으면 번호+Enter 큐가 버튼 클릭이 되므로 풀어 둔다
-      if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
-      if (this.returnValue === 'ok') { submitPage(); }
+    // 창을 닫은 뒤 포커스가 창을 연 버튼에 남으면 번호+Enter 큐가 그 버튼 클릭이 되므로 풀어 둔다
+    Array.prototype.forEach.call(document.querySelectorAll('dialog'), function (d) {
+      d.addEventListener('close', function () {
+        if (!dialogOpen() && document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
+      });
     });
+    $('dlgPage').addEventListener('close', function () { if (this.returnValue === 'ok') { submitPage(); } });
     $('pTemplate').onchange = function () { buildParams(this.value, null); };
     $('pParams').addEventListener('change', function (e) {
       if (e.target.getAttribute('data-type') === 'player') { autoRace(e.target); }

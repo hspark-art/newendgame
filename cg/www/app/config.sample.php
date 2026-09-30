@@ -13,5 +13,7 @@ return [
         // 'path' => __DIR__ . '/storage/cg.sqlite',
     ],
     'session_path' => '',             // 로그아웃이 잦으면 웹 폴더 밖의 쓰기 가능한 폴더 지정
+    'secrets_dir' => '',              // Google 서비스 계정 키 보관 폴더. 가능하면 웹 폴더 밖 (예: /home/아이디/cg_secrets)
+                                      // 비워 두면 app/storage/secrets (웹 접근 차단)
     'debug' => false,                 // true면 오류 내용을 화면에 표시 (점검할 때만)
 ];

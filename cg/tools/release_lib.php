@@ -56,8 +56,9 @@ function release_collect(string $cg, string $kind): array
             }
             $files[$rel] = "$cg/desktop/$rel";
         }
+        $files['GOOGLE_SHEET_KR.md'] = "$cg/web/GOOGLE_SHEET_KR.md";
     } else {
-        foreach (['INSTALL_KR.md', 'PATCHING_KR.md'] as $doc) {
+        foreach (['INSTALL_KR.md', 'PATCHING_KR.md', 'GOOGLE_SHEET_KR.md'] as $doc) {
             $files[$doc] = "$cg/web/$doc";
         }
     }

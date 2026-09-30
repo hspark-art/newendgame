@@ -24,7 +24,7 @@ test('release: PC·웹 zip 구성과 MANIFEST 일치', function () {
     $pcFiles = zip_entries($pc['zip']);
     foreach (['시작.bat', '시작-LAN.bat', '종료.bat', 'PHP준비.bat', 'launcher/start.bat', 'launcher/setup-php.ps1', 'router.php',
         'config.desktop.php', 'runtime/php.ini', 'README_KR.txt', 'www/index.php', 'www/output.php', 'www/app/bootstrap.php',
-        'www/app/data/mock/matches.json', 'VERSION.json', 'MANIFEST.sha256'] as $f) {
+        'www/app/data/mock/matches.json', 'VERSION.json', 'MANIFEST.sha256', 'GOOGLE_SHEET_KR.md', 'www/app/sheets.php'] as $f) {
         assert_true(isset($pcFiles[$f]), "PC zip에 $f");
     }
     foreach (['www/admin.php', 'www/install.php', 'www/app/config.php', 'www/app/config.sample.php', 'www/assets/portal.css'] as $f) {
@@ -33,13 +33,17 @@ test('release: PC·웹 zip 구성과 MANIFEST 일치', function () {
     assert_true(str_contains($pcFiles['시작.bat'], "\r\n"), '.bat은 CRLF 유지');
     $webFiles = zip_entries($web['zip']);
     foreach (['www/install.php', 'www/admin.php', 'www/.htaccess', 'www/app/.htaccess', 'www/app/config.sample.php',
-        'www/app/manifest.sha256', 'INSTALL_KR.md', 'PATCHING_KR.md', 'VERSION.json'] as $f) {
+        'www/app/manifest.sha256', 'INSTALL_KR.md', 'PATCHING_KR.md', 'GOOGLE_SHEET_KR.md', 'VERSION.json'] as $f) {
         assert_true(isset($webFiles[$f]), "웹 zip에 $f");
     }
     foreach (['www/app/config.php', '시작.bat', 'router.php'] as $f) {
         assert_true(!isset($webFiles[$f]), "웹 zip에 없어야 함: $f");
     }
     assert_true(!array_filter(array_keys($webFiles), fn($k) => str_starts_with($k, 'www/app/storage/')), 'storage 제외');
+    foreach ([$pcFiles, $webFiles] as $files) {
+        assert_true(!array_filter(array_keys($files), fn($k) => str_contains($k, 'secrets') || str_ends_with($k, '.xlsx')), '키·시트 파일 없음');
+        assert_true(!array_filter($files, fn($d) => str_contains($d, 'PRIVATE KEY-----')), '개인 키 없음');
+    }
     assert_same('web', json_decode($webFiles['VERSION.json'], true)['package']);
     // 패키지 MANIFEST가 실제 내용과 일치
     foreach ([$pcFiles, $webFiles] as $files) {

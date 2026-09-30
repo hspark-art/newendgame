@@ -44,12 +44,12 @@ CLAUDE.md → 아래 진행 기록 → 현재 단계 관련 문서·코드만 �
 
 | 항목 | 현재 기록 |
 |---|---|
-| 현재 단계 | PHASE 7 완료 — v0.2.0 (CG 9종, MOCK). PC zip·웹 zip·패치 zip(0.1.1→0.2.0) |
-| 완료 단계 | 0~6 첫 MVP, W 웹 계정·관리자·비밀 송출 주소, R 배포·패치·무결성 검사, 7 나머지 CG 8종(최근 종족전·맞대결·다승·승자 예측·온라인·더블 찬스·연승·풀세트) |
-| 변경 파일 | PHASE 7: www/app/templates/*.{def,view}.php(9종), www/app/{templates,stats,provider,override,control,views}.php, www/app/data/mock/{players,matches,online,predictions,double_chance}.json, www/assets/{cg.css,panel.js,panel.css,output.js}, www/index.php, tests/cg_types_test.php |
+| 현재 단계 | PHASE 8 Google 시트 연결 — v0.3.0 (서비스 계정 읽기 전용 + xlsx 예비, 교차 검증·송출 차단). PHASE 9 eloboard는 조건부 대기 |
+| 완료 단계 | 0~6 첫 MVP, W 웹 계정·관리자·비밀 송출 주소, R 배포·패치·무결성 검사, 7 CG 9종, 8 Google 시트(세트 단위 원천·끝장전 묶기·이상 경기 분리·시트 집계 교차 검증·마지막 정상 데이터 캐시·데이터 점검 창·선수 닉네임) |
+| 변경 파일 | PHASE 8: www/app/{sheet_data,sheets,xlsx,verify,data}.php(신규), provider·stats·control·templates·views·migrate(2)·actions, templates/*.def.php(verify), www/index.php·assets/panel.*, desktop/runtime/php.ini(openssl·zip), web/GOOGLE_SHEET_KR.md, tests/{sheet,google}_test.php·fake_google.php |
 | 검증 결과 / 미검증 | 자동 테스트 63건 통과(SQLite·MySQL, v0.2.0). 브라우저(Chromium) 32항목 통과: 기존 18항목 + 9종 대화상자 추가→큐→TAKE→송출 문구·글자 넘침 없음·캡처, 긴 이름 축소, 에디터 행 구분, 예측 자리 순서 복원. 코드 검토 6건 반영. **미검증**: Windows 실행기, OBS/vMix 실송출, 실제 웹호스팅·HTTPS, 맑은 고딕 글자 폭. 상세는 tests/VALIDATION.md |
-| 미확정·장애 | 더블 찬스 정의, 온라인 기록 출처·제목, 예측 순위 표시 순서, 연승 중단 기준·기간, 9전 외 풀세트 처리, 방송 폰트, 웹 도메인·호스팅. 집계 단위는 세트 기준으로 확정(2026-09-30) |
-| 다음 작업 | NEEDS CONFIRMATION 항목 확정 → Windows·OBS/vMix·실제 호스팅 실환경 확인 → PHASE 8 Google Sheets(시트 주소·컬럼 확정 필요) |
+| 미확정·장애 | 실제 시트 전체 대조(이 환경에서 docs.google.com 차단 → xlsx 파일 필요), 더블 찬스 정의, eloboard 약관·접속(이 환경에서 차단), 예측 순위 표시 순서, 방송 폰트, 웹 도메인·호스팅 |
+| 다음 작업 | 사용자 xlsx로 실데이터 대조 → 불일치·이상 사례 보고 → (허용 시) eloboard 약관 확인 → PHASE 9 또는 수동 입력 유지 |
 
 **MVP 검수표 (PHASE 0~6)**
 - [x] 조작 패널과 더블클릭 시작 수단 (Electron 대신 PHP 로컬 서버 + Edge 앱 창; Windows 실행은 미검증)
@@ -68,3 +68,9 @@ CLAUDE.md → 아래 진행 기록 → 현재 단계 관련 문서·코드만 �
 | R 배포 | PC zip·웹 zip(각 VERSION.json·MANIFEST), 패치 zip, 무결성 검사, 설치·패치 안내, 검증 기록 | zip과 manifest가 일치하고, 무결성 검사가 누락·변경 파일을 잡음 |
 
 운영 방식은 토네이도식(페이지 리스트·번호 큐·단축키)이며, PVW/PGM 모니터와 타이틀 에디터는 vMix를 참고한다. 레이어는 1개로 시작하고 레이어 번호를 받는 구조로 설계한다.
+
+### PHASE 8 결정 (2026-09-30)
+- 시트 접근: 서비스 계정(읽기 전용) 자동 연결 + xlsx 파일 가져오기(예비). 시트는 공개하지 않는다.
+- 기준 탭: Results(1행 = 1세트). 검증 탭: Players, 상대전적조회NEW, 중계진 예측 현황입력용(순위표).
+- 시트 자체 집계와 다르거나 대조할 수 없는 수치는 해당 CG 필드 송출 차단(운영자가 직접 입력하면 해제).
+- eloboard: 약관·robots 확인 후 자동 수집(사용자 결정). 이 환경에서 접속이 차단되어 확인 전이며, 확인 전까지는 온라인 CG를 수동 입력으로 운영한다.

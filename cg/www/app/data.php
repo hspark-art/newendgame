@@ -29,7 +29,7 @@ function sheet_config(): array
 
 function secrets_dir(): string
 {
-    $dir = (string)(config('secrets_dir') ?: rtrim((string)config('storage_dir', APP_DIR . '/storage'), '/\\') . '/secrets');
+    $dir = (string)(config('secrets_dir') ?: storage_dir() . '/secrets');
     if (!is_dir($dir)) {
         @mkdir($dir, 0700, true);
     }

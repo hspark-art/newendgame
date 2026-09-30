@@ -28,7 +28,11 @@ cg/
 │     ├─ bootstrap.php      설정·모드·DB·마이그레이션·헤더
 │     ├─ db.php migrate.php SQLite/MySQL 공용 DB 계층, 번호식 마이그레이션
 │     ├─ guard.php          접근 규칙 (desktop: 로컬 PC만 / web: 로그인·역할) + CSRF·Origin
-│     ├─ provider.php       데이터 소스 (현재 MOCK) fetch → normalize → validate
+│     ├─ provider.php       데이터 소스 (MOCK | Google 시트) fetch → normalize → validate
+│     ├─ sheet_data.php     시트 표 → 세트·끝장전·예측 + 이상 사례 + 시트 자체 집계와 교차 검증 (순수 함수)
+│     ├─ sheets.php         Sheets API (서비스 계정 JWT, 읽기 전용) · xlsx.php 파일 가져오기(예비)
+│     ├─ verify.php         교차 검증 결과 → CG 필드별 송출 차단 사유
+│     ├─ data.php           데이터 소스 설정·키 보관·마지막 정상 데이터 캐시·선수 닉네임
 │     ├─ stats.php          통계 엔진 (순수 함수)
 │     ├─ templates.php      CG 템플릿 목록·파라미터 검사·공용 도우미
 │     ├─ override.php       수동 수정 검증·병합 (순수 함수)
@@ -60,10 +64,13 @@ cg/
 ## 4. 데이터·송출 흐름
 
 ```
-MOCK JSON (추후 Google Sheets / 외부 사이트)
-   → provider: fetch → normalize → validate      실패 시 마지막 정상값 유지 + ERROR/STALE
-   → stats: 선수·상대 종족별 승·패                 (집계 단위 NEEDS CONFIRMATION: 현재 세트 기준)
-   → cg_instances.auto_json  (AUTO DATA)
+Google 시트 (Results 탭: 1행 = 1세트)  또는  MOCK JSON  (온라인: eloboard는 약관 확인 전까지 수동 입력)
+   → provider: fetch → normalize → validate      형식 오류가 하나라도 있으면 실패 → 마지막 정상값 유지 + ERROR/STALE
+   → 세트 → 끝장전(같은 날·같은 두 선수), 이상 경기 분리
+   → 교차 검증: 시트 자체 집계(Players·상대전적조회NEW·예측 순위표)와 비교
+   → cg_dataset_cache (마지막 정상 데이터, 페이지 추가 때 네트워크 없이 사용)
+   → stats: 세트 기준(종족 승률·다승), 끝장전 기준(맞대결·연승·풀세트), 예측 결과
+   → cg_instances.auto_json  (AUTO DATA)  + issues_json (검증 사유: 해당 필드는 수동 입력 전 송출 차단)
    + cg_overrides            (MANUAL OVERRIDE: 방송 세션 + CG 인스턴스 + 필드)
    → override 병합·재계산    (FINAL DATA)
    → PREVIEW 채널 (준비 화면, 자동 갱신 반영)
@@ -100,6 +107,11 @@ MOCK JSON (추후 Google Sheets / 외부 사이트)
   - 로그인 시도 제한: 5분 동안 IP당 30회, 아이디당 10회.
   - 세션 쿠키는 HttpOnly·SameSite=Lax이며, https면 Secure를 붙인다. Lax인 이유: 메신저 링크로 들어와도 기존 로그인이 끊기지 않게 한다. 조작 위조는 CSRF 토큰과 Origin 확인으로 막는다.
   - 계정 정지나 비밀번호 재설정 시 `session_gen`이 올라가 기존 로그인이 즉시 끊긴다.
+- **Google 시트**
+  - 시트는 공개하지 않고 서비스 계정 이메일에만 "뷰어"로 공유한다. 권한 범위는 `spreadsheets.readonly`.
+  - 키 파일은 비밀 폴더(PC: `%LOCALAPPDATA%\EndgameCG\secrets`, 웹: `app/storage/secrets` 또는 `secrets_dir`)에 0600으로 둔다. DB·로그·화면·배포 zip에 넣지 않고, 화면에는 서비스 계정 이메일만 보인다.
+  - 액세스 토큰은 새로고침마다 새로 받고 저장하지 않는다. 필요한 탭·열만 읽는다(상금 열 제외).
+  - 설정 변경(시트 주소·키·xlsx 가져오기)은 관리자만 한다. 운영자는 새로고침·점검만 한다.
 - **비밀 출력 주소(웹)**
   - `output_token`(32바이트)을 가진 주소는 로그인 없이 PROGRAM 송출 화면만 읽는다. PREVIEW·패널 데이터·조작은 막는다.
   - 관리자가 재발급하면 이전 주소는 즉시 404가 된다.

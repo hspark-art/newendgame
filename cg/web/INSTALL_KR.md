@@ -2,18 +2,21 @@
 
 일반 웹호스팅(예: 카페24 웹호스팅)에 올려 쓰는 버전입니다. 팀원은 사이트 주소로 접속해 로그인하면 됩니다.
 
-> 현재 데이터는 **MOCK(검증용 가짜 수치)** 입니다. 실제 전적 연결은 다음 단계입니다.
+> 처음 설치하면 **MOCK(검증용 가짜 수치)** 로 시작합니다. 실제 끝장전 데이터는 [GOOGLE_SHEET_KR.md](GOOGLE_SHEET_KR.md)를 따라 Google 시트를 연결하세요.
 
 ## 1. 호스팅 준비
 - **PHP 8.1 이상** (호스팅 관리 화면에서 PHP 버전을 8.x로 선택)
 - **MySQL 또는 MariaDB** — 기존 채팅·상품 관리와 같은 DB를 써도 됩니다. 이 프로그램의 테이블 이름은 모두 `cg_`로 시작해 겹치지 않습니다.
 - **SSL(https)** 적용 권장. 로그인 정보가 오가고, 비밀 송출 주소를 보호하기 위해서입니다.
-- PHP 확장: `pdo_mysql`, `mbstring` (대부분의 호스팅에 기본 포함)
+- PHP 확장: `pdo_mysql`, `mbstring`, `openssl`(Google 시트 연결), `zip`(xlsx 가져오기) — 대부분의 호스팅에 기본 포함
+- 서버에서 `https://oauth2.googleapis.com`·`https://sheets.googleapis.com` 으로 나가는 접속이 허용되어야 합니다 (막혀 있으면 xlsx 가져오기를 쓰세요).
+- xlsx 가져오기를 쓰려면 PHP `post_max_size`가 16M 이상이어야 합니다.
 
 ## 2. 설정 파일 만들기
 1. 배포 zip의 `www/app/config.sample.php`를 같은 폴더에 `config.php`로 복사합니다.
 2. 호스팅 관리 화면에서 확인한 **DB 이름·아이디·비밀번호**를 `db` 항목에 입력합니다.
 3. `config.php`는 서버 접속 정보가 들어 있으므로 다른 사람에게 보내거나 저장소에 올리지 않습니다.
+4. (권장) `secrets_dir`에 웹 폴더 밖의 쓰기 가능한 폴더를 지정합니다. Google 서비스 계정 키를 보관하는 곳입니다. 비워 두면 `app/storage/secrets`(웹 접근 차단)를 씁니다.
 
 ## 3. 파일 올리기 (FTP)
 - FTP 프로그램(파일질라 등)으로 배포 zip의 `www` 폴더 **안의 내용 전체**를 올립니다.

@@ -14,7 +14,23 @@ PC(SQLite)와 웹(MySQL)이 같은 테이블을 쓴다. 테이블 정의는 `www
 | 종족 | `P`(프로토스) `T`(테란) `Z`(저그) |
 
 ## 2. 원천 데이터 (Provider 형식)
-현재는 MOCK JSON(`www/app/data/mock/`)이다. MVP에서는 DB에 적재하지 않고, 불러올 때마다 검증한 결과를 메모리에서 쓴다. 실제 소스를 연결하는 PHASE 8부터 Match/Game 테이블과 원본 캐시를 추가한다.
+소스는 두 가지다(`cg_settings.data_source`). 둘 다 같은 모양의 데이터(players, games, matches, predictions …)로 만든다.
+- **Google 시트** (v0.3.0, `sheet_data.php`·`sheets.php`)
+  - **Results 탭**: Winner, Race, Loser, Race, Map, Date. **1행 = 1세트**다. 상금·더블 찬스 열은 읽지 않는다.
+  - **끝장전** = 같은 날짜·같은 두 선수의 세트 묶음이다. 9세트를 모두 치르는 방식이다(예: 7:2, 6:3, 5:4).
+    - A는 그 경기 첫 세트의 승자다. `bestOf`는 9세트일 때만 9다.
+    - **이상 경기**(9세트가 아님, 동점, 경기 중 종족 변경)는 끝장전 통계에서 빼고 점검 화면에 표시한다. 세트 통계에는 센다.
+  - **선수 id** = 시트 이름(공백 정리·NFC 정규화). 주 종족은 Players 탭의 Race를 쓰고, 없으면 가장 많이 쓴 종족이다. 동률이면 정하지 않는다.
+  - **예측 탭**: 세트마다 1건이다. "박상현 캐스터"에서 알려진 직책만 떼어 이름으로 쓴다. 성공/실패가 비어 있으면 결과 입력 전으로 보고 건너뛴다.
+  - **형식 오류** 행(이름·종족 P/T/Z·날짜)이 하나라도 있으면 새로고침 전체를 실패로 처리하고 마지막 정상 데이터를 유지한다. 날짜는 연도가 앞인 형식만 받고, 다른 형식은 추측하지 않는다.
+  - **교차 검증**: 시트가 스스로 계산한 집계와 프로그램 계산값을 비교한다.
+    - Players 탭: 세트 전적(전체, vs Z/T/P).
+    - 상대전적조회NEW 탭: 선수별 끝장전 목록.
+    - 예측 순위표: 전체·적중 수.
+    - 다르거나 탭이 없어 대조할 수 없으면, 그 수치를 쓰는 CG 필드(템플릿의 `verify`)에 사유를 기록한다. 해당 필드에 운영자가 값을 직접 입력하기 전까지 송출을 막는다(`template_problems`).
+- **MOCK JSON** (`www/app/data/mock/`): 검증용 가짜 수치다. 끝장전 스코어로 세트 목록을 만든다. 검증 대상이 아니다.
+
+아래는 MOCK JSON 형식이다(시트 연결 전 시연용).
 
 **Player**: `{id, name, nickname, race, aliases[], active}`
 - `id`는 영문 소문자·숫자·하이픈이다.
@@ -51,7 +67,7 @@ PC(SQLite)와 웹(MySQL)이 같은 테이블을 쓴다. 테이블 정의는 `www
 ## 3. 방송 상태 테이블
 | 테이블 | 의미 |
 |---|---|
-| `cg_settings` | 키-값. `schema_version`, `state_rev`(변경 번호), `current_session_id`, `csrf_secret`, `output_token`, 출력 하트비트 |
+| `cg_settings` | 키-값. `schema_version`, `state_rev`(변경 번호), `current_session_id`, `csrf_secret`, `output_token`, 출력 하트비트, `data_source`·`sheet_id`·`sheet_tabs`(관리자 설정), `data_check`(점검 요약) |
 | `cg_sessions` | 방송 세션. 수동 수정값의 유효 범위 |
 | `cg_instances` | CG 인스턴스 = 템플릿 + 파라미터(선수·상대 종족 등). `params_key`(정규화한 파라미터의 sha1)로 같은 대상을 하나로 모은다. `auto_json`은 마지막 정상 AUTO 값이고, 한 번도 없으면 NULL |
 | `cg_overrides` | 수동 수정값. **(세션, 인스턴스, 필드)당 1행.** 행이 있으면 수정값이 있는 것이다. `auto_at_set_json`은 수정 당시 AUTO 값(자동값 변경 알림용), `keep_next`는 KEEP OVERRIDE 표시 |
@@ -59,6 +75,9 @@ PC(SQLite)와 웹(MySQL)이 같은 테이블을 쓴다. 테이블 정의는 `www
 | `cg_channels` | 레이어별 `preview`/`program` 2행(MVP는 레이어 1). 아래 설명 참고 |
 | `cg_sources` | 데이터 소스 상태: NEVER/OK/ERROR, 마지막 시도·성공 시각, 마지막 오류 |
 | `cg_logs` | data/error/broadcast/override/auth 기록 |
+| `cg_dataset_cache` | 소스별 마지막 정상 데이터(gzip+base64 JSON, sha256 확인, MySQL MEDIUMTEXT). 페이지 추가·닉네임 변경 때 네트워크 없이 AUTO를 계산한다 |
+| `cg_player_info` | 운영자가 입력한 선수 닉네임. 시트에 없는 값이라 추측하지 않고 입력한 것만 쓴다 |
+| `cg_instances.issues_json` | 교차 검증 사유 `[{fields, msg}]`. 새로고침마다 다시 계산한다 |
 
 **cg_channels**
 - `preview`
