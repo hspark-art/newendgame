@@ -47,7 +47,7 @@ CLAUDE.md → 아래 진행 기록 → 현재 단계 관련 문서·코드만 �
 | 현재 단계 | PHASE 7 완료 — v0.2.0 (CG 9종, MOCK). PC zip·웹 zip·패치 zip(0.1.1→0.2.0) |
 | 완료 단계 | 0~6 첫 MVP, W 웹 계정·관리자·비밀 송출 주소, R 배포·패치·무결성 검사, 7 나머지 CG 8종(최근 종족전·맞대결·다승·승자 예측·온라인·더블 찬스·연승·풀세트) |
 | 변경 파일 | PHASE 7: www/app/templates/*.{def,view}.php(9종), www/app/{templates,stats,provider,override,control,views}.php, www/app/data/mock/{players,matches,online,predictions,double_chance}.json, www/assets/{cg.css,panel.js,panel.css,output.js}, www/index.php, tests/cg_types_test.php |
-| 검증 결과 / 미검증 | 자동 테스트 61건 통과(SQLite·MySQL, v0.2.0). 브라우저(Chromium) 31항목 통과: 기존 18항목 + 9종 대화상자 추가→큐→TAKE→송출 문구·글자 넘침 없음·캡처, 에디터 행 구분, 예측 자리 순서 복원. **미검증**: Windows 실행기, OBS/vMix 실송출, 실제 웹호스팅·HTTPS, 맑은 고딕 글자 폭. 상세는 tests/VALIDATION.md |
+| 검증 결과 / 미검증 | 자동 테스트 63건 통과(SQLite·MySQL, v0.2.0). 브라우저(Chromium) 32항목 통과: 기존 18항목 + 9종 대화상자 추가→큐→TAKE→송출 문구·글자 넘침 없음·캡처, 긴 이름 축소, 에디터 행 구분, 예측 자리 순서 복원. 코드 검토 6건 반영. **미검증**: Windows 실행기, OBS/vMix 실송출, 실제 웹호스팅·HTTPS, 맑은 고딕 글자 폭. 상세는 tests/VALIDATION.md |
 | 미확정·장애 | 더블 찬스 정의, 온라인 기록 출처·제목, 예측 순위 표시 순서, 연승 중단 기준·기간, 9전 외 풀세트 처리, 방송 폰트, 웹 도메인·호스팅. 집계 단위는 세트 기준으로 확정(2026-09-30) |
 | 다음 작업 | NEEDS CONFIRMATION 항목 확정 → Windows·OBS/vMix·실제 호스팅 실환경 확인 → PHASE 8 Google Sheets(시트 주소·컬럼 확정 필요) |
 

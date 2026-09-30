@@ -35,6 +35,8 @@
     });
   }
   function pad3(n) { return n == null ? '---' : ('00' + n).slice(-3); }
+  /** 목록형 CG의 행 필드는 "2행 승"처럼 행 번호를 붙인다 */
+  function fieldLabel(f) { return (f.group ? f.group + ' ' : '') + f.label; }
 
   function toast(msg, type) {
     var box = $('toast');
@@ -396,11 +398,11 @@
     var rows = [], autoOnly = [];
     S.preview.fields.forEach(function (f) {
       if (sent[f.key] !== undefined) {
-        rows.push('<li>' + esc(f.label) + ': <span class="from">' + esc(f.live_text) + '</span> → <span class="to">' + esc(sent[f.key]) + ' (입력)</span></li>');
+        rows.push('<li>' + esc(fieldLabel(f)) + ': <span class="from">' + esc(f.live_text) + '</span> → <span class="to">' + esc(sent[f.key]) + ' (입력)</span></li>');
       } else if (f.live_differs && f.has_manual) {
-        rows.push('<li>' + esc(f.label) + ': <span class="from">' + esc(f.live_text) + '</span> → <span class="to">' + esc(f.final_text) + '</span></li>');
+        rows.push('<li>' + esc(fieldLabel(f)) + ': <span class="from">' + esc(f.live_text) + '</span> → <span class="to">' + esc(f.final_text) + '</span></li>');
       } else if (f.live_differs && !f.derived) {
-        autoOnly.push(esc(f.label));
+        autoOnly.push(esc(fieldLabel(f)));
       }
     });
     confirmBox('UPDATE LIVE — 송출 중인 CG를 바로 수정합니다',
@@ -433,6 +435,11 @@
     ks.slice(0, -1).forEach(function (k) { o = o[k] = o[k] || {}; });
     o[ks[ks.length - 1]] = v;
   }
+  /** 저장된 값이 지금 목록에 없어도(예: 기록이 없는 연도·예측자) 그대로 보이고 저장되게 선택지를 더한다 */
+  function withValue(list, value, label) {
+    var has = value === undefined || value === null || value === '' || list.some(function (o) { return String(o[0]) === String(value); });
+    return has ? list : list.concat([[value, label || value]]);
+  }
   function options(list, value) {
     return list.map(function (o) {
       return '<option value="' + esc(o[0]) + '"' + (o[2] ? ' data-race="' + esc(o[2]) + '"' : '')
@@ -455,10 +462,11 @@
         return '<input type="number"' + attr + ' min="' + p.min + '" max="' + p.max + '" value="' + esc(v === undefined ? p.default : v) + '">';
       case 'year':
         return S.years.length
-          ? '<select' + attr + '>' + options(S.years.map(function (y) { return [y, y + '년']; }), v || S.years[0]) + '</select>'
+          ? '<select' + attr + '>' + options(withValue(S.years.map(function (y) { return [y, y + '년']; }), v, v + '년 (기록 없음)'), v || S.years[0]) + '</select>'
           : '<input type="text"' + attr + ' maxlength="4" placeholder="예: 2026" value="' + esc(v || '') + '">';
       case 'predictor_slots':
         var list = [['', '—']].concat(S.predictors.map(function (x) { return [x.id, x.name]; }));
+        (v || []).forEach(function (id) { list = withValue(list, id, id + ' (목록에 없음)'); });
         var html = '<span class="slots">';
         for (var i = 0; i < p.max; i++) {
           html += '<select data-slot="' + i + '"' + attr + ' aria-label="' + (i + 1) + '번 자리">' + options(list, (v || [])[i] || '') + '</select>';

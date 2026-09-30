@@ -110,7 +110,7 @@ function instance_state(array $inst, int $sessionId): array
     $tpl = template_get($inst['template']);
     $merged = ov_merge($tpl['fields'], $inst['auto'], overrides_for($inst['id'], $sessionId));
     $final = ov_final($merged);
-    $problems = ov_sendable($tpl['fields'], $final);
+    $problems = template_problems($inst['template'], $final, $inst['params']);
     $mock = $inst['auto_source'] === 'mock';
     return [
         'tpl' => $tpl,
@@ -502,7 +502,7 @@ function override_parse(array $tpl, array $values): array
         if ($r['ok']) {
             $parsed[$key] = $r['value'];
         } else {
-            $errors[$key] = $def['label'] . ': ' . $r['error'];
+            $errors[$key] = field_label($def) . ': ' . $r['error'];
         }
     }
     if ($errors) {
@@ -644,7 +644,7 @@ function program_update_live(int $instanceId, int $expectedTakeId, int $expected
         if (!$changed) {
             throw new ActionError('NO_CHANGE', '송출 중인 값과 같아서 바꿀 내용이 없습니다. (자동값 변경은 TAKE로 반영됩니다)', 409);
         }
-        $problems = ov_sendable($st['tpl']['fields'], $final);
+        $problems = template_problems($inst['template'], $final, $inst['params']);
         if ($problems) {
             throw new ActionError('NOT_SENDABLE', '값이 비어 있어 송출할 수 없습니다: ' . implode(' ', $problems), 422);
         }
@@ -653,7 +653,7 @@ function program_update_live(int $instanceId, int $expectedTakeId, int $expected
         $snap['updated_live_at'] = now();
         db_exec("UPDATE cg_channels SET snapshot_json = ? WHERE layer = 1 AND kind = 'program'", [json_enc($snap)]);
         cg_log('broadcast', 'UPDATE_LIVE', $op, ['session_id' => $sid, 'instance_id' => $instanceId, 'template' => $inst['template'],
-            'detail' => '변경: ' . implode(', ', array_map(static fn($k) => $st['tpl']['fields'][$k]['label'], $changed))]);
+            'detail' => '변경: ' . implode(', ', array_map(static fn($k) => field_label($st['tpl']['fields'][$k]), $changed))]);
         state_bump(['program', 'preview']);
         return ['changed' => $changed];
     });

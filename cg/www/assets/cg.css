@@ -57,7 +57,7 @@
 .cg-online .cg-head .cg-cell { font-size: 25px; }
 .cg-online .cg-record { font-size: 38px; }
 /* 풀세트 비율: 큰 비율 + 경기 수 + 5:4/4:5 내역 */
-.cg-full-set .cg-vs { font-size: 19px; }
+.cg-full-set .cg-vs { font-size: .7em; }
 .cg-full-set .cg-rate { font-size: 21px; line-height: 1.2; }
 .cg-detail { font-size: 17px; line-height: 1.25; color: var(--cg-muted); opacity: .85; }
 .cg-body .cg-cell > div { max-width: 100%; text-align: center; }
@@ -69,7 +69,7 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
 }
 .cg-sumbar b { font-weight: 800; margin: 0 .3em; }
-.cg-sumbar small { font-size: 16px; font-weight: 400; color: var(--cg-muted); margin-right: .6em; }
+.cg-sumbar small { font-size: .7em; font-weight: 400; color: var(--cg-muted); margin-right: .6em; }
 
 /* 목록형 (최근 전적·맞대결): 줄마다 날짜·선수·스코어·상대, 승자 노랑 */
 .cg-rows { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding: 4px 16px 8px; }
@@ -92,13 +92,15 @@
 .cg-prediction .cg-bar:nth-child(odd) { background: var(--cg-body-bg); }
 .cg-prediction .cg-bar.is-top { background: var(--cg-head-bg); }
 .c-rank { width: 88px; flex: none; text-align: center; font-size: 24px; }
-.c-name { flex: 1; min-width: 0; }
-.c-name b { font-size: 30px; font-weight: 700; }
-.c-name small { font-size: 19px; color: var(--cg-muted); margin-left: .35em; }
+.c-name { flex: 1; min-width: 0; font-size: 30px; }
+/* 안쪽 글자는 em — 긴 이름을 줄일 때(fit) 닉네임도 함께 줄어든다 */
+.c-name b { font-weight: 700; }
+.c-name small { font-size: .63em; color: var(--cg-muted); margin-left: .35em; }
 .c-record { width: 132px; flex: none; text-align: right; font-size: 25px; letter-spacing: -.5px; }
 .c-rate { width: 104px; flex: none; text-align: right; font-size: 25px; }
 .cg-prediction .c-rank { width: 76px; font-size: 28px; }
-.cg-prediction .c-name b { font-size: 27px; font-weight: 600; }
+.cg-prediction .c-name { font-size: 27px; }
+.cg-prediction .c-name b { font-weight: 600; }
 .cg-prediction .c-record { width: 150px; font-size: 29px; }
 .cg-prediction .c-rate { width: 118px; font-size: 29px; }
 .c-streak { width: 96px; flex: none; text-align: right; font-size: 26px; font-weight: 700; }

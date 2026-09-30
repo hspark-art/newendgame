@@ -271,7 +271,7 @@ function stats_prediction_ranking(array $picks, array $matches, string $year): a
     }
     $rows = array_map(static fn($r) => $r + ['rate' => stats_rate_tenths($r['correct'], $r['wrong'])], array_values($t));
     usort($rows, static fn($x, $y) => [$y['rate'], $y['correct'], $x['predictor']] <=> [$x['rate'], $x['correct'], $y['predictor']]);
-    return stats_rank($rows, static fn($r) => $r['rate']);
+    return stats_rank($rows, static fn($r) => [$r['rate'], $r['correct']]);
 }
 
 // ---------------------------------------------------------------- 온라인 (게임 1판 = 1건)

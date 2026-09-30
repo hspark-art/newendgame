@@ -194,8 +194,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await panel.waitForFunction(() => document.getElementById('pvwInfo').textContent.startsWith('104'));
   await panel.waitForFunction(() => document.querySelectorAll('#edBody tr.grp').length === 5);
   assert(true, '에디터: 목록형 CG(다승 순위)는 1~5행 구분');
-  const predRow = await panel.$('#rdBody tr[data-no="105"] [data-act="edit"]');
-  await predRow.click();
+  // 긴 이름·닉네임(최대 글자 수)도 칸 안에 들어가게 줄어드는지
+  await panel.fill('#edBody input.val[data-key="r1.name"]', '가나다라마');
+  await panel.fill('#edBody input.val[data-key="r1.nick"]', 'VeryLongNickname');
+  await panel.keyboard.press('Control+s');
+  await panel.waitForFunction(() => document.querySelector('#edBody tr[data-key="r1.nick"] td.final').textContent === 'VeryLongNickname');
+  await panel.evaluate(() => document.activeElement && document.activeElement.blur());
+  await panel.keyboard.press('F1');
+  await out.waitForFunction(() => document.getElementById('cg').textContent.includes('VeryLongNickname'), null, { timeout: 5000 });
+  await out.waitForTimeout(400);
+  const longOver = await out.evaluate(() => [...document.querySelectorAll('#cg .cg-fit')].filter((el) => {
+    const ps = getComputedStyle(el.parentNode);
+    return el.scrollWidth > el.parentNode.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight) + 1;
+  }).length);
+  await out.screenshot({ path: path.join(OUT, 'type-win-ranking-long.png'), omitBackground: true, clip: { x: 1340, y: 810, width: 580, height: 270 } });
+  assert(longOver === 0, '긴 이름(5자)·닉네임(16자)도 이름·닉네임이 함께 줄어 칸 안에 표시');
+  await panel.keyboard.press('F2');
+  await panel.click('#rdBody tr[data-no="105"] [data-act="edit"]');
+  await panel.waitForSelector('#dlgPage[open]');
   const seats = await panel.$$eval('#pParams select[data-slot]', (els) => els.map((e) => e.value));
   assert(seats.slice(0, 3).join(',') === 'park-sanghyun,lim-sungchun,lee-seungwon', '페이지 수정: 저장된 자리 순서가 채워짐');
   await panel.keyboard.press('Escape');

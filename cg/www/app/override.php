@@ -88,14 +88,25 @@ function derived_calc(array $def, array $vals): ?int
     return intdiv(2000 * $sum + $total, 2 * $total);
 }
 
-/** 파생 값이 비어 있어도 되는 경우: 분모가 0 (0경기 등) */
+/** 파생 값이 비어 있어도 되는 경우: 분모가 0 (0경기 등). 비율은 부분 값도 모두 0이어야 한다 */
 function derived_empty_ok(array $def, array $vals): bool
 {
     $d = $def['derived'];
     if (!isset($d['calc'])) {
         return ($vals[$d[0]] ?? null) === 0 && ($vals[$d[1]] ?? null) === 0;
     }
+    foreach ($d['parts'] as $k) {
+        if (($vals[$k] ?? null) !== 0) {
+            return false;
+        }
+    }
     return ($vals[$d['total']] ?? null) === 0;
+}
+
+/** 화면·로그에 쓰는 필드 이름. 목록형 CG의 행 필드는 "2행 승"처럼 행 번호를 붙인다 */
+function field_label(array $def): string
+{
+    return (isset($def['group']) ? $def['group'] . ' ' : '') . $def['label'];
 }
 
 /**
@@ -166,7 +177,7 @@ function ov_sendable(array $fields, array $final): array
     $problems = [];
     foreach ($fields as $key => $def) {
         $v = $final[$key] ?? null;
-        $label = (isset($def['group']) ? $def['group'] . ' ' : '') . $def['label'];
+        $label = field_label($def);
         if (isset($def['derived'])) {
             $inputs = array_map(static fn($k) => $final[$k] ?? null, derived_inputs($def));
             $allEmpty = !array_filter($inputs, static fn($x) => $x !== null);

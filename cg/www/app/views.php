@@ -146,7 +146,7 @@ function log_view(array $l): array
         $prev = $val($l['prev_json']);
         $new = $val($l['new_json']);
         $auto = $val($l['auto_json']);
-        $detail = $def['label'] . ': ' . ($prev === null ? 'AUTO ' . fmt_field($def, $auto) : fmt_field($def, $prev))
+        $detail = field_label($def) . ': ' . ($prev === null ? 'AUTO ' . fmt_field($def, $auto) : fmt_field($def, $prev))
             . ' → ' . ($new === null ? 'AUTO ' . fmt_field($def, $auto) : fmt_field($def, $new));
     }
     return [

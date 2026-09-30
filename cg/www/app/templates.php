@@ -159,6 +159,23 @@ function template_summary(string $slug, array $params, ?array $ctx = null): stri
     return template_get($slug)['summary']($params, $ctx ?? template_ctx());
 }
 
+/**
+ * 송출 가능 여부: 필수 값이 모두 있고, 목록형 CG는 표시할 행이 1개 이상이어야 한다.
+ * @return list<string> 문제 목록 (비어 있으면 송출 가능)
+ */
+function template_problems(string $slug, array $final, array $params): array
+{
+    $tpl = template_get($slug);
+    $problems = ov_sendable($tpl['fields'], $final);
+    if (!$problems) {
+        $view = $tpl['present']($final, $params);
+        if (array_key_exists('rows', $view) && !$view['rows']) {
+            $problems[] = '표시할 행이 없습니다. 행 값을 입력하거나 다른 조건을 고르세요.';
+        }
+    }
+    return $problems;
+}
+
 /** FINAL 값 → 송출 화면 문자열 */
 function template_present(string $slug, array $final, array $params, bool $mock): array
 {
@@ -226,7 +243,10 @@ function row_fields(int $n, array $spec): array
     for ($i = 1; $i <= $n; $i++) {
         foreach ($spec as $k => $def) {
             if (isset($def['derived'])) {
-                $def['derived'] = array_map(static fn($x) => "r$i.$x", $def['derived']);
+                $pre = static fn($x) => "r$i.$x";
+                $def['derived'] = isset($def['derived']['calc'])
+                    ? array_replace($def['derived'], ['parts' => array_map($pre, $def['derived']['parts']), 'total' => $pre($def['derived']['total'])])
+                    : array_map($pre, $def['derived']);
             }
             $out["r$i.$k"] = $def + ['optional' => true, 'group' => "{$i}행"];
         }

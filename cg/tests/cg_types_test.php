@@ -256,3 +256,53 @@ test('업데이트 호환: v0.1.1 페이지는 그대로, 새로고침 전에는
     data_refresh(op());
     assert_same(true, panel_state(op())['caches_ready']);
 });
+
+test('검토 반영: 예측 동률은 적중 수로, 풀세트 0경기 모순 차단, 표시할 행 없음 차단, 행 번호 표시, 행 비율 필드', function () {
+    // 예측: 적중률이 같으면 적중 수가 많은 쪽이 앞 순위
+    $matches = [['id' => 'm1', 'date' => '2026-01-01', 'playerA' => 'x', 'playerB' => 'y', 'scoreA' => 5, 'scoreB' => 0]];
+    for ($i = 2; $i <= 10; $i++) {
+        $matches[] = ['id' => "m$i", 'date' => '2026-01-0' . min($i, 9), 'playerA' => 'x', 'playerB' => 'y', 'scoreA' => 5, 'scoreB' => 0];
+    }
+    $picks = [];
+    foreach (range(1, 10) as $i) {
+        $picks[] = ['predictor' => 'p1', 'match' => "m$i", 'pick' => $i <= 5 ? 'x' : 'y']; // 5승 5패
+    }
+    $picks[] = ['predictor' => 'p2', 'match' => 'm1', 'pick' => 'x'];
+    $picks[] = ['predictor' => 'p2', 'match' => 'm2', 'pick' => 'y']; // 1승 1패
+    $r = stats_prediction_ranking($picks, $matches, '2026');
+    assert_same([['p1', 1], ['p2', 2]], array_map(fn($x) => [$x['predictor'], $x['rank']], $r));
+
+    // 풀세트: 경기 수 0인데 풀세트 횟수가 있으면 송출 불가, 모두 0이면 "자료 없음"으로 송출 가능
+    $fields = template_get('full-set')['fields'];
+    $final = ['a.matches' => 0, 'a.fsw' => 2, 'a.fsl' => 0];
+    assert_same(false, derived_empty_ok($fields['a.rate'], $final));
+    assert_same(true, derived_empty_ok($fields['a.rate'], ['a.matches' => 0, 'a.fsw' => 0, 'a.fsl' => 0]));
+
+    setup_types();
+    // 예측 기록이 없는 연도 → 표시할 행 없음 → 송출 불가, 행을 직접 입력하면 가능
+    $st = type_state('prediction-ranking', ['year' => '2019']);
+    assert_true(in_array('표시할 행이 없습니다. 행 값을 입력하거나 다른 조건을 고르세요.', $st['problems'], true));
+    assert_throws(ActionError::class, fn() => take_now(), 'NOT_SENDABLE');
+    preview_save(channel_get('preview')['instance_id'], ['r1.name' => '박상현'], op());
+    take_now();
+
+    // 행 필드 오류·UPDATE LIVE 기록에 행 번호
+    type_state('win-ranking', ['race' => '', 'count' => '4']);
+    $iid = channel_get('preview')['instance_id'];
+    $e = assert_throws(ActionError::class, fn() => preview_save($iid, ['r2.wins' => 'x'], op()), 'VALIDATION');
+    assert_true(str_contains($e->getMessage(), '2행 승:'), $e->getMessage());
+    take_now();
+    $pg = channel_get('program');
+    program_update_live($iid, $pg['take_id'], channel_get('preview')['rev'], ['r2.wins' => '200'], op());
+    assert_same('변경: 2행 승, 2행 승률', db_value("SELECT detail FROM cg_logs WHERE action = 'UPDATE_LIVE' ORDER BY id DESC"));
+    $log = array_values(array_filter(panel_state(op())['logs'], fn($l) => $l['action'] === 'SET'))[0];
+    assert_same('2행 승: AUTO 54 → 200', $log['detail']);
+
+    // 행 필드에 비율(share) 파생값: 행 번호가 parts·total에 모두 붙음
+    $rf = row_fields(2, ['m' => ['label' => '경기', 'type' => 'int'], 'f' => ['label' => '풀세트', 'type' => 'int'],
+        'r' => ['label' => '비율', 'type' => 'rate', 'derived' => ['calc' => 'share', 'parts' => ['f'], 'total' => 'm']]]);
+    assert_same(['calc' => 'share', 'parts' => ['r2.f'], 'total' => 'r2.m'], $rf['r2.r']['derived']);
+    $m = ov_merge($rf, ['r1.m' => 4, 'r1.f' => 1, 'r2.m' => null, 'r2.f' => null], []);
+    assert_same([250, null], [$m['r1.r']['final'], $m['r2.r']['final']]);
+    assert_same([], ov_sendable($rf, ov_final($m)), '빈 행의 비율은 송출을 막지 않음');
+});
