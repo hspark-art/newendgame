@@ -62,11 +62,12 @@ page_header('채팅 활동량 · ' . $b['title'], ['menu' => 'broadcasts', 'broa
     <th>첫 채팅</th><th>마지막 채팅</th><th></th>
   </tr></thead>
   <tbody>
+  <?php $maxEff = $data['rows'] ? max(array_column($data['rows'], 'effective')) : 0; ?>
   <?php foreach ($data['rows'] as $i => $r): $rank = ($page - 1) * $perPage + $i + 1; ?>
     <tr>
       <td class="chk"><input type="checkbox" name="pick[]" value="<?= h($r['user_id']) ?>"><input type="hidden" name="nick[<?= h($r['user_id']) ?>]" value="<?= h($r['nickname']) ?>"></td>
-      <td class="num rank"><?= $rank ?></td>
-      <td><?= render_badges((int) $r['badges']) ?><a href="viewer.php?id=<?= $id ?>&user=<?= urlencode($r['user_id']) ?>"><?= h($r['nickname']) ?></a> <span class="muted small"><?= h($r['user_id']) ?></span>
+      <td class="num rank"><?= rank_label($rank) ?></td>
+      <td class="actcell"<?= actbar_attr($r['effective'], $maxEff) ?>><?= render_nick($r['nickname'], (int) $r['badges'], 'viewer.php?id=' . $id . '&user=' . urlencode($r['user_id'])) ?> <span class="muted small"><?= h($r['user_id']) ?></span>
         <?php if (isset($winners[$r['user_id']])): ?><span class="badge badge-won" title="<?= h(implode(', ', $winners[$r['user_id']])) ?>">당첨 등록됨</span><?php endif; ?></td>
       <td class="num strong"><?= fmt_num($r['effective']) ?></td>
       <td class="num"><?= fmt_num($r['total']) ?></td>

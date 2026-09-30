@@ -120,6 +120,9 @@ $topChatters = db_all(
     [$id]
 );
 $d = $s['donations'];
+$topBadges = user_badges($id, array_merge(array_column($topDonors, 'user_id'), array_column($topChatters, 'user_id')));
+$maxDon = $topDonors ? (int) $topDonors[0]['balloons'] : 0;
+$maxChat = $topChatters ? (int) $topChatters[0]['cnt'] : 0;
 $subs = (int) db_value("SELECT COUNT(*) FROM donations WHERE broadcast_id = ? AND type = 'subscription' AND subtype IN ('new','renew')", [$id]);
 $gifts = (int) db_value("SELECT COUNT(*) FROM donations WHERE broadcast_id = ? AND type = 'subscription' AND subtype = 'gift'", [$id]);
 
@@ -159,7 +162,7 @@ page_header($b['title'], ['menu' => 'broadcasts', 'broadcast' => $b, 'tab' => 's
     <div class="card-head"><h2>별풍선 상위 5명</h2><a href="donations.php?id=<?= $id ?>">전체 보기</a></div>
     <table class="table compact">
       <?php foreach ($topDonors as $i => $r): ?>
-        <tr><td class="rank"><?= $i + 1 ?></td><td><a href="viewer.php?id=<?= $id ?>&user=<?= urlencode($r['user_id']) ?>"><?= h($r['nickname']) ?></a> <span class="muted small"><?= h($r['user_id']) ?></span></td><td class="num"><?= fmt_num($r['balloons']) ?>개</td></tr>
+        <tr><td class="rank"><?= rank_label($i + 1) ?></td><td class="actcell"<?= actbar_attr((int) $r['balloons'], $maxDon) ?>><?= render_nick($r['nickname'], $topBadges[$r['user_id']] ?? 0, 'viewer.php?id=' . $id . '&user=' . urlencode($r['user_id'])) ?> <span class="muted small"><?= h($r['user_id']) ?></span></td><td class="num"><?= fmt_num($r['balloons']) ?>개</td></tr>
       <?php endforeach; ?>
       <?php if (!$topDonors): ?><tr><td class="empty">후원 기록이 없습니다.</td></tr><?php endif; ?>
     </table>
@@ -169,7 +172,7 @@ page_header($b['title'], ['menu' => 'broadcasts', 'broadcast' => $b, 'tab' => 's
     <div class="card-head"><h2>채팅 많이 친 5명</h2><a href="activity.php?id=<?= $id ?>">활동량 보기</a></div>
     <table class="table compact">
       <?php foreach ($topChatters as $i => $r): ?>
-        <tr><td class="rank"><?= $i + 1 ?></td><td><a href="viewer.php?id=<?= $id ?>&user=<?= urlencode($r['user_id']) ?>"><?= h($r['nickname']) ?></a> <span class="muted small"><?= h($r['user_id']) ?></span></td><td class="num"><?= fmt_num($r['cnt']) ?>건</td></tr>
+        <tr><td class="rank"><?= rank_label($i + 1) ?></td><td class="actcell"<?= actbar_attr((int) $r['cnt'], $maxChat) ?>><?= render_nick($r['nickname'], $topBadges[$r['user_id']] ?? 0, 'viewer.php?id=' . $id . '&user=' . urlencode($r['user_id'])) ?> <span class="muted small"><?= h($r['user_id']) ?></span></td><td class="num"><?= fmt_num($r['cnt']) ?>건</td></tr>
       <?php endforeach; ?>
       <?php if (!$topChatters): ?><tr><td class="empty">채팅 기록이 없습니다.</td></tr><?php endif; ?>
     </table>

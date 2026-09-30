@@ -5,7 +5,7 @@
  */
 declare(strict_types=1);
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 define('APP_ROOT', dirname(__DIR__));   // www 폴더
 const APP_DIR = __DIR__;                // www/app 폴더
 

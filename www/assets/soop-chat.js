@@ -70,25 +70,32 @@
   };
 
   // ── 사용자 권한 표시 ───────────────────────────────────────
-  function badgesFromFlag(flag) {
-    var parts = String(flag || '').split('|');
-    var f1 = parseInt(parts[0], 10) || 0;
-    var f2 = parseInt(parts[1], 10) || 0;
+  // 기존 끝장전 시스템이 SOOP 채팅 화면과 대조해 확정한 규칙 (2026-09-10):
+  //  팬 = flag1 의 0x20, 열혈 = flag1 의 0x8000,
+  //  구독 = 구독 개월 필드가 0 이상 정수 (미구독은 -1). flag2 비트로 판정하면 틀림.
+  function badgesFromFlag(flag, subMonth) {
+    var f1 = parseInt(String(flag || '').split('|')[0], 10) || 0;
     var b = 0;
     if (f1 & 4) b |= BADGE.BJ;
     if ((f1 & 256) || (f1 & 64)) b |= BADGE.MANAGER;
     if (f1 & 1) b |= BADGE.ADMIN;
-    if (f1 & 32768) b |= BADGE.TOPFAN;
-    if (f1 & 32) b |= BADGE.FAN;
-    if ((f2 & (1 << 18)) || (f2 & (1 << 19)) || (f2 & (1 << 20))) b |= BADGE.SUBSCRIBER;
+    if (f1 & 0x8000) b |= BADGE.TOPFAN;
+    if (f1 & 0x20) b |= BADGE.FAN;
+    if (/^\d+$/.test(String(subMonth == null ? '' : subMonth).trim())) b |= BADGE.SUBSCRIBER;
     return b;
+  }
+
+  /** 방송국 아이디 비교용: 소문자, 끝의 (2) 같은 접속 번호 제거 */
+  function normId(v) {
+    return String(v || '').trim().toLowerCase().replace(/\(\d+\)$/, '');
   }
 
   function int(v) { var n = parseInt(v, 10); return isFinite(n) ? n : 0; }
   function need(f, n) { return f.length >= n; }
 
-  function donation(ty, st, userId, nick, amount, extra) {
-    var d = { kind: 'donation', ty: ty, st: st, u: userId || '', n: nick || '', a: amount };
+  /** ch = 선물을 받은 방송국 아이디 (다른 방송국으로 간 선물을 거르는 데 씀, 모르면 '') */
+  function donation(ch, ty, st, userId, nick, amount, extra) {
+    var d = { kind: 'donation', ch: ch || '', ty: ty, st: st, u: userId || '', n: nick || '', a: amount };
     if (extra) {
       for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) d[k] = extra[k];
     }
@@ -99,7 +106,7 @@
    * 패킷 → 이벤트. 수집 대상이 아니면 null.
    *  {kind:'login'} {kind:'join', chatNo} {kind:'close'}
    *  {kind:'chat', u, n, m, kd, b}
-   *  {kind:'donation', ty, st, u, n, a, tu?, tn?, x?}
+   *  {kind:'donation', ch, ty, st, u, n, a, tu?, tn?, x?}
    */
   function decodePacket(p) {
     var f = p.fields;
@@ -111,16 +118,16 @@
       // 일반 채팅
       case '0005':
         if (!need(f, 8) || !f[1]) return null;
-        return { kind: 'chat', u: f[1], n: f[5], m: f[0].replace(/\r/g, ''), kd: 'chat', b: badgesFromFlag(f[6]) };
+        return { kind: 'chat', u: f[1], n: f[5], m: f[0].replace(/\r/g, ''), kd: 'chat', b: badgesFromFlag(f[6], f[7]) };
       // OGQ 이모티콘 채팅
       case '0109':
         if (!need(f, 12) || !f[5]) return null;
-        return { kind: 'chat', u: f[5], n: f[6], m: f[1] ? f[1].replace(/\r/g, '') : '[이모티콘]', kd: 'emoticon', b: badgesFromFlag(f[7]) };
+        return { kind: 'chat', u: f[5], n: f[6], m: f[1] ? f[1].replace(/\r/g, '') : '[이모티콘]', kd: 'emoticon', b: badgesFromFlag(f[7], f[12]) };
 
       // 별풍선
-      case '0018': return need(f, 10) ? donation('balloon', 'normal', f[1], f[2], int(f[3])) : null;
-      case '0033': return need(f, 11) ? donation('balloon', 'relay', f[3], f[4], int(f[5])) : null;
-      case '0105': return need(f, 14) ? donation('balloon', 'video', f[2], f[3], int(f[4])) : null;
+      case '0018': return need(f, 10) ? donation(f[0], 'balloon', 'normal', f[1], f[2], int(f[3])) : null;
+      case '0033': return need(f, 11) ? donation(f[1], 'balloon', 'relay', f[3], f[4], int(f[5])) : null;
+      case '0105': return need(f, 14) ? donation(f[1], 'balloon', 'video', f[2], f[3], int(f[4])) : null;
       // 도전미션·대결미션 후원 (일반 별풍선과 따로 옴)
       case '0121': {
         var j;
@@ -128,19 +135,19 @@
         if (!j || typeof j !== 'object') return null;
         var type = String(j.type || '').toUpperCase();
         if (type !== 'CHALLENGE_GIFT' && type !== 'GIFT') return null;
-        return donation('balloon', type === 'GIFT' ? 'battle' : 'mission', String(j.user_id || ''), String(j.user_nick || ''),
+        return donation(String(j.bj_id || ''), 'balloon', type === 'GIFT' ? 'battle' : 'mission', String(j.user_id || ''), String(j.user_nick || ''),
           int(j.gift_count), { x: String(j.title || '').slice(0, 200) });
       }
 
       // 애드벌룬
-      case '0087': return need(f, 18) ? donation('adballoon', 'normal', f[2], f[3], int(f[9])) : null;
-      case '0107': return need(f, 9) ? donation('adballoon', 'station', f[1], f[2], int(f[3])) : null;
+      case '0087': return need(f, 18) ? donation(f[1], 'adballoon', 'normal', f[2], f[3], int(f[9])) : null;
+      case '0107': return need(f, 9) ? donation(f[0], 'adballoon', 'station', f[1], f[2], int(f[3])) : null;
 
       // 구독
-      case '0091': return need(f, 8) ? donation('subscription', 'new', f[2], f[3], 1, { x: tierLabel(f[7]) }) : null;
-      case '0093': return need(f, 8) ? donation('subscription', 'renew', f[1], f[2], int(f[3]), { x: tierLabel(f[7]) }) : null;
-      case '0108': return need(f, 14) ? donation('subscription', 'gift', f[1], f[2], 1, { tu: f[3], tn: f[4] }) : null;
-      case '0142': return need(f, 6) ? donation('subscription', 'gift_random', f[0], f[1], int(f[3])) : null;
+      case '0091': return need(f, 8) ? donation(f[1], 'subscription', 'new', f[2], f[3], 1, { x: tierLabel(f[7]) }) : null;
+      case '0093': return need(f, 8) ? donation(f[0], 'subscription', 'renew', f[1], f[2], int(f[3]), { x: tierLabel(f[7]) }) : null;
+      case '0108': return need(f, 14) ? donation(f[5], 'subscription', 'gift', f[1], f[2], 1, { tu: f[3], tn: f[4] }) : null;
+      case '0142': return need(f, 6) ? donation('', 'subscription', 'gift_random', f[0], f[1], int(f[3])) : null;
     }
     return null;
   }
@@ -316,6 +323,8 @@
           }
           return;
         } else if (joined && self.o.onEvent) {
+          // 다른 방송국으로 간 선물은 집계하지 않습니다. (방송국 필드가 비어 있으면 통과)
+          if (e.kind === 'donation' && e.ch && normId(e.ch) !== normId(self.o.streamerId)) continue;
           self.o.onEvent(e);
         }
       }
@@ -331,6 +340,7 @@
     PacketParser: PacketParser,
     decodePacket: decodePacket,
     badgesFromFlag: badgesFromFlag,
+    normId: normId,
     SoopChatClient: SoopChatClient
   };
   if (typeof module === 'object' && module.exports) module.exports = api;

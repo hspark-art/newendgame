@@ -22,10 +22,12 @@ function page_header(string $title, array $opt = []): void
 <title><?= h($title) ?> · <?= h($appName) ?></title>
 <link rel="stylesheet" href="assets/app.css?v=<?= h(APP_VERSION) ?>">
 </head>
-<body>
+<body class="<?= h($opt['body_class'] ?? '') ?>">
+<div class="brandbar"></div>
 <?php if (empty($opt['bare']) && $admin): ?>
 <header class="topbar">
   <a class="brand" href="index.php"><?= h($appName) ?></a>
+  <a id="live-ind" class="live-ind hidden" href="#" title="수집 창으로 이동"></a>
   <nav class="mainnav">
     <a href="index.php" class="<?= $menu === 'broadcasts' ? 'active' : '' ?>">방송 회차</a>
     <a href="prizes.php" class="<?= $menu === 'prizes' ? 'active' : '' ?>">상품 지급</a>

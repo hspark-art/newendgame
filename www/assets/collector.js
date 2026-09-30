@@ -24,8 +24,7 @@
   var client = null;
   var state = { status: 'idle', message: '', bno: '' };
   var stats = { chat: 0, balloon: 0, ad: 0, sub: 0, saved: 0, dup: 0, last: null, backup: 0 };
-  var chatFeed = [];
-  var donFeed = [];
+  var gradeOf = {};         // 아이디 → 최근 채팅의 배지 (후원 줄 색칠용)
   var dirty = true;
   var wakeLock = null;
 
@@ -314,8 +313,8 @@
     if (e.kind === 'chat') {
       ev.k = 'c'; ev.u = e.u; ev.n = e.n; ev.m = e.m; ev.kd = e.kd; ev.b = e.b;
       stats.chat++;
-      chatFeed.push(ev);
-      if (chatFeed.length > 150) chatFeed.shift();
+      gradeOf[SoopChat.normId(e.u)] = e.b;
+      chatFeed.push(chatLine(ev));
     } else {
       ev.k = 'd'; ev.ty = e.ty; ev.st = e.st; ev.u = e.u; ev.n = e.n; ev.a = e.a;
       if (e.tu) ev.tu = e.tu;
@@ -324,8 +323,9 @@
       if (e.ty === 'balloon') stats.balloon += e.a;
       else if (e.ty === 'adballoon') stats.ad += e.a;
       else if (e.st !== 'gift_random') stats.sub++;
-      donFeed.push(ev);
-      if (donFeed.length > 100) donFeed.shift();
+      // SOOP 채팅창처럼 후원도 채팅 흐름 안에 표시하고, 오른쪽 후원 목록에도 쌓습니다.
+      chatFeed.push(donationLine(ev, true));
+      donFeed.push(donationLine(ev, false));
     }
     pending.push(ev);
     idbEnqueue(ev, 0);
@@ -370,8 +370,151 @@
     if (document.visibilityState === 'visible' && client && client.running) requestWakeLock();
   });
 
-  // ── 화면 그리기 ───────────────────────────────────────────
+  // ── 채팅창 (SOOP 방식: 오래된 것 위, 새 것 아래) ─────────
+  /**
+   * 새 줄을 모아 두었다가 한 번에 아래에 붙입니다.
+   * 맨 아래를 보고 있을 때만 따라 내려가고, 위로 올려 읽는 중이면 자리를 유지한 채 "새 채팅 N개" 버튼을 띄웁니다.
+   */
+  function Feed(el, button, max) {
+    this.el = el;
+    this.button = button;
+    this.max = max;
+    this.queue = [];
+    this.unseen = 0;
+    var self = this;
+    el.addEventListener('scroll', function () {
+      if (self.atBottom()) self.setUnseen(0);
+    });
+    button.addEventListener('click', function () {
+      el.scrollTop = el.scrollHeight;
+      self.setUnseen(0);
+    });
+  }
+  Feed.prototype.atBottom = function () {
+    return this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight < 40;
+  };
+  Feed.prototype.push = function (node) { this.queue.push(node); };
+  Feed.prototype.setUnseen = function (n) {
+    this.unseen = n;
+    this.button.classList.toggle('hidden', n === 0);
+    this.button.querySelector('span').textContent = num(n);
+  };
+  Feed.prototype.flush = function () {
+    if (!this.queue.length) return;
+    var el = this.el;
+    var stick = this.atBottom();
+    var frag = document.createDocumentFragment();
+    var added = this.queue.length;
+    for (var i = 0; i < this.queue.length; i++) frag.appendChild(this.queue[i]);
+    this.queue = [];
+    el.appendChild(frag);
+    var extra = el.children.length - this.max;
+    if (extra > 0) {
+      var before = el.scrollHeight;
+      while (extra-- > 0) el.removeChild(el.firstChild);
+      if (!stick) el.scrollTop -= before - el.scrollHeight; // 읽던 위치 유지
+    }
+    if (stick) {
+      el.scrollTop = el.scrollHeight;
+    } else {
+      this.setUnseen(this.unseen + added);
+    }
+  };
+  Feed.prototype.clear = function () {
+    this.queue = [];
+    this.el.textContent = '';
+    this.setUnseen(0);
+  };
+
+  var chatFeed = new Feed($('feed-chat'), $('chat-new'), 2000);
+  var donFeed = new Feed($('feed-don'), $('don-new'), 300);
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  // 배지: [BJ][매] [구][열|F] — 기존 끝장전 관제 화면과 같은 모양·색
+  function badgeNodes(parent, b) {
+    if (b & 1) parent.appendChild(el('span', 'fb bj', 'BJ'));
+    if (b & 2) parent.appendChild(el('span', 'fb mgr', '매'));
+    if (b & 16) parent.appendChild(el('span', 'fb sub', '구'));
+    if (b & 4) parent.appendChild(el('span', 'fb yeol', '열'));
+    else if (b & 8) parent.appendChild(el('span', 'fb fan', 'F'));
+  }
+  // 닉네임 색: 열혈 > 구독 > 팬 > 일반
+  function nickClass(b) {
+    return 'nk' + (b & 4 ? ' nk-yeol' : b & 16 ? ' nk-sub' : b & 8 ? ' nk-fan' : '');
+  }
+
+  function chatLine(ev) {
+    var line = el('div', 'cl');
+    line.appendChild(el('span', 'pill t', hms(ev.t)));
+    badgeNodes(line, ev.b);
+    var nick = el('b', nickClass(ev.b), ev.n);
+    nick.title = ev.u;
+    line.appendChild(nick);
+    line.appendChild(el('span', 'sep', ' : '));
+    line.appendChild(el('span', 'msg', ev.m));
+    line.dataset.u = ev.u;
+    return line;
+  }
+
+  function donationLine(ev, inChat) {
+    var b = gradeOf[SoopChat.normId(ev.u)] || 0;
+    var line = el('div', 'cl don don-' + ev.ty);
+    if (!inChat) line.appendChild(el('span', 'pill t', hms(ev.t)));
+    line.appendChild(el('span', 'ico', ev.ty === 'balloon' ? '🎈' : ev.ty === 'adballoon' ? '📢' : '⭐'));
+    badgeNodes(line, b);
+    var nick = el('b', nickClass(b), ev.n || '(알 수 없음)');
+    nick.title = ev.u;
+    line.appendChild(nick);
+    var amount = donAmount(ev);
+    line.appendChild(el('span', 'amt', ' ' + (DON_LABEL[ev.ty + '/' + ev.st] || ev.ty) + (amount ? ' ' + amount : '')));
+    if (ev.tn) line.appendChild(el('span', 'msg', ' → ' + ev.tn));
+    if (ev.x && ev.ty === 'balloon') line.appendChild(el('span', 'msg muted', ' ' + ev.x));
+    if (inChat) line.appendChild(el('span', 'pill t', hms(ev.t)));
+    line.dataset.u = ev.u;
+    return line;
+  }
+
+  // ── 채팅창 설정 (글자 크기·시각 표시·높이) ─────────────────
+  function store(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* 저장 불가 */ } }
+  function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+
+  function applyZoom(v) {
+    v = Math.max(50, Math.min(200, Number(v) || 100));
+    root.style.setProperty('--cz', String(v / 100));
+    $('opt-zoom').value = v;
+    $('opt-zoom-v').textContent = v + '%';
+  }
+  applyZoom(load('endgame.chatZoom') || 100);
+  $('opt-zoom').addEventListener('input', function () { applyZoom(this.value); store('endgame.chatZoom', this.value); });
+
+  function applyTime(on) { root.classList.toggle('hide-time', !on); $('opt-time').checked = on; }
+  applyTime(load('endgame.chatTime') !== '0');
+  $('opt-time').addEventListener('change', function () { applyTime(this.checked); store('endgame.chatTime', this.checked ? '1' : '0'); });
+
+  ['feed-chat', 'feed-don'].forEach(function (id) {
+    var box = $(id);
+    var saved = Number(load('endgame.h.' + id));
+    if (saved >= 150) box.style.height = saved + 'px';
+    if (window.ResizeObserver) {
+      var t = null;
+      new ResizeObserver(function () {
+        clearTimeout(t);
+        t = setTimeout(function () { if (box.offsetHeight >= 150) store('endgame.h.' + id, String(box.offsetHeight)); }, 400);
+      }).observe(box);
+    }
+  });
+  $('chat-clear').addEventListener('click', function () { chatFeed.clear(); });
+
+  // ── 화면 갱신 ─────────────────────────────────────────────
   function render() {
+    chatFeed.flush();
+    donFeed.flush();
     if (!dirty) return;
     dirty = false;
     $('s-chat').textContent = num(stats.chat);
@@ -383,31 +526,6 @@
     $('s-dup').textContent = num(stats.dup);
     $('s-last').textContent = stats.last ? hms(stats.last) : '-';
     $('s-backup').textContent = num(stats.backup);
-
-    var html = '';
-    for (var i = chatFeed.length - 1; i >= 0; i--) {
-      var c = chatFeed[i];
-      html += '<li><span class="t">' + hms(c.t) + '</span>' + badgeHtml(c.b) + '<span class="nick">' + esc(c.n) + '</span>' +
-        '<span class="uid">' + esc(c.u) + '</span><span class="msg">' + esc(c.m) + '</span></li>';
-    }
-    $('feed-chat').innerHTML = html;
-
-    html = '';
-    for (var j = donFeed.length - 1; j >= 0; j--) {
-      var d = donFeed[j];
-      html += '<li class="don don-' + d.ty + '"><span class="t">' + hms(d.t) + '</span><span class="dtype">' + esc(DON_LABEL[d.ty + '/' + d.st] || d.ty) +
-        ' ' + esc(donAmount(d)) + '</span><span class="nick">' + esc(d.n || '(알 수 없음)') + '</span><span class="uid">' + esc(d.u) + '</span>' +
-        (d.tn ? '<span class="msg">→ ' + esc(d.tn) + '</span>' : '') + (d.x && d.ty === 'balloon' ? '<span class="msg">' + esc(d.x) + '</span>' : '') + '</li>';
-    }
-    $('feed-don').innerHTML = html;
-  }
-  var BADGE_HTML = [[1, 'bj', '방송인'], [2, 'manager', '매니저'], [32, 'admin', '운영자'], [4, 'topfan', '열혈'], [16, 'sub', '구독'], [8, 'fan', '팬']];
-  function badgeHtml(b) {
-    var out = '';
-    for (var i = 0; i < BADGE_HTML.length; i++) {
-      if (b & BADGE_HTML[i][0]) out += '<span class="badge badge-' + BADGE_HTML[i][1] + '">' + BADGE_HTML[i][2] + '</span>';
-    }
-    return out;
   }
 
   // ── 시작 ─────────────────────────────────────────────────
@@ -425,7 +543,16 @@
   });
 
   setInterval(flush, 2000);
-  setInterval(render, 500);
+  setInterval(render, 250);
+  // [메인 창]: 메인 창이 열려 있으면 그 창으로 이동만 하고, 없으면 새로 엽니다.
+  $('c-main').addEventListener('click', function (e) {
+    e.preventDefault();
+    try {
+      if (window.opener && !window.opener.closed) { window.opener.focus(); return; }
+    } catch (err) { /* 무시 */ }
+    if (!(window.EndgamePopup && window.EndgamePopup('index.php', 'endgame-main'))) location.href = 'index.php';
+  });
+  try { if (!window.name) window.name = 'collector-' + BID; } catch (e) { /* 무시 */ }
 
   idbOpen().then(function (db) {
     idb.db = db;

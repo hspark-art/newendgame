@@ -220,25 +220,79 @@ const BADGE_FAN = 8;
 const BADGE_SUBSCRIBER = 16;
 const BADGE_ADMIN = 32;
 
+/**
+ * 배지 표시: [BJ][매] [구][열|F]
+ * 기존 끝장전 관제 화면과 같은 모양·색 (구독 파랑, 열혈 빨강, 팬 초록). 열혈이면 팬 배지는 생략합니다.
+ */
 function badge_labels(int $badges): array
 {
     $labels = [];
-    if ($badges & BADGE_BJ) $labels[] = ['bj', '방송인'];
-    if ($badges & BADGE_MANAGER) $labels[] = ['manager', '매니저'];
-    if ($badges & BADGE_ADMIN) $labels[] = ['admin', '운영자'];
-    if ($badges & BADGE_TOPFAN) $labels[] = ['topfan', '열혈'];
-    if ($badges & BADGE_SUBSCRIBER) $labels[] = ['sub', '구독'];
-    if ($badges & BADGE_FAN) $labels[] = ['fan', '팬'];
+    if ($badges & BADGE_BJ) $labels[] = ['bj', 'BJ', '방송인'];
+    if ($badges & BADGE_MANAGER) $labels[] = ['mgr', '매', '매니저'];
+    if ($badges & BADGE_SUBSCRIBER) $labels[] = ['sub', '구', '구독자'];
+    if ($badges & BADGE_TOPFAN) {
+        $labels[] = ['yeol', '열', '열혈팬'];
+    } elseif ($badges & BADGE_FAN) {
+        $labels[] = ['fan', 'F', '팬클럽'];
+    }
     return $labels;
 }
 
 function render_badges(int $badges): string
 {
     $html = '';
-    foreach (badge_labels($badges) as [$class, $label]) {
-        $html .= '<span class="badge badge-' . $class . '">' . h($label) . '</span>';
+    foreach (badge_labels($badges) as [$class, $label, $title]) {
+        $html .= '<span class="fb ' . $class . '" title="' . h($title) . '">' . h($label) . '</span>';
     }
     return $html;
+}
+
+/** 닉네임 색 class: 열혈 > 구독 > 팬 > 일반 */
+function nick_class(int $badges): string
+{
+    return 'nk' . match (true) {
+        (bool) ($badges & BADGE_TOPFAN)     => ' nk-yeol',
+        (bool) ($badges & BADGE_SUBSCRIBER) => ' nk-sub',
+        (bool) ($badges & BADGE_FAN)        => ' nk-fan',
+        default                             => '',
+    };
+}
+
+/** 배지 + 색 입힌 닉네임 (링크 주소를 주면 링크로) */
+function render_nick(string $nickname, int $badges, ?string $href = null): string
+{
+    $name = '<b class="' . nick_class($badges) . '">' . h($nickname !== '' ? $nickname : '(알 수 없음)') . '</b>';
+    return render_badges($badges) . ($href !== null ? '<a class="nick-link" href="' . h($href) . '">' . $name . '</a>' : $name);
+}
+
+/** 순위 표시: 1~3위는 메달 */
+function rank_label(int $rank): string
+{
+    return [1 => '🥇', 2 => '🥈', 3 => '🥉'][$rank] ?? (string) $rank;
+}
+
+/** 활약 막대(값 ÷ 최댓값) — 표 칸 배경에 깔리는 그라디언트 */
+function actbar_attr(float|int $value, float|int $max): string
+{
+    $p = $max > 0 ? max(0, min(100, round($value / $max * 100))) : 0;
+    return ' style="--p:' . $p . '%"';
+}
+
+/** 이 회차 채팅 기록에서 시청자별 배지를 모읍니다. (후원 순위처럼 배지가 없는 목록용) */
+function user_badges(int $broadcastId, array $userIds): array
+{
+    $userIds = array_values(array_unique(array_filter($userIds, fn($v) => $v !== '')));
+    if (!$userIds) {
+        return [];
+    }
+    $map = [];
+    foreach (db_all(
+        'SELECT DISTINCT user_id, badges FROM chat_messages WHERE broadcast_id = ? AND user_id IN (' . db_placeholders($userIds) . ')',
+        array_merge([$broadcastId], $userIds)
+    ) as $r) {
+        $map[$r['user_id']] = ($map[$r['user_id']] ?? 0) | (int) $r['badges'];
+    }
+    return $map;
 }
 
 // ── 개인정보 가림 표시 ─────────────────────────────────────
@@ -319,7 +373,7 @@ function send_security_headers(): void
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: same-origin');
     // 실시간 수집 화면이 SOOP 채팅 서버(wss://)에 직접 연결하므로 connect-src 에 wss: 를 허용합니다.
-    header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+    header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
 }
 
 function handle_uncaught_exception(Throwable $e): void
