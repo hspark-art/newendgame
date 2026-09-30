@@ -44,12 +44,12 @@ CLAUDE.md → 아래 진행 기록 → 현재 단계 관련 문서·코드만 �
 
 | 항목 | 현재 기록 |
 |---|---|
-| 현재 단계 | PHASE 1 완료 → PHASE 2 진행 |
-| 완료 단계 | PHASE 0 (스크린샷 분석, CG_REFERENCE_GUIDE §6), PHASE 1 (ARCHITECTURE, 구조 결정) |
-| 변경 파일 | cg/ 전체 신규. docs/ARCHITECTURE.md, PROJECT_STATUS.md, README.md |
-| 검증 결과 / 미검증 | 문서 단계라 실행 검증 없음 |
+| 현재 단계 | PHASE 3 완료 → PHASE 4 진행 |
+| 완료 단계 | PHASE 0 (스크린샷 분석), 1 (ARCHITECTURE), 2 (DATA_MODEL, DB 계층·마이그레이션·테스트 러너), 3 (MOCK JSON, provider 검증, stats) |
+| 변경 파일 | cg/www/app/{helpers,db,migrate,guard,route,bootstrap,stats,provider}.php, data/mock/*.json, tests/* |
+| 검증 결과 / 미검증 | php tests/run.php 16건 통과 (SQLite, MySQL 10.11 모두). MOCK 33-21→61.1%, 129-123→51.2%, 0경기→null 확인 |
 | 미확정·장애 | 집계 단위(세트/매치), 방송 폰트, 예측 순위 정렬 기준, CG W/H 조정 여부, 웹 도메인·호스팅 |
-| 다음 작업 | PHASE 2 데이터 모델·DB 계층 |
+| 다음 작업 | PHASE 4 첫 CG·패널 골격·PC 실행기 |
 
 ### 추가 단계 (사용자 요청, 2026-09-30)
 | 단계 | 작업 | 완료 조건 |

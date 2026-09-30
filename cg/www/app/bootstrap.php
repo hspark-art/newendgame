@@ -18,6 +18,8 @@ require_once APP_DIR . '/migrate.php';
 require_once APP_DIR . '/route.php';
 require_once APP_DIR . '/guard.php';
 require_once APP_DIR . '/auth.php';
+require_once APP_DIR . '/stats.php';
+require_once APP_DIR . '/provider.php';
 
 define('APP_VERSION', (string)(json_decode((string)file_get_contents(APP_DIR . '/version.json'), true)['version'] ?? '0'));
 

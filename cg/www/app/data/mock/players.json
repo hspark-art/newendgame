@@ -1,0 +1,86 @@
+{
+    "_mock": true,
+    "_note": "MOCK — 실제 기록 아님. 화면·계산 검증용 가짜 데이터입니다. 선수 종족·집계 단위(세트 기준)는 NEEDS CONFIRMATION.",
+    "players": [
+        {
+            "id": "jo-iljang",
+            "name": "조일장",
+            "nickname": null,
+            "race": "Z",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "jang-yunchul",
+            "name": "장윤철",
+            "nickname": null,
+            "race": "P",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "mock-p1",
+            "name": "MOCK-P1",
+            "nickname": null,
+            "race": "P",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "mock-p2",
+            "name": "MOCK-P2",
+            "nickname": null,
+            "race": "P",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "mock-p3",
+            "name": "MOCK-P3",
+            "nickname": null,
+            "race": "P",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "mock-z1",
+            "name": "MOCK-Z1",
+            "nickname": null,
+            "race": "Z",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "mock-z2",
+            "name": "MOCK-Z2",
+            "nickname": null,
+            "race": "Z",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "mock-z3",
+            "name": "MOCK-Z3",
+            "nickname": null,
+            "race": "Z",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "mock-z4",
+            "name": "MOCK-Z4",
+            "nickname": null,
+            "race": "Z",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "mock-t1",
+            "name": "MOCK-T1",
+            "nickname": null,
+            "race": "T",
+            "aliases": [],
+            "active": true
+        }
+    ]
+}
