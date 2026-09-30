@@ -1,0 +1,6 @@
+# 서버 접속 정보가 들어가므로 저장소에 올리지 않습니다.
+www/app/config.php
+www/app/storage/
+node_modules/
+.DS_Store
+Thumbs.db

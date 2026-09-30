@@ -1,0 +1,8 @@
+# app 폴더는 브라우저에서 직접 열 수 없도록 차단합니다.
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>
