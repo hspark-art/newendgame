@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * 번호식 DB 마이그레이션. 이미 배포된 번호의 내용은 절대 고치지 않고, 새 번호를 맨 끝에 추가한다.
- * DDL 토큰: {pk} 자동 증가 기본키, {opts} MySQL 테이블 옵션.
+ * DDL 토큰: {pk} 자동 증가 기본키, {opts} MySQL 테이블 옵션, {bigtext} 큰 글자 칸(MySQL MEDIUMTEXT, 최대 16MB).
  */
 
 function ddl(string $sql): string
@@ -12,6 +12,7 @@ function ddl(string $sql): string
     return strtr($sql, [
         '{pk}' => $mysql ? 'INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT',
         '{opts}' => $mysql ? 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '',
+        '{bigtext}' => $mysql ? 'MEDIUMTEXT' : 'TEXT',
     ]);
 }
 
@@ -77,6 +78,17 @@ function migrations(): array
                     );
                 }
                 db_exec("INSERT INTO cg_sources (id, label, status) VALUES ('mock', 'MOCK 데이터', 'NEVER')");
+            },
+        ],
+        // v0.3.0: Google 시트 연결 — 마지막 정상 데이터 보관, CG별 검증 사유, 선수 부가 정보(닉네임)
+        2 => [
+            'CREATE TABLE cg_dataset_cache (source VARCHAR(30) NOT NULL PRIMARY KEY, fetched_at VARCHAR(19) NOT NULL,
+                sha256 CHAR(64) NOT NULL, body {bigtext} NOT NULL) {opts}',
+            'ALTER TABLE cg_instances ADD COLUMN issues_json TEXT NULL',
+            'CREATE TABLE cg_player_info (player VARCHAR(40) NOT NULL PRIMARY KEY, nickname VARCHAR(20) NOT NULL,
+                updated_at VARCHAR(19) NOT NULL) {opts}',
+            static function (): void {
+                db_exec("INSERT INTO cg_sources (id, label, status) VALUES ('sheet', 'Google 시트', 'NEVER')");
             },
         ],
     ];

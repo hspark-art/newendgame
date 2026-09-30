@@ -56,6 +56,16 @@ function action_dispatch(string $action, array $in, array $op): mixed
         'new_session' => session_start_new((string)($in['name'] ?? ''), $op),
         'rundown_export' => rundown_export(),
         'rundown_import' => rundown_import($in['data'] ?? null, $op),
+        // 데이터 소스 (설정 변경은 관리자만 — 함수 안에서 확인)
+        'data_check' => data_check_view(),
+        'data_settings' => data_settings_view($op),
+        'data_settings_save' => data_settings_save($in, $op),
+        'data_key_save' => google_key_save((string)($in['key'] ?? ''), $op),
+        'data_key_remove' => google_key_remove($op),
+        'data_test' => data_test($op),
+        'data_import_xlsx' => data_import_xlsx($in, $op),
+        'player_info' => player_info_view(),
+        'player_info_save' => player_info_save($in, $op),
         default => throw new ActionError('UNKNOWN_ACTION', '알 수 없는 동작입니다.', 400),
     };
 }

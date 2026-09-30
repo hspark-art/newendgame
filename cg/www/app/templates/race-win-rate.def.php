@@ -24,13 +24,16 @@ return [
     'auto' => static function (array $p, array $ds): array {
         $auto = ['title' => '중계진 스타 끝장전 상대 종족 승률'];
         foreach (['a', 'b'] as $s) {
-            $rec = stats_race_record($ds['matches'], $p[$s]['player'], $p[$s]['vs']); // 세트 기준
+            $rec = stats_race_sets($ds['games'], $p[$s]['player'], $p[$s]['vs']); // 세트 기준
             $auto["$s.name"] = pname($ds['players'], $p[$s]['player']);
             $auto["$s.wins"] = $rec['wins'];
             $auto["$s.losses"] = $rec['losses'];
         }
         return $auto;
     },
+    'verify' => static fn(array $p, array $ds): array => array_merge(
+        verify_sets($ds, $p['a']['player'], $p['a']['vs'], ['a.wins', 'a.losses']),
+        verify_sets($ds, $p['b']['player'], $p['b']['vs'], ['b.wins', 'b.losses'])),
     'summary' => static fn(array $p, array $ctx): string => sprintf('%s vs %s / %s vs %s',
         pname($ctx['players'], $p['a']['player']), $p['a']['vs'], pname($ctx['players'], $p['b']['player']), $p['b']['vs']),
     'present' => static function (array $f, array $p): array {

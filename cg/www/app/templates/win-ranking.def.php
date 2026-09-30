@@ -22,12 +22,22 @@ return [
     'auto' => static function (array $p, array $ds): array {
         $race = $p['race'] === '' ? null : $p['race'];
         $auto = ['title' => '중계진 스타 끝장전 ' . ($race ? RACE_NAMES[$race] . ' ' : '') . '다승 순위'];
-        foreach (stats_win_ranking($ds['matches'], $ds['players'], $race, $p['count']) as $i => $r) {
+        foreach (stats_win_ranking($ds['games'], $ds['players'], $race, $p['count']) as $i => $r) {
             $n = $i + 1;
             $auto += ["r$n.rank" => $r['rank'], "r$n.name" => pname($ds['players'], $r['player']),
                 "r$n.nick" => $ds['players'][$r['player']]['nickname'] ?? null, "r$n.wins" => $r['wins'], "r$n.losses" => $r['losses']];
         }
         return $auto;
+    },
+    'verify' => static function (array $p, array $ds): array {
+        $race = $p['race'] === '' ? null : $p['race'];
+        $all = stats_win_ranking($ds['games'], $ds['players'], $race, PHP_INT_MAX);
+        $issues = verify_population($ds, 'sets', players_of_race($ds['players'], $race), row_keys(['rank'], $p['count']));
+        foreach (array_slice($all, 0, $p['count']) as $i => $r) {
+            $n = $i + 1;
+            $issues = array_merge($issues, verify_sets($ds, $r['player'], 'all', ["r$n.wins", "r$n.losses"]));
+        }
+        return $issues;
     },
     'summary' => static fn(array $p, array $ctx): string => ($p['race'] === '' ? '전체 종족' : RACE_NAMES[$p['race']])
         . ' · ' . $p['count'] . '명',

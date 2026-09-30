@@ -33,6 +33,16 @@ return [
         }
         return $auto;
     },
+    'verify' => static function (array $p, array $ds): array {
+        $race = $p['race'] === '' ? null : $p['race'];
+        $all = stats_win_streaks($ds['matches'], $ds['players'], $race, PHP_INT_MAX);
+        $issues = verify_population($ds, 'matches', players_of_race($ds['players'], $race), row_keys(['rank'], $p['count']));
+        foreach (array_slice($all, 0, $p['count']) as $i => $r) {
+            $n = $i + 1;
+            $issues = array_merge($issues, verify_matches($ds, $r['player'], ["r$n.streak", "r$n.start", "r$n.end"]));
+        }
+        return $issues;
+    },
     'summary' => static fn(array $p, array $ctx): string => ($p['race'] === '' ? '전체 종족' : RACE_NAMES[$p['race']])
         . ' · ' . $p['count'] . '명',
     'present' => static function (array $f): array {

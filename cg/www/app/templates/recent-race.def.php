@@ -28,6 +28,7 @@ return [
         }
         return $auto;
     },
+    'verify' => static fn(array $p, array $ds): array => verify_matches($ds, $p['player'], row_keys(['date', 'a', 'sa', 'sb', 'b'])),
     'summary' => static fn(array $p, array $ctx): string => sprintf('%s vs %s · 최근 %d경기',
         pname($ctx['players'], $p['player']), $p['vs'], $p['count']),
     'present' => static function (array $f): array {

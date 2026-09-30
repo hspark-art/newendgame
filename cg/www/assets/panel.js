@@ -144,9 +144,13 @@
     $('mockBadge').hidden = S.source.id !== 'mock';
     var st = $('srcStatus');
     var src = S.source;
+    var chk = S.data.check;
+    var bad = chk && !chk.mock ? chk.mismatches + chk.anomalies + chk.unavailable.length : 0;
+    $('dataBadge').hidden = bad === 0;
+    $('dataBadge').textContent = '확인 ' + bad;
     if (src.status === 'OK') {
       st.className = 'status ok';
-      st.textContent = src.label + ' · 정상 · ' + (src.last_success_at || '').slice(11);
+      st.textContent = src.label + (chk && chk.method === 'xlsx' ? '(파일)' : '') + ' · 정상 · ' + (src.last_success_at || '').slice(5, 16);
     } else if (src.stale) {
       st.className = 'status stale';
       st.textContent = 'STALE · 마지막 정상 ' + src.last_success_at.slice(11) + ' · 갱신 실패';
@@ -538,6 +542,99 @@
     return S.rundown.filter(function (r) { return r.id === id; })[0];
   }
 
+  // ------------------------------------------------------------ 데이터 점검·설정
+
+  function dataTab(name) {
+    Array.prototype.forEach.call(document.querySelectorAll('#dlgData .tab'), function (b) {
+      b.classList.toggle('on', b.getAttribute('data-tab') === name);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#dlgData .tabpane'), function (p) {
+      p.hidden = p.getAttribute('data-pane') !== name;
+    });
+    if (name === 'check') { loadCheck(); }
+    if (name === 'players') { api('player_info').then(renderPlayerInfo); }
+    if (name === 'settings') { api('data_settings').then(renderSettings); }
+  }
+
+  function openData() {
+    $('dlgData').returnValue = '';
+    $('dlgData').showModal();
+    dataTab('check');
+  }
+
+  function loadCheck() {
+    api('data_check').then(function (r) {
+      var s = r.summary;
+      var html = '';
+      if (!s) {
+        html = '<p>아직 불러온 데이터가 없습니다. [데이터 새로고침]을 누르세요.</p>';
+      } else if (s.mock) {
+        html = '<p><b>MOCK 데이터</b> (검증용 가짜 수치) · ' + esc(s.at) + '</p>';
+      } else {
+        var c = s.counts;
+        var v = function (ok, label) { return '<span class="tag ' + (ok ? 'auto">' : 'err">') + esc(label) + (ok ? ' 대조됨' : ' 대조 불가') + '</span> '; };
+        html = '<p><b>Google 시트' + (s.method === 'xlsx' ? ' (xlsx 파일)' : '') + '</b> · ' + esc(s.at) + '</p>'
+          + '<p>세트 ' + c.games + ' · 끝장전 ' + c.matches + ' (통계 사용 ' + c.valid_matches + ') · 선수 ' + c.players
+          + ' · 예측 ' + c.predictions + ' · 기간 ' + esc(c.first_date) + ' ~ ' + esc(c.last_date) + '</p>'
+          + '<p>' + v(s.verified.sets, '세트 전적') + v(s.verified.matches, '끝장전 목록') + v(s.verified.predictions, '승자 예측') + '</p>'
+          + s.unavailable.map(function (u) { return '<p class="notice err">' + esc(u) + '</p>'; }).join('');
+      }
+      $('dcSummary').innerHTML = html;
+      $('dcMisCount').textContent = r.mismatches.length + '건';
+      $('dcAnoCount').textContent = r.anomalies.length + '건';
+      var kinds = { sets: '세트 전적', matches: '끝장전', predictions: '승자 예측' };
+      $('dcMismatch').innerHTML = r.mismatches.map(function (m) {
+        return '<tr><td>' + esc(kinds[m.kind] || m.kind) + '</td><td>' + esc(m.who) + '</td><td>' + esc(m.item) + '</td><td>'
+          + esc(m.sheet) + '</td><td>' + esc(m.calc) + '</td></tr>';
+      }).join('') || '<tr><td colspan="5" class="muted">없음</td></tr>';
+      $('dcAnomaly').innerHTML = r.anomalies.map(function (a) { return '<li>' + esc(a.text) + '</li>'; }).join('')
+        || '<li class="muted">없음</li>';
+    });
+  }
+
+  function renderPlayerInfo(r) {
+    var list = r.players || r;
+    $('piBody').innerHTML = list.map(function (p) {
+      return '<tr data-player="' + esc(p.id) + '"><td>' + esc(p.name) + '</td><td>' + esc(p.race || '-') + '</td>'
+        + '<td><input type="text" class="nick" maxlength="20" value="' + esc(p.nickname) + '"></td>'
+        + '<td><button type="button" class="btn sm" data-act="nick">저장</button></td></tr>';
+    }).join('') || '<tr><td colspan="4" class="muted">선수 목록이 없습니다. 데이터를 먼저 불러오세요.</td></tr>';
+  }
+
+  function renderSettings(r) {
+    $('dsNotAdmin').hidden = r.admin;
+    Array.prototype.forEach.call(document.querySelectorAll('#dsForm input, #dsForm select, #dsForm button'), function (el) {
+      el.disabled = !r.admin;
+    });
+    $('dsSource').innerHTML = Object.keys(r.sources).map(function (k) {
+      return '<option value="' + esc(k) + '"' + (k === r.source ? ' selected' : '') + '>' + esc(r.sources[k]) + '</option>';
+    }).join('');
+    $('dsSheet').value = r.sheet_id ? (r.admin ? 'https://docs.google.com/spreadsheets/d/' + r.sheet_id + '/edit' : r.sheet_id) : '';
+    [['dsTabResults', 'results'], ['dsTabPlayers', 'players'], ['dsTabMatches', 'matches'], ['dsTabPredictions', 'predictions']]
+      .forEach(function (x) { $(x[0]).value = (r.tabs || {})[x[1]] || ''; });
+    $('dsKeyEmail').textContent = r.key_email || '없음';
+    $('dsOpenssl').hidden = r.openssl;
+  }
+
+  function saveSettings() {
+    return api('data_settings_save', {
+      source: $('dsSource').value, sheet: $('dsSheet').value,
+      tabs: { results: $('dsTabResults').value, players: $('dsTabPlayers').value, matches: $('dsTabMatches').value,
+        predictions: $('dsTabPredictions').value }
+    }).then(function (r) { renderSettings(r); toast('데이터 설정을 저장했습니다. [데이터 새로고침]으로 반영하세요.', 'ok'); });
+  }
+
+  function readFile(input, asDataUrl) {
+    return new Promise(function (resolve) {
+      var f = input.files[0];
+      input.value = '';
+      if (!f) { return; }
+      var reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      if (asDataUrl) { reader.readAsDataURL(f); } else { reader.readAsText(f); }
+    });
+  }
+
   // ------------------------------------------------------------ 가져오기·내보내기
 
   function exportRundown() {
@@ -584,6 +681,44 @@
         .then(function (ok) { if (ok) { api('reset', { instance_id: S.preview.instance_id }).then(function () { dirty = {}; }); } });
     };
     $('btnAdd').onclick = function () { openPage(null); };
+    $('btnData').onclick = openData;
+    Array.prototype.forEach.call(document.querySelectorAll('#dlgData .tab'), function (b) {
+      b.onclick = function () { dataTab(b.getAttribute('data-tab')); };
+    });
+    $('piBody').addEventListener('click', function (e) {
+      if (e.target.getAttribute('data-act') !== 'nick') { return; }
+      var tr = e.target.closest('tr');
+      api('player_info_save', { player: tr.getAttribute('data-player'), nickname: tr.querySelector('.nick').value })
+        .then(function (r) { renderPlayerInfo(r); toast('닉네임을 저장했습니다.', 'ok'); });
+    });
+    $('dsSave').onclick = saveSettings;
+    $('dsTest').onclick = function () {
+      toast('시트에 연결하는 중…');
+      api('data_test').then(function (s) {
+        toast('연결 성공: 세트 ' + s.counts.games + ' · 끝장전 ' + s.counts.matches + ' · 불일치 ' + s.mismatches + ' · 이상 ' + s.anomalies, 'ok');
+      });
+    };
+    $('dsKeyFile').onchange = function () {
+      readFile(this, false).then(function (text) {
+        api('data_key_save', { key: text }).then(function (r) {
+          $('dsKeyEmail').textContent = r.client_email;
+          toast('서비스 계정 키를 등록했습니다. 시트를 ' + r.client_email + ' 에 "뷰어"로 공유하세요.', 'ok');
+        });
+      });
+    };
+    $('dsKeyRemove').onclick = function () {
+      confirmBox('서비스 계정 키 삭제', '<p>등록된 키 파일을 지웁니다. 다시 등록하기 전까지 시트에서 새로 불러올 수 없습니다 (마지막 정상 데이터는 유지).</p>', '삭제')
+        .then(function (ok) { if (ok) { api('data_key_remove').then(function () { $('dsKeyEmail').textContent = '없음'; }); } });
+    };
+    $('dsXlsx').onchange = function () {
+      readFile(this, true).then(function (url) {
+        toast('파일을 읽는 중…');
+        api('data_import_xlsx', { file: String(url).replace(/^data:[^,]*,/, '') }).then(function (r) {
+          toast('xlsx를 가져왔습니다. 자동값 변경 ' + r.changed + '건', 'ok');
+          dataTab('check');
+        });
+      });
+    };
     $('btnExport').onclick = exportRundown;
     $('btnImport').onclick = function () { $('fileImport').value = ''; $('fileImport').click(); };
     $('fileImport').onchange = function () { if (this.files[0]) { importRundown(this.files[0]); } };
@@ -742,6 +877,13 @@
 
   bind();
   window.setInterval(tickClock, 500);
-  window.setInterval(function () { if (S && $('autoRefresh').checked) { refresh(true); } }, 60000);
+  // 자동 새로고침: MOCK은 1분, Google 시트는 5분마다 (요청 수 절약)
+  var lastAuto = Date.now();
+  window.setInterval(function () {
+    if (!S || !$('autoRefresh').checked) { return; }
+    if (S.data.source === 'sheet' && Date.now() - lastAuto < 290000) { return; }
+    lastAuto = Date.now();
+    refresh(true);
+  }, 60000);
   poll();
 })();

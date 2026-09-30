@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 /**
  * 데이터 소스. 수집(fetch) → 정규화(normalize) → 검증(validate)을 나눈다.
- * 현재 소스는 MOCK JSON 하나다. Google Sheets·외부 사이트는 실제 주소·구조가 확인된 뒤(PHASE 8·9) 추가한다.
+ *   mock  : MOCK JSON (검증용 가짜 수치)
+ *   sheet : Google 시트 (서비스 계정으로 Sheets API 읽기, 또는 xlsx 가져오기) — sheet_data.php, sheets.php
+ * 두 소스 모두 같은 모양으로 만든다: players, games(세트), matches(끝장전), predictions(예측 결과), predictors …
  */
 
 final class ProviderError extends RuntimeException
@@ -23,6 +25,9 @@ const RACES = ['P', 'T', 'Z'];
  */
 function provider_load(string $sourceId = 'mock', ?string $dir = null): array
 {
+    if ($sourceId === 'sheet') {
+        return sheet_dataset(sheets_fetch_tables(), 'api');
+    }
     if ($sourceId !== 'mock') {
         throw new ProviderError("알 수 없는 데이터 소스: $sourceId");
     }
@@ -32,7 +37,38 @@ function provider_load(string $sourceId = 'mock', ?string $dir = null): array
     if ($problems) {
         throw new ProviderError('데이터 검증 실패 (' . count($problems) . '건)', $problems);
     }
-    return $ds;
+    return mock_enrich($ds);
+}
+
+/**
+ * MOCK 데이터를 시트 데이터와 같은 모양으로: 끝장전 스코어로 세트 목록을 만들고, 예측(누가 이길지 고른 기록)을
+ * 성공/실패 결과로 바꾼다. MOCK은 검증 대상이 아니다(verify = null).
+ */
+function mock_enrich(array $ds): array
+{
+    $games = [];
+    foreach ($ds['matches'] as $m) {
+        foreach ([['playerA', 'raceA', 'playerB', 'raceB', 'scoreA'], ['playerB', 'raceB', 'playerA', 'raceA', 'scoreB']] as [$w, $wr, $l, $lr, $sc]) {
+            for ($i = 0; $i < $m[$sc]; $i++) {
+                $games[] = ['row' => null, 'date' => $m['date'], 'winner' => $m[$w], 'wrace' => $m[$wr], 'loser' => $m[$l],
+                    'lrace' => $m[$lr], 'map' => ''];
+            }
+        }
+    }
+    $winner = [];
+    $date = [];
+    foreach ($ds['matches'] as $m) {
+        $winner[$m['id']] = $m['scoreA'] > $m['scoreB'] ? $m['playerA'] : $m['playerB'];
+        $date[$m['id']] = $m['date'];
+    }
+    $predictions = [];
+    foreach ($ds['picks'] as $p) {
+        $predictions[] = ['date' => $date[$p['match']], 'predictor' => $p['predictor'], 'correct' => $p['pick'] === $winner[$p['match']],
+            'row' => null];
+    }
+    $ds['matches'] = array_map(static fn($m) => $m + ['anomaly' => null, 'sets' => $m['scoreA'] + $m['scoreB']], $ds['matches']);
+    return $ds + ['games' => $games, 'matches_all' => $ds['matches'], 'predictions' => $predictions,
+        'online_available' => true, 'verify' => null, 'check' => null];
 }
 
 /**

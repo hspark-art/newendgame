@@ -147,3 +147,11 @@ function run_tests(string $filter): int
     echo "\n$pass passed, $fail failed\n";
     return $fail > 0 ? 1 : 0;
 }
+
+/** MOCK 데이터를 고쳐서 쓰기 (세트·예측 결과는 고친 경기 기록으로 다시 만든다) */
+function mock_with(callable $change): array
+{
+    $ds = dataset_normalize(mock_fetch((string)config('mock_dir', APP_DIR . '/data/mock')), 'mock');
+    $change($ds);
+    return mock_enrich($ds);
+}

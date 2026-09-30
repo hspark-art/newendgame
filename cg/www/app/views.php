@@ -120,6 +120,7 @@ function panel_state(array $op): array
         'source' => source_status(),
         // 이전 버전에서 올린 뒤 아직 새로고침하지 않아 예측자·연도 목록이 없음 → 패널이 한 번 새로고침한다
         'caches_ready' => setting_get('years_cache') !== null,
+        'data' => ['source' => data_source(), 'check' => json_dec(setting_get('data_check', 'null'))],
         // 페이지 추가 대화상자는 템플릿의 params 정의로 입력칸을 만든다
         'templates' => array_map(static fn($t) => ['slug' => $t['slug'], 'name' => $t['name'], 'short' => $t['short'],
             'params' => array_map(static fn($p) => array_intersect_key($p,

@@ -120,8 +120,7 @@ test('시나리오3: 자동 갱신 → 수동값 보존·변경 표시, PROGRAM 
     $before = program_json();
     $pgRev = channel_get('program')['rev'];
     $pvRev = channel_get('preview')['rev'];
-    $ds = provider_load('mock');
-    $ds['matches'][0]['scoreA'] = 2; // mock-001: MOCK-P2 2:5 조일장 → 조일장 vs P 33승 20패
+    $ds = mock_with(fn(array &$d) => $d['matches'][0]['scoreA'] = 2); // mock-001: MOCK-P2 2:5 조일장 → 조일장 vs P 33승 20패
     $r = data_refresh(op(), $ds);
     assert_same(1, $r['changed']);
     $losses = pv_field('a.losses');
@@ -135,11 +134,18 @@ test('시나리오3: 자동 갱신 → 수동값 보존·변경 표시, PROGRAM 
     assert_same($pgRev, channel_get('program')['rev']);
     assert_true(channel_get('preview')['rev'] > $pvRev, 'PREVIEW는 갱신 알림');
     // 수동값 저장 이후 AUTO가 바뀐 경우 표시
-    $ds['matches'][1]['scoreA'] = 5; $ds['matches'][1]['scoreB'] = 1; // 5:2 → 5:1
+    $ds = mock_with(function (array &$d) {
+        $d['matches'][0]['scoreA'] = 2;
+        $d['matches'][1]['scoreB'] = 1; // 5:2 → 5:1
+    });
     data_refresh(op(), $ds);
     assert_true(pv_field('a.wins')['auto_changed'] === false, 'wins AUTO는 그대로(33)');
     preview_save($iid, ['a.losses' => '25'], op());
-    $ds['matches'][2]['scoreB'] = 3; // 5:2 → 5:3, 패 +1
+    $ds = mock_with(function (array &$d) {
+        $d['matches'][0]['scoreA'] = 2;
+        $d['matches'][1]['scoreB'] = 1;
+        $d['matches'][2]['scoreB'] = 3; // 5:2 → 5:3, 패 +1
+    });
     data_refresh(op(), $ds);
     $l = pv_field('a.losses');
     assert_true($l['auto_changed'], '자동값 변경 표시');
@@ -246,8 +252,7 @@ test('UPDATE LIVE: 자동 갱신으로 바뀐 AUTO 값은 내보내지 않고 �
     setup_rwr();
     $iid = channel_get('preview')['instance_id'];
     take_now();
-    $ds = provider_load('mock');
-    $ds['matches'][0]['scoreA'] = 2; // 조일장 vs P: 33승 20패 (AUTO 변경)
+    $ds = mock_with(fn(array &$d) => $d['matches'][0]['scoreA'] = 2); // 조일장 vs P: 33승 20패 (AUTO 변경)
     data_refresh(op(), $ds);
     assert_same('20', pv_field('a.losses')['final_text'], 'PREVIEW에는 새 AUTO');
     assert_true(panel_state(op())['program']['pending_live'], '송출값과 다름 표시');

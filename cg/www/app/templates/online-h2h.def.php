@@ -30,6 +30,10 @@ return [
     ],
     'auto' => static function (array $p, array $ds): array {
         $auto = ['title' => '매치포인트 온라인 상대 전적'];
+        if (!($ds['online_available'] ?? false)) {
+            // 온라인 기록 소스가 없음 (eloboard 연동 전) → 이름만 채우고 수치는 운영자가 확인해 입력
+            return $auto + ['a.name' => pname($ds['players'], $p['a']['player']), 'b.name' => pname($ds['players'], $p['b']['player'])];
+        }
         foreach (['a', 'b'] as $s) {
             $rec = stats_online_record($ds['online'], $p[$s]['player'], $p[$s]['vs']);
             $auto["$s.name"] = pname($ds['players'], $p[$s]['player']);

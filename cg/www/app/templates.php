@@ -159,14 +159,47 @@ function template_summary(string $slug, array $params, ?array $ctx = null): stri
     return template_get($slug)['summary']($params, $ctx ?? template_ctx());
 }
 
+/** 교차 검증 사유 (템플릿의 verify 정의). MOCK은 없음 */
+function template_issues(string $slug, array $params, array $ds): array
+{
+    $tpl = template_get($slug);
+    return isset($tpl['verify']) ? $tpl['verify']($params, $ds) : [];
+}
+
+/** 수동값(MANUAL)이 있는 필드 키 */
+function manual_keys(array $merged): array
+{
+    return array_keys(array_filter($merged, static fn($f) => $f['has_manual']));
+}
+
 /**
- * 송출 가능 여부: 필수 값이 모두 있고, 목록형 CG는 표시할 행이 1개 이상이어야 한다.
+ * 송출 가능 여부
+ * - 필수 값이 모두 있어야 한다.
+ * - 파라미터의 선수가 지금 데이터에 있어야 한다 (데이터 소스를 바꾸면 이전 선수 페이지는 막힘).
+ * - 교차 검증 사유: 해당 필드 중 값이 표시되는 필드에 수동값이 모두 있어야 한다 (운영자가 직접 확인해 입력).
+ * - 목록형 CG는 표시할 행이 1개 이상이어야 한다.
  * @return list<string> 문제 목록 (비어 있으면 송출 가능)
  */
-function template_problems(string $slug, array $final, array $params): array
+function template_problems(string $slug, array $final, array $params, array $issues = [], array $manual = []): array
 {
     $tpl = template_get($slug);
     $problems = ov_sendable($tpl['fields'], $final);
+    $players = players_cache();
+    foreach ($tpl['params'] as $p) {
+        $v = array_reduce(explode('.', $p['key']), static fn($c, $k) => is_array($c) ? ($c[$k] ?? null) : null, $params);
+        if ($p['type'] === 'player' && $players && !isset($players[$v])) {
+            $problems[] = "{$p['label']}: 지금 데이터에 없는 선수입니다 ($v). 페이지를 다시 만드세요.";
+        }
+    }
+    foreach ($issues as $iss) {
+        $need = array_filter($iss['fields'], static fn($k) => !in_array($k, $manual, true) && ($final[$k] ?? null) !== null
+            && isset($tpl['fields'][$k]));
+        if ($need) {
+            $labels = array_map(static fn($k) => field_label($tpl['fields'][$k]), array_values($need));
+            $problems[] = $iss['msg'] . ' — 확인한 값을 직접 입력하면 송출할 수 있습니다: ' . implode(', ', array_slice($labels, 0, 4))
+                . (count($labels) > 4 ? ' 외 ' . (count($labels) - 4) . '개' : '');
+        }
+    }
     if (!$problems) {
         $view = $tpl['present']($final, $params);
         if (array_key_exists('rows', $view) && !$view['rows']) {

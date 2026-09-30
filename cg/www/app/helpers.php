@@ -109,9 +109,10 @@ function json_response(array $data, int $status = 200): never
 }
 
 /** JSON 요청 본문 (최대 64KB) */
-function request_json(): array
+/** JSON 요청 본문. $max: 읽을 최대 바이트 (넘치면 잘려서 형식 오류가 된다) */
+function request_json(int $max = 65536): array
 {
-    $raw = file_get_contents('php://input', false, null, 0, 65536);
+    $raw = file_get_contents('php://input', false, null, 0, $max);
     if ($raw === false || $raw === '') {
         return [];
     }

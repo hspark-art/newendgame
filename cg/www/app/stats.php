@@ -44,6 +44,23 @@ function stats_race_record(array $matches, string $playerId, string $vsRace): ar
     return $r;
 }
 
+/**
+ * 세트 단위 상대 종족 전적: 세트마다 기록된 종족으로 센다 (한 경기 안에서 종족을 바꿔도 정확).
+ * @return array{wins:int, losses:int}
+ */
+function stats_race_sets(array $games, string $pid, string $vsRace): array
+{
+    $r = ['wins' => 0, 'losses' => 0];
+    foreach ($games as $g) {
+        if ($g['winner'] === $pid && $g['lrace'] === $vsRace) {
+            $r['wins']++;
+        } elseif ($g['loser'] === $pid && $g['wrace'] === $vsRace) {
+            $r['losses']++;
+        }
+    }
+    return $r;
+}
+
 // ---------------------------------------------------------------- 공용
 
 /** 날짜·id 순으로 정렬 (오래된 경기 먼저) */
@@ -148,20 +165,19 @@ function stats_head_to_head(array $matches, string $a, string $b, int $limit): a
 }
 
 /**
- * 다승 순위 (세트 기준). race가 있으면 그 종족 선수만(선수 정보의 주 종족).
+ * 다승 순위 (세트 기준). race가 있으면 그 종족 선수만(선수 정보의 주 종족 — 정해지지 않은 선수는 제외).
  * @return list<array{player:string, wins:int, losses:int, rank:int}>
  */
-function stats_win_ranking(array $matches, array $players, ?string $race, int $limit): array
+function stats_win_ranking(array $games, array $players, ?string $race, int $limit): array
 {
     $t = [];
-    foreach ($matches as $m) {
-        foreach ([[$m['playerA'], $m['scoreA'], $m['scoreB']], [$m['playerB'], $m['scoreB'], $m['scoreA']]] as [$p, $w, $l]) {
+    foreach ($games as $g) {
+        foreach ([[$g['winner'], 'wins'], [$g['loser'], 'losses']] as [$p, $k]) {
             if ($race !== null && ($players[$p]['race'] ?? '') !== $race) {
                 continue;
             }
             $t[$p] ??= ['player' => $p, 'wins' => 0, 'losses' => 0];
-            $t[$p]['wins'] += $w;
-            $t[$p]['losses'] += $l;
+            $t[$p][$k]++;
         }
     }
     $rows = array_values($t);
@@ -234,40 +250,32 @@ function stats_full_set(array $matches, string $pid): array
 
 // ---------------------------------------------------------------- 승자 예측
 
-/** 예측 기록이 있는 연도 (최근 순) */
-function stats_prediction_years(array $picks, array $matches): array
+/** 예측 결과가 있는 연도 (최근 순). $predictions = [{date, predictor, correct}] */
+function stats_prediction_years(array $predictions): array
 {
-    $date = array_column($matches, 'date', 'id');
     $years = [];
-    foreach ($picks as $p) {
-        if (isset($date[$p['match']])) {
-            $years[substr($date[$p['match']], 0, 4)] = true;
-        }
+    foreach ($predictions as $p) {
+        $years[substr($p['date'], 0, 4)] = true;
     }
-    $years = array_keys($years);
-    rsort($years);
-    return array_map('strval', $years);
+    $years = array_map('strval', array_keys($years));
+    rsort($years, SORT_STRING);
+    return $years;
 }
 
 /**
- * 중계진 승자 예측: 연도 안의 끝장전마다 예측한 승자가 맞았는지. 순위는 적중률(0.1% 단위) → 적중 수.
+ * 중계진 승자 예측 순위: 연도 안의 예측 결과(성공/실패). 순위는 적중률(0.1% 단위) → 적중 수.
+ * 시트는 세트마다 예측 1건, MOCK은 끝장전마다 1건이다.
  * @return list<array{predictor:string, correct:int, wrong:int, rate:?int, rank:int}>
  */
-function stats_prediction_ranking(array $picks, array $matches, string $year): array
+function stats_prediction_ranking(array $predictions, string $year): array
 {
-    $byId = [];
-    foreach ($matches as $m) {
-        $byId[$m['id']] = $m;
-    }
     $t = [];
-    foreach ($picks as $p) {
-        $m = $byId[$p['match']] ?? null;
-        if ($m === null || substr($m['date'], 0, 4) !== $year) {
+    foreach ($predictions as $p) {
+        if (substr($p['date'], 0, 4) !== $year) {
             continue;
         }
-        $winner = $m['scoreA'] > $m['scoreB'] ? $m['playerA'] : $m['playerB'];
         $t[$p['predictor']] ??= ['predictor' => $p['predictor'], 'correct' => 0, 'wrong' => 0];
-        $p['pick'] === $winner ? $t[$p['predictor']]['correct']++ : $t[$p['predictor']]['wrong']++;
+        $p['correct'] ? $t[$p['predictor']]['correct']++ : $t[$p['predictor']]['wrong']++;
     }
     $rows = array_map(static fn($r) => $r + ['rate' => stats_rate_tenths($r['correct'], $r['wrong'])], array_values($t));
     usort($rows, static fn($x, $y) => [$y['rate'], $y['correct'], $x['predictor']] <=> [$x['rate'], $x['correct'], $y['predictor']]);

@@ -35,6 +35,9 @@ return [
         }
         return $auto;
     },
+    'verify' => static fn(array $p, array $ds): array => array_merge(
+        verify_matches($ds, $p['a']['player'], ['a.matches', 'a.fsw', 'a.fsl']),
+        verify_matches($ds, $p['b']['player'], ['b.matches', 'b.fsw', 'b.fsl'])),
     'summary' => static fn(array $p, array $ctx): string => sprintf('%s / %s',
         pname($ctx['players'], $p['a']['player']), pname($ctx['players'], $p['b']['player'])),
     'present' => static function (array $f): array {

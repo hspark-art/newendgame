@@ -259,17 +259,14 @@ test('업데이트 호환: v0.1.1 페이지는 그대로, 새로고침 전에는
 
 test('검토 반영: 예측 동률은 적중 수로, 풀세트 0경기 모순 차단, 표시할 행 없음 차단, 행 번호 표시, 행 비율 필드', function () {
     // 예측: 적중률이 같으면 적중 수가 많은 쪽이 앞 순위
-    $matches = [['id' => 'm1', 'date' => '2026-01-01', 'playerA' => 'x', 'playerB' => 'y', 'scoreA' => 5, 'scoreB' => 0]];
-    for ($i = 2; $i <= 10; $i++) {
-        $matches[] = ['id' => "m$i", 'date' => '2026-01-0' . min($i, 9), 'playerA' => 'x', 'playerB' => 'y', 'scoreA' => 5, 'scoreB' => 0];
-    }
-    $picks = [];
+    $preds = [];
     foreach (range(1, 10) as $i) {
-        $picks[] = ['predictor' => 'p1', 'match' => "m$i", 'pick' => $i <= 5 ? 'x' : 'y']; // 5승 5패
+        $preds[] = ['date' => '2026-01-01', 'predictor' => 'p1', 'correct' => $i <= 5]; // 5승 5패
     }
-    $picks[] = ['predictor' => 'p2', 'match' => 'm1', 'pick' => 'x'];
-    $picks[] = ['predictor' => 'p2', 'match' => 'm2', 'pick' => 'y']; // 1승 1패
-    $r = stats_prediction_ranking($picks, $matches, '2026');
+    $preds[] = ['date' => '2026-01-01', 'predictor' => 'p2', 'correct' => true];
+    $preds[] = ['date' => '2026-01-01', 'predictor' => 'p2', 'correct' => false]; // 1승 1패
+    $preds[] = ['date' => '2025-12-31', 'predictor' => 'p3', 'correct' => true]; // 다른 해
+    $r = stats_prediction_ranking($preds, '2026');
     assert_same([['p1', 1], ['p2', 2]], array_map(fn($x) => [$x['predictor'], $x['rank']], $r));
 
     // 풀세트: 경기 수 0인데 풀세트 횟수가 있으면 송출 불가, 모두 0이면 "자료 없음"으로 송출 가능

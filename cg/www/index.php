@@ -34,6 +34,7 @@ $op = guard_control();
     <span class="status" id="srcStatus">-</span>
     <label class="check"><input type="checkbox" id="autoRefresh" checked> 자동 새로고침</label>
     <button type="button" id="btnRefresh" class="btn sm">데이터 새로고침 <kbd>F5</kbd></button>
+    <button type="button" id="btnData" class="btn sm">데이터 점검·설정 <span class="tag err" id="dataBadge" hidden></span></button>
   </div>
   <div class="top-right">
     <span class="outputs" id="outSeen"><i class="dot"></i> 출력 연결 확인 중</span>
@@ -157,6 +158,55 @@ $op = guard_control();
     <label>페이지 번호 <input type="number" id="pNo" min="1" max="999" placeholder="비우면 다음 번호"></label>
     <label>메모 <input type="text" id="pLabel" maxlength="100" placeholder="예: 3세트 전"></label>
     <div class="dlg-btns"><button value="cancel" class="btn">취소</button><button value="ok" id="pOk" class="btn primary">저장</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgData" class="dlg wide">
+  <form method="dialog">
+    <h3>데이터 점검·설정</h3>
+    <div class="tabs">
+      <button type="button" class="tab on" data-tab="check">점검</button>
+      <button type="button" class="tab" data-tab="players">선수 정보</button>
+      <button type="button" class="tab" data-tab="settings">데이터 설정</button>
+    </div>
+    <section class="tabpane" data-pane="check">
+      <div id="dcSummary" class="dc-summary"></div>
+      <h4>시트 집계와 다른 항목 <span class="muted" id="dcMisCount"></span></h4>
+      <p class="hint">여기 나온 선수·항목을 쓰는 CG는 송출이 막힙니다. 시트를 고치고 새로고침하거나, 확인한 값을 타이틀 에디터에 직접 입력하세요.</p>
+      <div class="dc-list"><table class="grid-table"><thead><tr><th>구분</th><th>선수·중계진</th><th>항목</th><th>시트 집계</th><th>프로그램 계산</th></tr></thead>
+        <tbody id="dcMismatch"></tbody></table></div>
+      <h4>이상 경기·확인 필요 <span class="muted" id="dcAnoCount"></span></h4>
+      <p class="hint">9세트가 아닌 경기·동점·경기 중 종족 변경 등은 끝장전 통계(맞대결·연승·풀세트·최근 전적)에서 빼고, 관련 선수의 CG는 확인 전까지 막습니다.</p>
+      <ul id="dcAnomaly" class="dc-list plain"></ul>
+    </section>
+    <section class="tabpane" data-pane="players" hidden>
+      <p class="hint">닉네임(예: soma, Light)은 시트에 없어 직접 입력합니다. 입력한 닉네임만 다승·연승 CG에 표시됩니다.</p>
+      <div class="dc-list"><table class="grid-table"><thead><tr><th>선수</th><th>종족</th><th>닉네임</th><th></th></tr></thead>
+        <tbody id="piBody"></tbody></table></div>
+    </section>
+    <section class="tabpane" data-pane="settings" hidden>
+      <p class="notice" id="dsNotAdmin" hidden>데이터 설정은 관리자만 바꿀 수 있습니다.</p>
+      <div id="dsForm">
+        <label class="prm"><span>데이터 소스</span><select id="dsSource"></select></label>
+        <label class="prm"><span>Google 시트 주소</span><input type="text" id="dsSheet" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…"></label>
+        <label class="prm"><span>끝장전 기록 탭</span><input type="text" id="dsTabResults"></label>
+        <label class="prm"><span>세트 집계 탭 (검증)</span><input type="text" id="dsTabPlayers"></label>
+        <label class="prm"><span>끝장전 목록 탭 (검증)</span><input type="text" id="dsTabMatches"></label>
+        <label class="prm"><span>승자 예측 탭</span><input type="text" id="dsTabPredictions"></label>
+        <div class="dlg-btns left"><button type="button" id="dsSave" class="btn primary">설정 저장</button>
+          <button type="button" id="dsTest" class="btn">연결 테스트</button></div>
+        <h4>서비스 계정 키</h4>
+        <p class="hint">시트는 공개하지 말고, 아래 서비스 계정 이메일에 "뷰어" 권한으로만 공유하세요. 키 파일은 이 프로그램의 비밀 폴더에만 저장되고 화면에 다시 표시되지 않습니다.</p>
+        <p>등록된 키: <b id="dsKeyEmail">없음</b></p>
+        <div class="dlg-btns left"><label class="btn">키 파일(JSON) 등록<input type="file" id="dsKeyFile" accept=".json,application/json" hidden></label>
+          <button type="button" id="dsKeyRemove" class="btn">키 삭제</button></div>
+        <h4>파일로 가져오기 (예비)</h4>
+        <p class="hint">시트에 연결할 수 없을 때: Google 시트에서 "파일 → 다운로드 → Microsoft Excel(.xlsx)"로 받은 파일을 가져옵니다. 검증은 같은 방식으로 합니다.</p>
+        <div class="dlg-btns left"><label class="btn">xlsx 파일 가져오기<input type="file" id="dsXlsx" accept=".xlsx" hidden></label></div>
+        <p class="hint" id="dsOpenssl" hidden>이 PHP에 openssl 확장이 없어 시트에 직접 연결할 수 없습니다. xlsx 가져오기를 쓰세요.</p>
+      </div>
+    </section>
+    <div class="dlg-btns"><button value="close" class="btn">닫기</button></div>
   </form>
 </dialog>
 

@@ -51,7 +51,7 @@ function players_cache(): array
 
 function source_status(): array
 {
-    $s = db_one("SELECT * FROM cg_sources WHERE id = 'mock'");
+    $s = db_one('SELECT * FROM cg_sources WHERE id = ?', [data_source()]);
     $s['stale'] = $s['status'] === 'ERROR' && $s['last_success_at'] !== null;
     return $s;
 }
@@ -67,6 +67,7 @@ function instance_get(int $id): array
     $row['id'] = (int)$row['id'];
     $row['params'] = json_dec($row['params_json']);
     $row['auto'] = $row['auto_json'] === null ? null : json_dec($row['auto_json']);
+    $row['issues'] = ($row['issues_json'] ?? null) === null ? [] : json_dec($row['issues_json']);
     return $row;
 }
 
@@ -80,11 +81,12 @@ function instance_for(string $slug, array $params, ?array $ds): array
     }
     $now = now();
     $auto = $ds === null ? null : template_auto($slug, $params, $ds);
+    $issues = $ds === null ? [] : template_issues($slug, $params, $ds);
     db_exec(
-        'INSERT INTO cg_instances (template, params_key, params_json, auto_json, auto_source, auto_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO cg_instances (template, params_key, params_json, auto_json, auto_source, auto_at, created_at, updated_at,
+            issues_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [$slug, $key, json_enc($params), $auto === null ? null : json_enc($auto), $ds['source'] ?? null,
-            $ds === null ? null : $now, $now, $now]
+            $ds === null ? null : $now, $now, $now, json_enc($issues)]
     );
     return instance_get(db_last_id());
 }
@@ -110,7 +112,7 @@ function instance_state(array $inst, int $sessionId): array
     $tpl = template_get($inst['template']);
     $merged = ov_merge($tpl['fields'], $inst['auto'], overrides_for($inst['id'], $sessionId));
     $final = ov_final($merged);
-    $problems = template_problems($inst['template'], $final, $inst['params']);
+    $problems = template_problems($inst['template'], $final, $inst['params'], $inst['issues'], manual_keys($merged));
     $mock = $inst['auto_source'] === 'mock';
     return [
         'tpl' => $tpl,
@@ -176,14 +178,21 @@ function page_input(array $in): array
     return [$slug, template_params($slug, (array)($in['params'] ?? []), $players, template_ctx())];
 }
 
-/** 새 인스턴스의 AUTO 계산용. 실패하면 null(값 없음 상태로 만들고 새로고침으로 채움). */
+/**
+ * 새 인스턴스의 AUTO 계산용: 마지막 정상 데이터(캐시). 네트워크에 접속하지 않는다.
+ * 캐시가 없으면 null (값 없음 상태로 만들고 새로고침으로 채움). MOCK은 로컬 파일이라 바로 읽는다.
+ */
 function dataset_or_null(): ?array
 {
-    try {
-        return provider_load('mock');
-    } catch (ProviderError) {
-        return null;
+    $ds = dataset_cache_get(data_source());
+    if ($ds === null && data_source() === 'mock') {
+        try {
+            $ds = provider_load('mock');
+        } catch (ProviderError) {
+            return null;
+        }
     }
+    return $ds === null ? null : dataset_with_player_info($ds);
 }
 
 function page_add(array $in, array $op): array
@@ -431,49 +440,73 @@ function program_visibility(bool $show, array $op): void
 // ---------------------------------------------------------------- 데이터 갱신
 
 /**
- * 데이터 새로고침. 실패하면 마지막 정상 AUTO를 그대로 두고 소스 상태만 ERROR로 바꾼다.
- * 수동값과 PROGRAM은 절대 바꾸지 않는다.
+ * 데이터 새로고침: 지금 소스(MOCK 또는 Google 시트)에서 불러와 반영한다. $dataset을 주면(xlsx 가져오기·테스트) 그것을 쓴다.
+ * 실패하면 마지막 정상 AUTO를 그대로 두고 소스 상태만 ERROR로 바꾼다. 수동값과 PROGRAM은 절대 바꾸지 않는다.
  */
 function data_refresh(array $op, ?array $dataset = null): array
 {
     $now = now();
+    $source = data_source();
     try {
-        $ds = $dataset ?? provider_load('mock');
+        $ds = $dataset ?? provider_load($source);
     } catch (ProviderError $e) {
         $detail = $e->getMessage() . ($e->problems ? ': ' . implode(' / ', array_slice($e->problems, 0, 5)) : '');
-        db_tx(function () use ($now, $detail, $op) {
-            db_exec("UPDATE cg_sources SET status = 'ERROR', last_attempt_at = ?, last_error = ? WHERE id = 'mock'", [$now, $detail]);
+        db_tx(function () use ($now, $detail, $op, $source) {
+            db_exec("UPDATE cg_sources SET status = 'ERROR', last_attempt_at = ?, last_error = ? WHERE id = ?", [$now, $detail, $source]);
             cg_log('error', 'REFRESH_FAIL', $op, ['detail' => $detail]);
             state_bump();
         });
         throw new ActionError('SOURCE_ERROR', '데이터를 불러오지 못했습니다. 마지막 정상 데이터를 유지합니다. (' . $detail . ')', 502);
     }
-    return db_tx(function () use ($ds, $now, $op) {
+    return data_apply($ds, $op, true);
+}
+
+/**
+ * 데이터 반영: 캐시·선수 목록 저장, 모든 CG 인스턴스의 AUTO와 검증 사유를 다시 계산한다.
+ * $fetched = false (닉네임 변경 등)이면 새로 불러온 것이 아니므로 캐시·소스 상태는 그대로 둔다.
+ */
+function data_apply(array $ds, array $op, bool $fetched): array
+{
+    $now = now();
+    $ds = dataset_with_player_info($ds);
+    return db_tx(function () use ($ds, $now, $op, $fetched) {
+        if ($fetched) {
+            dataset_cache_put($ds, $now);
+            setting_set('data_check', json_enc(data_check_summary($ds, $now)));
+        }
         $players = [];
         foreach ($ds['players'] as $id => $p) {
-            $players[$id] = ['id' => $id, 'name' => $p['name'], 'race' => $p['race']];
+            $players[$id] = ['id' => (string)$id, 'name' => $p['name'], 'race' => $p['race']];
         }
         setting_set('players_cache', json_enc($players));
         // 페이지 추가 대화상자·파라미터 검사용: 승자 예측의 중계진 목록과 예측 기록이 있는 연도
-        setting_set('predictors_cache', json_enc(array_map(static fn($p) => ['id' => $p['id'], 'name' => $p['name']],
+        setting_set('predictors_cache', json_enc(array_map(static fn($p) => ['id' => (string)$p['id'], 'name' => $p['name']],
             $ds['predictors'] ?? [])));
-        setting_set('years_cache', json_enc(stats_prediction_years($ds['picks'] ?? [], $ds['matches'])));
+        setting_set('years_cache', json_enc(stats_prediction_years($ds['predictions'] ?? [])));
         $pv = channel_get('preview');
         $changed = [];
         foreach (db_all('SELECT id FROM cg_instances ORDER BY id') as $r) {
             $inst = instance_get((int)$r['id']);
             $auto = template_auto($inst['template'], $inst['params'], $ds);
-            if ($inst['auto'] !== $auto) {
+            $issues = template_issues($inst['template'], $inst['params'], $ds);
+            if ($inst['auto'] !== $auto || $inst['issues'] !== $issues) {
                 $changed[] = $inst['id'];
+            }
+            if ($inst['auto'] !== $auto) {
                 cg_log('data', 'AUTO_CHANGED', $op, ['instance_id' => $inst['id'], 'template' => $inst['template'],
                     'prev' => $inst['auto'], 'new' => $auto]);
             }
-            db_exec('UPDATE cg_instances SET auto_json = ?, auto_source = ?, auto_at = ?, updated_at = ? WHERE id = ?',
-                [json_enc($auto), $ds['source'], $now, $now, $inst['id']]);
+            db_exec('UPDATE cg_instances SET auto_json = ?, issues_json = ?, auto_source = ?, auto_at = ?, updated_at = ? WHERE id = ?',
+                [json_enc($auto), json_enc($issues), $ds['source'], $now, $now, $inst['id']]);
         }
-        db_exec("UPDATE cg_sources SET status = 'OK', last_attempt_at = ?, last_success_at = ?, last_error = NULL
-            WHERE id = 'mock'", [$now, $now]);
-        cg_log('data', 'REFRESH', $op, ['detail' => 'AUTO 변경 ' . count($changed) . '건']);
+        if ($fetched) {
+            db_exec("UPDATE cg_sources SET status = 'OK', last_attempt_at = ?, last_success_at = ?, last_error = NULL
+                WHERE id = ?", [$now, $now, $ds['source']]);
+            $c = $ds['check'] ?? null;
+            cg_log('data', 'REFRESH', $op, ['detail' => 'AUTO 변경 ' . count($changed) . '건'
+                . ($c === null ? '' : sprintf(' · 세트 %d · 끝장전 %d · 이상 %d · 불일치 %d', $c['counts']['games'],
+                    $c['counts']['matches'], count($c['anomalies']), count($c['mismatches'])))]);
+        }
         state_bump(in_array($pv['instance_id'], $changed, true) ? ['preview'] : []);
         return ['changed' => count($changed)];
     });
@@ -644,7 +677,7 @@ function program_update_live(int $instanceId, int $expectedTakeId, int $expected
         if (!$changed) {
             throw new ActionError('NO_CHANGE', '송출 중인 값과 같아서 바꿀 내용이 없습니다. (자동값 변경은 TAKE로 반영됩니다)', 409);
         }
-        $problems = template_problems($inst['template'], $final, $inst['params']);
+        $problems = template_problems($inst['template'], $final, $inst['params'], $inst['issues'], manual_keys($st['merged']));
         if ($problems) {
             throw new ActionError('NOT_SENDABLE', '값이 비어 있어 송출할 수 없습니다: ' . implode(' ', $problems), 422);
         }

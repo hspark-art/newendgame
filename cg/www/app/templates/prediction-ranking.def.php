@@ -25,7 +25,7 @@ return [
     'auto' => static function (array $p, array $ds): array {
         $auto = ['title' => $p['year'] . ' 중계진 승자 예측 순위'];
         $ranking = [];
-        foreach (stats_prediction_ranking($ds['picks'], $ds['matches'], $p['year']) as $r) {
+        foreach (stats_prediction_ranking($ds['predictions'], $p['year']) as $r) {
             $ranking[$r['predictor']] = $r;
         }
         $order = $p['seats'] ?: array_keys($ranking);
@@ -36,6 +36,15 @@ return [
                 "r$n.wins" => $r['correct'] ?? null, "r$n.losses" => $r['wrong'] ?? null];
         }
         return $auto;
+    },
+    'verify' => static function (array $p, array $ds): array {
+        $ranking = stats_prediction_ranking($ds['predictions'], $p['year']);
+        $issues = verify_population($ds, 'predictions', array_column($ranking, 'predictor'), row_keys(['rank']));
+        foreach (array_slice($p['seats'] ?: array_column($ranking, 'predictor'), 0, 5) as $i => $id) {
+            $n = $i + 1;
+            $issues = array_merge($issues, verify_predictor($ds, $id, ["r$n.wins", "r$n.losses"]));
+        }
+        return $issues;
     },
     'summary' => static fn(array $p, array $ctx): string => $p['year'] . ' · ' . ($p['seats']
         ? '자리 순서: ' . implode(', ', array_map(static fn($id) => $ctx['predictors'][$id]['name'] ?? $id, $p['seats']))

@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 test('schema: 첫 실행 시 테이블·기본값 생성', function () {
     fresh_db();
-    assert_same(1, schema_version());
+    assert_same(max(array_keys(migrations())), schema_version());
+    assert_same('NEVER', db_value("SELECT status FROM cg_sources WHERE id = 'sheet'"));
     assert_same('0', setting_get('state_rev'));
     assert_same('1', setting_get('current_session_id'));
     assert_true(strlen((string)setting_get('csrf_secret')) >= 40, 'csrf_secret 길이');
