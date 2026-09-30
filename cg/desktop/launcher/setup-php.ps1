@@ -1,7 +1,7 @@
 ﻿# 끝장전 CG — 포터블 PHP 준비 (Windows 10/11)
 # runtime\php 폴더에 PHP를 내려받아 압축을 풉니다. 이미 있으면 아무것도 하지 않습니다.
 $ErrorActionPreference = 'Stop'
-$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)  # 프로그램 폴더
 $dest = Join-Path $root 'runtime\php'
 if (Test-Path (Join-Path $dest 'php.exe')) {
     Write-Host 'PHP가 이미 준비되어 있습니다:' $dest

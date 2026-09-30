@@ -107,6 +107,7 @@ MOCK JSON (추후 Google Sheets / 외부 사이트)
 
 ## 7. PC 실행기 (Windows)
 
+0. `시작.bat`·`시작-LAN.bat`·`종료.bat`·`PHP준비.bat`은 얇은 실행 파일이고, 실제 동작은 영문 이름의 `launcher\start.bat`·`stop.bat`·`setup-php.ps1`에 있다. 압축 프로그램이 한글 파일명을 깨뜨려도 동작하도록 하기 위해서다.
 1. `시작.bat`이 `runtime\php\php.exe`를 확인한다. 없으면 `PHP준비.bat` 안내를 띄운다.
 2. 이미 서버가 떠 있으면(`api/ping.php` 응답) 패널 창만 연다.
 3. 서버가 없으면 `php -S 127.0.0.1:3100 -t www router.php`를 최소화 창으로 실행한다. `extension_dir`는 절대경로로 넘긴다.
