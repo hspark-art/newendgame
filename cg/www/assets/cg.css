@@ -52,9 +52,62 @@
 .cg-record { font-size: 42px; font-weight: 700; line-height: 1.1; letter-spacing: -1px; text-shadow: 0 2px 3px rgba(0, 0, 0, .7); }
 .cg-rate { font-size: 24px; line-height: 1.25; color: var(--cg-muted); }
 
-/* MOCK 데이터 표시 (실제 데이터 연결 시 사라짐) */
+/* 온라인 상대 전적: 제목 아래 맞대결 요약 바, 종족 헤더·본문은 상대 종족 승률과 같은 모양 */
+.cg-online .cg-head { height: 40px; }
+.cg-online .cg-head .cg-cell { font-size: 25px; }
+.cg-online .cg-record { font-size: 38px; }
+/* 풀세트 비율: 큰 비율 + 경기 수 + 5:4/4:5 내역 */
+.cg-full-set .cg-vs { font-size: 19px; }
+.cg-full-set .cg-rate { font-size: 21px; line-height: 1.2; }
+.cg-detail { font-size: 17px; line-height: 1.25; color: var(--cg-muted); opacity: .85; }
+.cg-body .cg-cell > div { max-width: 100%; text-align: center; }
+
+/* 요약 바 (맞대결 "조일장 0 : 4 김지성", 온라인 맞대결) */
+.cg-sumbar {
+  flex: none; height: 38px; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 0 16px;
+  background: var(--cg-head-bg); border-bottom: 2px solid #0c0e12; font-size: 23px; font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
+}
+.cg-sumbar b { font-weight: 800; margin: 0 .3em; }
+.cg-sumbar small { font-size: 16px; font-weight: 400; color: var(--cg-muted); margin-right: .6em; }
+
+/* 목록형 (최근 전적·맞대결): 줄마다 날짜·선수·스코어·상대, 승자 노랑 */
+.cg-rows { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding: 4px 16px 8px; }
+.cg-row { display: flex; align-items: center; justify-content: center; flex: 1 1 0; max-height: 38px; min-width: 0; }
+.cg-list .cg-row > span { overflow: hidden; white-space: nowrap; min-width: 0; text-shadow: 0 2px 2px rgba(0, 0, 0, .75); }
+.c-date { width: 178px; flex: none; font-size: 26px; font-style: italic; letter-spacing: -.5px; text-align: right; padding-right: 14px; }
+.c-a, .c-b { width: 104px; flex: none; font-size: 26px; font-weight: 600; }
+.c-a { text-align: right; }
+.c-b { text-align: left; }
+.c-score { width: 76px; flex: none; text-align: center; font-size: 25px; font-weight: 600; }
+.is-win { color: var(--cg-accent); }
+.cg-head-to-head .c-date { width: 196px; font-size: 22px; padding-right: 40px; }
+.cg-head-to-head .c-a, .cg-head-to-head .c-b { width: 92px; font-size: 22px; }
+.cg-head-to-head .c-score { width: 64px; font-size: 22px; }
+
+/* 순위형 (다승·승자 예측·연승): 줄마다 금속 바 */
+.cg-bars { padding: 0; gap: 2px; justify-content: flex-start; }
+.cg-bars .cg-row { justify-content: flex-start; max-height: 58px; padding: 0 14px 0 8px; background: var(--cg-body-bg); }
+.cg-ranking .cg-bar:nth-child(odd) { background: var(--cg-head-bg); }
+.cg-prediction .cg-bar:nth-child(odd) { background: var(--cg-body-bg); }
+.cg-prediction .cg-bar.is-top { background: var(--cg-head-bg); }
+.c-rank { width: 88px; flex: none; text-align: center; font-size: 24px; }
+.c-name { flex: 1; min-width: 0; }
+.c-name b { font-size: 30px; font-weight: 700; }
+.c-name small { font-size: 19px; color: var(--cg-muted); margin-left: .35em; }
+.c-record { width: 132px; flex: none; text-align: right; font-size: 25px; letter-spacing: -.5px; }
+.c-rate { width: 104px; flex: none; text-align: right; font-size: 25px; }
+.cg-prediction .c-rank { width: 76px; font-size: 28px; }
+.cg-prediction .c-name b { font-size: 27px; font-weight: 600; }
+.cg-prediction .c-record { width: 150px; font-size: 29px; }
+.cg-prediction .c-rate { width: 118px; font-size: 29px; }
+.c-streak { width: 96px; flex: none; text-align: right; font-size: 26px; font-weight: 700; }
+.c-period { width: 150px; flex: none; text-align: right; font-size: 16px; color: var(--cg-muted); margin-left: 8px; }
+.c-period .cg-fit { display: inline-block; }
+
+/* MOCK 데이터 표시 (실제 데이터 연결 시 사라짐). 제목바 왼쪽 위 — 본문 숫자를 가리지 않게 */
 .cg-mock {
-  position: absolute; left: 8px; bottom: 6px; padding: 2px 5px; border-radius: 2px;
+  position: absolute; z-index: 2; left: 12px; top: 5px; padding: 2px 5px; border-radius: 2px;
   font: 700 11px/1 var(--cg-font); letter-spacing: 1px; color: #111; background: var(--cg-accent); opacity: .85;
 }
 /* 값이 비어 송출할 수 없는 CG (PREVIEW에서만 보임) */

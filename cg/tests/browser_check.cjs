@@ -29,20 +29,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert(true, '패널 로드 + 첫 실행 자동 데이터 새로고침');
 
   // 페이지 추가 (UI)
+  const P = (key) => '#pParams [data-key="' + key + '"]';
   await panel.click('#btnAdd');
-  await panel.selectOption('#pAPlayer', 'jo-iljang');
-  await panel.selectOption('#pBPlayer', 'jang-yunchul');
-  assert(await panel.inputValue('#pAVs') === 'P' && await panel.inputValue('#pBVs') === 'Z', '선수 선택 시 상대 종족 자동 선택 (A vs P, B vs Z)');
+  await panel.selectOption(P('a.player'), 'jo-iljang');
+  await panel.selectOption(P('b.player'), 'jang-yunchul');
+  assert(await panel.inputValue(P('a.vs')) === 'P' && await panel.inputValue(P('b.vs')) === 'Z', '선수 선택 시 상대 종족 자동 선택 (A vs P, B vs Z)');
   await panel.fill('#pLabel', '1세트 전');
   await panel.click('#pOk');
   await panel.waitForSelector('#rdBody tr.cued');
   assert((await panel.textContent('#rdBody tr')).includes('조일장 vs P / 장윤철 vs Z'), '페이지 리스트에 추가·PVW 큐');
 
-  // 두 번째 페이지 (0경기)
+  // 두 번째 페이지 (0경기: 장윤철 vs T — 자동 선택된 종족을 직접 바꿈)
   await panel.click('#btnAdd');
-  await panel.selectOption('#pAPlayer', 'jo-iljang');
-  await panel.selectOption('#pBPlayer', 'jang-yunchul');
-  await panel.selectOption('#pAVs', 'T');
+  await panel.selectOption(P('a.player'), 'jang-yunchul');
+  await panel.selectOption(P('b.player'), 'jo-iljang');
+  await panel.selectOption(P('a.vs'), 'T');
   await panel.click('#pOk');
   await panel.waitForFunction(() => document.querySelectorAll('#rdBody tr').length === 2);
 
@@ -133,6 +134,74 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await out.waitForFunction(() => !document.getElementById('cg').classList.contains('is-shown'), null, { timeout: 8000 });
     assert(true, '서버 재시작 후 자동 재연결 → OUT이 송출 화면에 반영');
   }
+
+  errors.length = 0; // 서버를 일부러 끈 동안의 연결 실패 기록은 제외
+  // ---- CG 9종: 대화상자로 추가 → 번호 큐 → TAKE(CUT) → 송출 화면 캡처 (1920 기준 우측 하단 560×250)
+  const TYPES = [
+    ['race-win-rate', [['a.player', 'jo-iljang'], ['b.player', 'jang-yunchul']], '129승 123패'],
+    ['recent-race', [['player', 'kim-minchul'], ['vs', 'T']], '2026-05-06'],
+    ['head-to-head', [['a.player', 'jo-iljang'], ['b.player', 'kim-jisung']], '다섯 번째 맞대결'],
+    ['win-ranking', [['race', '']], '139W 127L'],
+    ['prediction-ranking', [['seats', ['park-sanghyun', 'lim-sungchun', 'lee-seungwon']]], '100.0%'],
+    ['online-h2h', [['a.player', 'jo-iljang'], ['b.player', 'jang-yunchul']], '12 : 8'],
+    ['double-chance', [['a.player', 'yoo-youngjin'], ['b.player', 'jo-iljang']], '(70.0%)'],
+    ['win-streak', [], '진행 중'],
+    ['full-set', [['a.player', 'jo-iljang'], ['b.player', 'jang-yunchul']], '40.6%'],
+  ];
+  await panel.selectOption('#fx', 'cut');
+  let no = 100;
+  for (const [slug, fields, expect] of TYPES) {
+    no += 1;
+    await panel.click('#btnAdd');
+    await panel.selectOption('#pTemplate', slug);
+    if (slug === 'win-streak') {
+      assert(await panel.inputValue(P('race')) === 'T', '연승 순위: 종족 기본값 테란이 미리 선택됨');
+    }
+    for (const [key, val] of fields) {
+      if (Array.isArray(val)) {
+        for (let i = 0; i < val.length; i++) { await panel.selectOption(P(key) + '[data-slot="' + i + '"]', val[i]); }
+      } else {
+        await panel.selectOption(P(key), val);
+      }
+    }
+    await panel.fill('#pNo', String(no));
+    await panel.click('#pOk');
+    await panel.waitForFunction((n) => [...document.querySelectorAll('#rdBody tr')].some((tr) => tr.getAttribute('data-no') === String(n)), no);
+    await panel.keyboard.press(String(no)[0]);
+    await panel.keyboard.press(String(no)[1]);
+    await panel.keyboard.press(String(no)[2]);
+    await panel.keyboard.press('Enter');
+    await panel.waitForFunction((n) => document.getElementById('pvwInfo').textContent.startsWith(String(n)), no);
+    await panel.waitForFunction(() => !document.getElementById('btnTake').disabled, null, { timeout: 5000 });
+    await panel.keyboard.press('F1');
+    await out.waitForFunction((t) => document.getElementById('cg').classList.contains('is-shown')
+      && document.getElementById('cg').textContent.includes(t), expect, { timeout: 5000 });
+    await out.waitForTimeout(400);
+    // 글자가 칸을 넘치지 않는지 (자동 축소 후)
+    const over = await out.evaluate(() => [...document.querySelectorAll('#cg .cg-fit')]
+      .filter((el) => {
+        const ps = getComputedStyle(el.parentNode);
+        const room = el.parentNode.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight);
+        return el.getBoundingClientRect().width > room + 1;
+      }).map((el) => el.textContent));
+    await out.screenshot({ path: path.join(OUT, 'type-' + slug + '.png'), omitBackground: true, clip: { x: 1340, y: 810, width: 580, height: 270 } });
+    assert(over.length === 0, slug + ' 송출 (' + expect + '), 넘치는 글자 없음' + (over.length ? ': ' + over.join(', ') : ''));
+    await panel.keyboard.press('F2');
+    await out.waitForFunction(() => !document.getElementById('cg').classList.contains('is-shown'), null, { timeout: 5000 });
+  }
+  // 목록형 CG 편집: 행 구분 줄, 예측 순위 자리 순서 페이지 수정 대화상자에 미리 채움
+  for (const k of ['1', '0', '4', 'Enter']) { await panel.keyboard.press(k); }
+  await panel.waitForFunction(() => document.getElementById('pvwInfo').textContent.startsWith('104'));
+  await panel.waitForFunction(() => document.querySelectorAll('#edBody tr.grp').length === 5);
+  assert(true, '에디터: 목록형 CG(다승 순위)는 1~5행 구분');
+  const predRow = await panel.$('#rdBody tr[data-no="105"] [data-act="edit"]');
+  await predRow.click();
+  const seats = await panel.$$eval('#pParams select[data-slot]', (els) => els.map((e) => e.value));
+  assert(seats.slice(0, 3).join(',') === 'park-sanghyun,lim-sungchun,lee-seungwon', '페이지 수정: 저장된 자리 순서가 채워짐');
+  await panel.keyboard.press('Escape');
+  await panel.waitForTimeout(1200);
+  await panel.screenshot({ path: path.join(OUT, 'panel-types.png') });
+  assert(errors.length === 0, '9종 확인 중 브라우저 오류 없음' + (errors.length ? ': ' + errors.join(' | ') : ''));
 
   await browser.close();
 })().catch((e) => { console.error(e.message || e); process.exit(1); });

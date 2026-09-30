@@ -21,7 +21,8 @@ test('provider: MOCK 데이터 검증 통과·MOCK 표시', function () {
     assert_true($ds['mock'], 'mock 플래그');
     assert_same('mock', $ds['source']);
     assert_same('조일장', $ds['players']['jo-iljang']['name']);
-    assert_same(41, count($ds['matches']));
+    assert_same(66, count($ds['matches']));
+    assert_same([], dataset_validate($ds), '추가 MOCK(온라인·예측·더블 찬스)도 검증 통과');
 });
 
 test('stats: MOCK 조일장 vs P = 33승 21패 (61.1%), B측 기록·노이즈 제외', function () {
@@ -41,9 +42,9 @@ test('stats: MOCK 장윤철 vs Z = 129승 123패 (51.2%)', function () {
     assert_same(512, stats_rate_tenths($r['wins'], $r['losses']));
 });
 
-test('stats: MOCK 조일장 vs T = 0경기 (자료 없음)', function () {
+test('stats: MOCK 장윤철 vs T = 0경기 (자료 없음)', function () {
     $ds = provider_load('mock');
-    $r = stats_race_record($ds['matches'], 'jo-iljang', 'T');
+    $r = stats_race_record($ds['matches'], 'jang-yunchul', 'T');
     assert_same([0, 0, 0], [$r['wins'], $r['losses'], $r['matches']]);
     assert_same(null, stats_rate_tenths($r['wins'], $r['losses']));
 });

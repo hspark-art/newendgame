@@ -152,13 +152,8 @@ $op = guard_control();
   <form method="dialog" id="pageForm">
     <h3 id="pageTitle">페이지 추가</h3>
     <label>종류 <select id="pTemplate"></select></label>
-    <fieldset><legend>A 선수 (왼쪽)</legend>
-      <select id="pAPlayer"></select> vs <select id="pAVs"><option value="P">P</option><option value="T">T</option><option value="Z">Z</option></select>
-    </fieldset>
-    <fieldset><legend>B 선수 (오른쪽)</legend>
-      <select id="pBPlayer"></select> vs <select id="pBVs"><option value="P">P</option><option value="T">T</option><option value="Z">Z</option></select>
-    </fieldset>
-    <p class="hint">선수를 고르면 상대 종족이 서로의 종족으로 자동 선택됩니다. 필요하면 바꾸세요.</p>
+    <div id="pParams" class="prms"></div>
+    <p class="hint" id="pHint"></p>
     <label>페이지 번호 <input type="number" id="pNo" min="1" max="999" placeholder="비우면 다음 번호"></label>
     <label>메모 <input type="text" id="pLabel" maxlength="100" placeholder="예: 3세트 전"></label>
     <div class="dlg-btns"><button value="cancel" class="btn">취소</button><button value="ok" id="pOk" class="btn primary">저장</button></div>

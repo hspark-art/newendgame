@@ -1,6 +1,6 @@
 {
     "_mock": true,
-    "_note": "MOCK — 실제 기록 아님. 화면·계산 검증용 가짜 데이터입니다. 선수 종족·집계 단위(세트 기준)는 NEEDS CONFIRMATION.",
+    "_note": "MOCK — 실제 기록 아님. 화면·계산 검증용 가짜 데이터입니다. 선수 종족·닉네임·기록은 NEEDS CONFIRMATION.",
     "players": [
         {
             "id": "jo-iljang",
@@ -13,7 +13,7 @@
         {
             "id": "jang-yunchul",
             "name": "장윤철",
-            "nickname": null,
+            "nickname": "SnOw",
             "race": "P",
             "aliases": [],
             "active": true
@@ -77,6 +77,62 @@
         {
             "id": "mock-t1",
             "name": "MOCK-T1",
+            "nickname": null,
+            "race": "T",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "kim-minchul",
+            "name": "김민철",
+            "nickname": null,
+            "race": "Z",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "kim-jisung",
+            "name": "김지성",
+            "nickname": null,
+            "race": "T",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "lee-jaeho",
+            "name": "이재호",
+            "nickname": "Light",
+            "race": "T",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "hwang-byungyoung",
+            "name": "황병영",
+            "nickname": null,
+            "race": "T",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "park-sanghyun",
+            "name": "박상현",
+            "nickname": "soma",
+            "race": "P",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "do-jaewook",
+            "name": "도재욱",
+            "nickname": "Best",
+            "race": "P",
+            "aliases": [],
+            "active": true
+        },
+        {
+            "id": "yoo-youngjin",
+            "name": "유영진",
             "nickname": null,
             "race": "T",
             "aliases": [],

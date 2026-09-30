@@ -1,0 +1,275 @@
+{
+  "_mock": true,
+  "_note": "MOCK — 실제 기록 아님. 화면·계산 검증용 가짜 데이터입니다. 선수 종족·닉네임·기록은 NEEDS CONFIRMATION. 중계진이 끝장전마다 승자를 예측한 기록. 무효·미입력 처리 기준은 NEEDS CONFIRMATION.",
+  "predictors": [
+    {
+      "id": "park-sanghyun",
+      "name": "박상현"
+    },
+    {
+      "id": "lim-sungchun",
+      "name": "임성춘"
+    },
+    {
+      "id": "lee-seungwon",
+      "name": "이승원"
+    }
+  ],
+  "picks": [
+    {
+      "match": "mock-053",
+      "predictor": "park-sanghyun",
+      "pick": "lee-jaeho"
+    },
+    {
+      "match": "mock-053",
+      "predictor": "lim-sungchun",
+      "pick": "lee-jaeho"
+    },
+    {
+      "match": "mock-053",
+      "predictor": "lee-seungwon",
+      "pick": "lee-jaeho"
+    },
+    {
+      "match": "mock-054",
+      "predictor": "park-sanghyun",
+      "pick": "mock-p1"
+    },
+    {
+      "match": "mock-054",
+      "predictor": "lim-sungchun",
+      "pick": "lee-jaeho"
+    },
+    {
+      "match": "mock-054",
+      "predictor": "lee-seungwon",
+      "pick": "mock-p1"
+    },
+    {
+      "match": "mock-055",
+      "predictor": "park-sanghyun",
+      "pick": "mock-z2"
+    },
+    {
+      "match": "mock-055",
+      "predictor": "lim-sungchun",
+      "pick": "mock-z2"
+    },
+    {
+      "match": "mock-055",
+      "predictor": "lee-seungwon",
+      "pick": "lee-jaeho"
+    },
+    {
+      "match": "mock-059",
+      "predictor": "park-sanghyun",
+      "pick": "park-sanghyun"
+    },
+    {
+      "match": "mock-059",
+      "predictor": "lim-sungchun",
+      "pick": "park-sanghyun"
+    },
+    {
+      "match": "mock-059",
+      "predictor": "lee-seungwon",
+      "pick": "mock-z1"
+    },
+    {
+      "match": "mock-056",
+      "predictor": "park-sanghyun",
+      "pick": "lee-jaeho"
+    },
+    {
+      "match": "mock-056",
+      "predictor": "lim-sungchun",
+      "pick": "lee-jaeho"
+    },
+    {
+      "match": "mock-056",
+      "predictor": "lee-seungwon",
+      "pick": "lee-jaeho"
+    },
+    {
+      "match": "mock-057",
+      "predictor": "park-sanghyun",
+      "pick": "hwang-byungyoung"
+    },
+    {
+      "match": "mock-057",
+      "predictor": "lim-sungchun",
+      "pick": "mock-p3"
+    },
+    {
+      "match": "mock-057",
+      "predictor": "lee-seungwon",
+      "pick": "mock-p3"
+    },
+    {
+      "match": "mock-062",
+      "predictor": "park-sanghyun",
+      "pick": "do-jaewook"
+    },
+    {
+      "match": "mock-062",
+      "predictor": "lim-sungchun",
+      "pick": "mock-z2"
+    },
+    {
+      "match": "mock-062",
+      "predictor": "lee-seungwon",
+      "pick": "mock-z2"
+    },
+    {
+      "match": "mock-060",
+      "predictor": "park-sanghyun",
+      "pick": "park-sanghyun"
+    },
+    {
+      "match": "mock-060",
+      "predictor": "lim-sungchun",
+      "pick": "mock-t1"
+    },
+    {
+      "match": "mock-060",
+      "predictor": "lee-seungwon",
+      "pick": "mock-t1"
+    },
+    {
+      "match": "mock-058",
+      "predictor": "park-sanghyun",
+      "pick": "mock-z3"
+    },
+    {
+      "match": "mock-058",
+      "predictor": "lim-sungchun",
+      "pick": "mock-z3"
+    },
+    {
+      "match": "mock-058",
+      "predictor": "lee-seungwon",
+      "pick": "mock-z3"
+    },
+    {
+      "match": "mock-061",
+      "predictor": "park-sanghyun",
+      "pick": "park-sanghyun"
+    },
+    {
+      "match": "mock-061",
+      "predictor": "lim-sungchun",
+      "pick": "mock-z4"
+    },
+    {
+      "match": "mock-061",
+      "predictor": "lee-seungwon",
+      "pick": "mock-z4"
+    },
+    {
+      "match": "mock-052",
+      "predictor": "park-sanghyun",
+      "pick": "kim-jisung"
+    },
+    {
+      "match": "mock-052",
+      "predictor": "lim-sungchun",
+      "pick": "jo-iljang"
+    },
+    {
+      "match": "mock-052",
+      "predictor": "lee-seungwon",
+      "pick": "jo-iljang"
+    },
+    {
+      "match": "mock-063",
+      "predictor": "park-sanghyun",
+      "pick": "mock-t1"
+    },
+    {
+      "match": "mock-063",
+      "predictor": "lim-sungchun",
+      "pick": "do-jaewook"
+    },
+    {
+      "match": "mock-063",
+      "predictor": "lee-seungwon",
+      "pick": "do-jaewook"
+    },
+    {
+      "match": "mock-064",
+      "predictor": "park-sanghyun",
+      "pick": "park-sanghyun"
+    },
+    {
+      "match": "mock-064",
+      "predictor": "lim-sungchun",
+      "pick": "do-jaewook"
+    },
+    {
+      "match": "mock-064",
+      "predictor": "lee-seungwon",
+      "pick": "park-sanghyun"
+    },
+    {
+      "match": "mock-065",
+      "predictor": "park-sanghyun",
+      "pick": "lee-jaeho"
+    },
+    {
+      "match": "mock-065",
+      "predictor": "lim-sungchun",
+      "pick": "hwang-byungyoung"
+    },
+    {
+      "match": "mock-065",
+      "predictor": "lee-seungwon",
+      "pick": "lee-jaeho"
+    },
+    {
+      "match": "mock-066",
+      "predictor": "park-sanghyun",
+      "pick": "jang-yunchul"
+    },
+    {
+      "match": "mock-066",
+      "predictor": "lim-sungchun",
+      "pick": "park-sanghyun"
+    },
+    {
+      "match": "mock-066",
+      "predictor": "lee-seungwon",
+      "pick": "jang-yunchul"
+    },
+    {
+      "match": "mock-047",
+      "predictor": "park-sanghyun",
+      "pick": "kim-minchul"
+    },
+    {
+      "match": "mock-047",
+      "predictor": "lim-sungchun",
+      "pick": "hwang-byungyoung"
+    },
+    {
+      "match": "mock-047",
+      "predictor": "lee-seungwon",
+      "pick": "hwang-byungyoung"
+    },
+    {
+      "match": "mock-048",
+      "predictor": "park-sanghyun",
+      "pick": "kim-minchul"
+    },
+    {
+      "match": "mock-048",
+      "predictor": "lim-sungchun",
+      "pick": "kim-minchul"
+    },
+    {
+      "match": "mock-048",
+      "predictor": "lee-seungwon",
+      "pick": "kim-jisung"
+    }
+  ]
+}

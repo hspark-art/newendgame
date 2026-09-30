@@ -1,0 +1,26 @@
+{
+  "_mock": true,
+  "_note": "MOCK — 실제 기록 아님. 화면·계산 검증용 가짜 데이터입니다. 선수 종족·닉네임·기록은 NEEDS CONFIRMATION. \"더블 찬스\"의 방송 규칙·집계 정의가 확정되지 않아(NEEDS CONFIRMATION) 계산하지 않고 집계값만 둡니다.",
+  "records": [
+    {
+      "player": "yoo-youngjin",
+      "wins": 7,
+      "losses": 3
+    },
+    {
+      "player": "jo-iljang",
+      "wins": 4,
+      "losses": 5
+    },
+    {
+      "player": "jang-yunchul",
+      "wins": 9,
+      "losses": 6
+    },
+    {
+      "player": "kim-minchul",
+      "wins": 3,
+      "losses": 3
+    }
+  ]
+}

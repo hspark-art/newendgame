@@ -173,7 +173,7 @@ function page_input(array $in): array
     if (!$players) {
         throw new ActionError('NO_DATA', '선수 목록이 없습니다. 데이터 새로고침을 먼저 하세요.', 409);
     }
-    return [$slug, template_params($slug, (array)($in['params'] ?? []), $players)];
+    return [$slug, template_params($slug, (array)($in['params'] ?? []), $players, template_ctx())];
 }
 
 /** 새 인스턴스의 AUTO 계산용. 실패하면 null(값 없음 상태로 만들고 새로고침으로 채움). */
@@ -204,7 +204,7 @@ function page_add(array $in, array $op): array
             [$pageNo, $inst['id'], $sort, $label, now()]);
         $id = db_last_id();
         cg_log('broadcast', 'PAGE_ADD', $op, ['instance_id' => $inst['id'], 'template' => $slug,
-            'detail' => sprintf('%03d %s', $pageNo, template_summary($slug, $params, players_cache()))]);
+            'detail' => sprintf('%03d %s', $pageNo, template_summary($slug, $params))]);
         $kinds = [];
         if (channel_get('preview')['rundown_id'] === null) {
             preview_set($id, $inst['id']);
@@ -230,7 +230,7 @@ function page_update(int $id, array $in, array $op): array
         $inst = instance_for($slug, $params, $ds);
         db_exec('UPDATE cg_rundown SET page_no = ?, instance_id = ?, label = ? WHERE id = ?', [$pageNo, $inst['id'], $label, $id]);
         cg_log('broadcast', 'PAGE_EDIT', $op, ['instance_id' => $inst['id'], 'template' => $slug,
-            'detail' => sprintf('%03d %s', $pageNo, template_summary($slug, $params, players_cache()))]);
+            'detail' => sprintf('%03d %s', $pageNo, template_summary($slug, $params))]);
         $kinds = [];
         if (channel_get('preview')['rundown_id'] === $id) {
             preview_set($id, $inst['id']);
@@ -454,6 +454,10 @@ function data_refresh(array $op, ?array $dataset = null): array
             $players[$id] = ['id' => $id, 'name' => $p['name'], 'race' => $p['race']];
         }
         setting_set('players_cache', json_enc($players));
+        // 페이지 추가 대화상자·파라미터 검사용: 승자 예측의 중계진 목록과 예측 기록이 있는 연도
+        setting_set('predictors_cache', json_enc(array_map(static fn($p) => ['id' => $p['id'], 'name' => $p['name']],
+            $ds['predictors'] ?? [])));
+        setting_set('years_cache', json_enc(stats_prediction_years($ds['picks'] ?? [], $ds['matches'])));
         $pv = channel_get('preview');
         $changed = [];
         foreach (db_all('SELECT id FROM cg_instances ORDER BY id') as $r) {

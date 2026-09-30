@@ -86,9 +86,9 @@ test('시나리오2: 0 허용, 빈값·잘못된 값 거부(부분 저장 없음
     }
     assert_same('21', pv_field('a.losses')['final_text'], '함께 보낸 정상 값도 저장되지 않음');
     assert_throws(ActionError::class, fn() => preview_save($iid, ['nope' => '1'], op()), 'VALIDATION');
-    // 0경기: 조일장 vs T
-    page_add(['template' => 'race-win-rate', 'params' => ['a' => ['player' => 'jo-iljang', 'vs' => 'T'],
-        'b' => ['player' => 'jang-yunchul', 'vs' => 'Z']]], op());
+    // 0경기: 장윤철 vs T
+    page_add(['template' => 'race-win-rate', 'params' => ['a' => ['player' => 'jang-yunchul', 'vs' => 'T'],
+        'b' => ['player' => 'jo-iljang', 'vs' => 'P']]], op());
     cue_page(2);
     assert_same('—', pv_field('a.rate')['final_text']);
     $st = instance_state(instance_get(channel_get('preview')['instance_id']), current_session_id());
@@ -313,7 +313,7 @@ test('시나리오10: 파라미터가 다르면 수정값이 섞이지 않음', 
     assert_same($ids[0], $ids[3], '같은 대상은 같은 인스턴스');
     assert_true(count(array_unique($ids)) === 3, '종족·순서가 다르면 다른 인스턴스');
     cue_page(2);
-    assert_same('0', pv_field('a.wins')['final_text'], '종족이 다른 CG에 수정값이 따라오지 않음');
+    assert_same('16', pv_field('a.wins')['final_text'], '종족이 다른 CG에 수정값이 따라오지 않음 (조일장 vs T AUTO)');
     cue_page(4);
     assert_same('99', pv_field('a.wins')['final_text'], '같은 대상이면 같은 수정값');
     assert_throws(ActionError::class, fn() => template_params('race-win-rate', ['a' => ['player' => 'nobody', 'vs' => 'P'], 'b' => ['player' => 'jo-iljang', 'vs' => 'P']], $players), 'BAD_PARAMS');

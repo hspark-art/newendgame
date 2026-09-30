@@ -18,7 +18,8 @@ final class ProviderError extends RuntimeException
 const RACES = ['P', 'T', 'Z'];
 
 /**
- * @return array{source:string, mock:bool, players:array<string,array>, matches:list<array>}
+ * @return array{source:string, mock:bool, players:array<string,array>, matches:list<array>, online:list<array>,
+ *   predictors:array<string,array>, picks:list<array>, double_chance:array<string,array>}
  */
 function provider_load(string $sourceId = 'mock', ?string $dir = null): array
 {
@@ -34,21 +35,40 @@ function provider_load(string $sourceId = 'mock', ?string $dir = null): array
     return $ds;
 }
 
+/**
+ * 필수: players.json, matches.json
+ * 선택: online.json(온라인 게임), predictions.json(승자 예측), double_chance.json(더블 찬스 집계) — 없으면 빈 목록
+ */
 function mock_fetch(string $dir): array
 {
-    $out = [];
-    foreach (['players', 'matches'] as $name) {
+    $out = ['mock' => true];
+    $files = [
+        'players' => ['players'], 'matches' => ['matches'], 'online' => ['games'],
+        'predictions' => ['predictors', 'picks'], 'double_chance' => ['records'],
+    ];
+    foreach ($files as $name => $keys) {
         $path = "$dir/$name.json";
+        $required = in_array($name, ['players', 'matches'], true);
+        if (!$required && !is_file($path)) {
+            foreach ($keys as $k) {
+                $out[$name . '.' . $k] = [];
+            }
+            continue;
+        }
         $text = @file_get_contents($path);
         if ($text === false) {
             throw new ProviderError("MOCK 파일을 읽을 수 없습니다: $name.json");
         }
         $json = json_decode($text, true);
-        if (!is_array($json) || !isset($json[$name]) || !is_array($json[$name])) {
-            throw new ProviderError("MOCK 파일 형식이 올바르지 않습니다: $name.json");
+        foreach ($keys as $k) {
+            if (!is_array($json) || !isset($json[$k]) || !is_array($json[$k])) {
+                throw new ProviderError("MOCK 파일 형식이 올바르지 않습니다: $name.json");
+            }
         }
-        $out[$name] = $json[$name];
-        $out['mock'] = ($out['mock'] ?? true) && !empty($json['_mock']);
+        foreach ($keys as $k) {
+            $out[$name . '.' . $k] = $json[$k];
+        }
+        $out['mock'] = $out['mock'] && !empty($json['_mock']);
     }
     return $out;
 }
@@ -59,7 +79,7 @@ function dataset_normalize(array $raw, string $source): array
     $int = static fn($v) => is_int($v) ? $v : (is_string($v) && preg_match('/^-?\d+$/D', trim($v)) ? (int)$v : null);
     $players = [];
     $dupPlayers = [];
-    foreach ($raw['players'] ?? [] as $p) {
+    foreach ($raw['players.players'] ?? $raw['players'] ?? [] as $p) {
         $id = strtolower($str($p['id'] ?? ''));
         if (isset($players[$id])) {
             $dupPlayers[] = $id;
@@ -74,7 +94,7 @@ function dataset_normalize(array $raw, string $source): array
         ];
     }
     $matches = [];
-    foreach ($raw['matches'] ?? [] as $m) {
+    foreach ($raw['matches.matches'] ?? $raw['matches'] ?? [] as $m) {
         $matches[] = [
             'id' => $str($m['id'] ?? ''),
             'date' => $str($m['date'] ?? ''),
@@ -90,12 +110,45 @@ function dataset_normalize(array $raw, string $source): array
             'source' => $source,
         ];
     }
+    $online = [];
+    foreach ($raw['online.games'] ?? [] as $g) {
+        $online[] = [
+            'id' => $str($g['id'] ?? ''), 'date' => $str($g['date'] ?? ''),
+            'playerA' => strtolower($str($g['playerA'] ?? '')), 'playerB' => strtolower($str($g['playerB'] ?? '')),
+            'raceA' => strtoupper($str($g['raceA'] ?? '')), 'raceB' => strtoupper($str($g['raceB'] ?? '')),
+            'winner' => strtolower($str($g['winner'] ?? '')),
+        ];
+    }
+    $predictors = [];
+    foreach ($raw['predictions.predictors'] ?? [] as $p) {
+        $id = strtolower($str($p['id'] ?? ''));
+        $predictors[$id] = ['id' => $id, 'name' => $str($p['name'] ?? ''), 'dup' => isset($predictors[$id])];
+    }
+    $picks = [];
+    foreach ($raw['predictions.picks'] ?? [] as $p) {
+        $picks[] = ['match' => $str($p['match'] ?? ''), 'predictor' => strtolower($str($p['predictor'] ?? '')),
+            'pick' => strtolower($str($p['pick'] ?? ''))];
+    }
+    $double = [];
+    $dupDouble = [];
+    foreach ($raw['double_chance.records'] ?? [] as $r) {
+        $pid = strtolower($str($r['player'] ?? ''));
+        if (isset($double[$pid])) {
+            $dupDouble[] = $pid;
+        }
+        $double[$pid] = ['wins' => $int($r['wins'] ?? null), 'losses' => $int($r['losses'] ?? null)];
+    }
     return [
         'source' => $source,
         'mock' => (bool)($raw['mock'] ?? false),
         'players' => $players,
         'matches' => $matches,
+        'online' => $online,
+        'predictors' => $predictors,
+        'picks' => $picks,
+        'double_chance' => $double,
         'duplicate_players' => $dupPlayers,
+        'duplicate_double' => $dupDouble,
     ];
 }
 
@@ -157,6 +210,70 @@ function dataset_validate(array $ds): array
         }
         if ($m['winner'] !== null && $m['winner'] !== ($a > $b ? $m['playerA'] : $m['playerB'])) {
             $problems[] = "승자와 스코어 불일치: $label";
+        }
+    }
+    return array_merge($problems, dataset_validate_extra($ds, $seen));
+}
+
+/** 온라인 게임·승자 예측·더블 찬스 검증 */
+function dataset_validate_extra(array $ds, array $matchIds): array
+{
+    $problems = [];
+    $valid = static fn(string $d) => ($x = DateTime::createFromFormat('!Y-m-d', $d)) && $x->format('Y-m-d') === $d;
+    $seen = [];
+    foreach ($ds['online'] ?? [] as $i => $g) {
+        $label = '온라인 ' . ($g['id'] !== '' ? $g['id'] : '#' . ($i + 1));
+        if ($g['id'] === '' || isset($seen[$g['id']])) {
+            $problems[] = "$label: id 없음 또는 중복";
+        }
+        $seen[$g['id']] = true;
+        if (!$valid($g['date'])) {
+            $problems[] = "$label: 날짜 오류";
+        }
+        if (!isset($ds['players'][$g['playerA']], $ds['players'][$g['playerB']]) || $g['playerA'] === $g['playerB']) {
+            $problems[] = "$label: 선수 오류";
+        }
+        if (!in_array($g['raceA'], RACES, true) || !in_array($g['raceB'], RACES, true)) {
+            $problems[] = "$label: 종족 오류";
+        }
+        if ($g['winner'] !== $g['playerA'] && $g['winner'] !== $g['playerB']) {
+            $problems[] = "$label: 승자 오류";
+        }
+    }
+    $matchPlayers = [];
+    foreach ($ds['matches'] as $m) {
+        $matchPlayers[$m['id']] = [$m['playerA'], $m['playerB']];
+    }
+    foreach ($ds['predictors'] ?? [] as $id => $p) {
+        if (!preg_match('/^[a-z0-9][a-z0-9-]{0,39}$/D', (string)$id) || $p['name'] === '' || $p['dup']) {
+            $problems[] = "예측자 오류: $id";
+        }
+    }
+    $pickSeen = [];
+    foreach ($ds['picks'] ?? [] as $i => $p) {
+        $label = '예측 #' . ($i + 1);
+        if (!isset($matchIds[$p['match']])) {
+            $problems[] = "$label: 없는 경기 {$p['match']}";
+            continue;
+        }
+        if (!isset($ds['predictors'][$p['predictor']])) {
+            $problems[] = "$label: 알 수 없는 예측자 {$p['predictor']}";
+        }
+        if (!in_array($p['pick'], $matchPlayers[$p['match']], true)) {
+            $problems[] = "$label: 그 경기의 선수가 아닌 예측";
+        }
+        $k = $p['match'] . '|' . $p['predictor'];
+        if (isset($pickSeen[$k])) {
+            $problems[] = "$label: 같은 경기 중복 예측";
+        }
+        $pickSeen[$k] = true;
+    }
+    foreach ($ds['duplicate_double'] ?? [] as $pid) {
+        $problems[] = "더블 찬스 중복: $pid";
+    }
+    foreach ($ds['double_chance'] ?? [] as $pid => $r) {
+        if (!isset($ds['players'][$pid]) || $r['wins'] === null || $r['losses'] === null || $r['wins'] < 0 || $r['losses'] < 0) {
+            $problems[] = "더블 찬스 기록 오류: $pid";
         }
     }
     return $problems;

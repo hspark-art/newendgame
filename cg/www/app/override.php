@@ -22,10 +22,17 @@ function field_parse(array $def, mixed $raw): array
     }
     switch ($def['type']) {
         case 'int':
-            if (!preg_match('/^\d{1,5}$/D', $s)) {
-                return ['ok' => false, 'error' => '0 이상의 정수(최대 99999)만 입력할 수 있습니다.'];
+            $max = (int)($def['max'] ?? 99999);
+            if (!preg_match('/^\d{1,5}$/D', $s) || (int)$s > $max) {
+                return ['ok' => false, 'error' => "0 이상의 정수(최대 $max)만 입력할 수 있습니다."];
             }
             return ['ok' => true, 'value' => (int)$s];
+        case 'date':
+            $d = DateTime::createFromFormat('!Y-m-d', $s);
+            if (!$d || $d->format('Y-m-d') !== $s) {
+                return ['ok' => false, 'error' => '날짜는 2026-05-06 형식으로 입력하세요.'];
+            }
+            return ['ok' => true, 'value' => $s];
         case 'rate':
             if (!preg_match('/^(\d{1,3})(?:\.(\d))?$/D', $s, $m)) {
                 return ['ok' => false, 'error' => '승률은 62.8처럼 소수 첫째 자리까지 입력하세요.'];
@@ -46,6 +53,49 @@ function field_parse(array $def, mixed $raw): array
             return ['ok' => true, 'value' => $s];
     }
     return ['ok' => false, 'error' => '알 수 없는 필드 종류입니다.'];
+}
+
+/** 파생 필드가 참조하는 입력 필드 */
+function derived_inputs(array $def): array
+{
+    $d = $def['derived'];
+    return isset($d['calc']) ? array_merge($d['parts'], [$d['total']]) : $d;
+}
+
+/**
+ * 파생 값 계산 (0.1% 단위 정수).
+ * - 승률: derived = [승 필드, 패 필드] → 승 / (승+패)
+ * - 비율: derived = ['calc' => 'share', 'parts' => [...], 'total' => 전체] → 합 / 전체 (예: 풀세트 비율)
+ * 값이 없거나 분모가 0이면 null(자료 없음). 합이 전체보다 크면 null.
+ */
+function derived_calc(array $def, array $vals): ?int
+{
+    $d = $def['derived'];
+    if (!isset($d['calc'])) {
+        return stats_rate_tenths($vals[$d[0]] ?? null, $vals[$d[1]] ?? null);
+    }
+    $sum = 0;
+    foreach ($d['parts'] as $k) {
+        if (($vals[$k] ?? null) === null) {
+            return null;
+        }
+        $sum += $vals[$k];
+    }
+    $total = $vals[$d['total']] ?? null;
+    if ($total === null || $total <= 0 || $sum > $total) {
+        return null;
+    }
+    return intdiv(2000 * $sum + $total, 2 * $total);
+}
+
+/** 파생 값이 비어 있어도 되는 경우: 분모가 0 (0경기 등) */
+function derived_empty_ok(array $def, array $vals): bool
+{
+    $d = $def['derived'];
+    if (!isset($d['calc'])) {
+        return ($vals[$d[0]] ?? null) === 0 && ($vals[$d[1]] ?? null) === 0;
+    }
+    return ($vals[$d['total']] ?? null) === 0;
 }
 
 /**
@@ -80,9 +130,8 @@ function ov_merge(array $fields, ?array $auto, array $ov): array
         if (!isset($def['derived'])) {
             continue;
         }
-        [$wk, $lk] = $def['derived'];
-        $autoRate = stats_rate_tenths($out[$wk]['auto'], $out[$lk]['auto']);
-        $calc = stats_rate_tenths($out[$wk]['final'], $out[$lk]['final']);
+        $autoRate = derived_calc($def, array_map(static fn($f) => $f['auto'], $out));
+        $calc = derived_calc($def, array_map(static fn($f) => $f['final'], $out));
         $has = array_key_exists($key, $ov);
         $out[$key] = [
             'auto' => $autoRate,
@@ -107,8 +156,9 @@ function ov_final(array $merged): array
 }
 
 /**
- * 송출 가능 여부. 값이 없는 필드가 있으면 TAKE/UPDATE LIVE를 막는다.
- * 승률은 0경기(승·패 모두 0)일 때만 비어 있어도 된다 ("자료 없음").
+ * 송출 가능 여부. 값이 없는 필수 필드가 있으면 TAKE/UPDATE LIVE를 막는다.
+ * - 파생 값(승률 등)은 분모가 0일 때(0경기)만 비어 있어도 된다 ("자료 없음").
+ * - 목록형 CG의 행 필드(optional)는 비어 있어도 된다 (빈 행은 표시하지 않음).
  * @return list<string> 문제 목록
  */
 function ov_sendable(array $fields, array $final): array
@@ -116,15 +166,17 @@ function ov_sendable(array $fields, array $final): array
     $problems = [];
     foreach ($fields as $key => $def) {
         $v = $final[$key] ?? null;
+        $label = (isset($def['group']) ? $def['group'] . ' ' : '') . $def['label'];
         if (isset($def['derived'])) {
-            [$wk, $lk] = $def['derived'];
-            if ($v === null && !($final[$wk] === 0 && $final[$lk] === 0)) {
-                $problems[] = "{$def['label']}: 값이 없습니다.";
+            $inputs = array_map(static fn($k) => $final[$k] ?? null, derived_inputs($def));
+            $allEmpty = !array_filter($inputs, static fn($x) => $x !== null);
+            if ($v === null && !derived_empty_ok($def, $final) && !(!empty($def['optional']) && $allEmpty)) {
+                $problems[] = "$label: 값이 없거나 계산할 수 없습니다.";
             }
             continue;
         }
-        if ($v === null || $v === '') {
-            $problems[] = "{$def['label']}: 값이 없습니다.";
+        if (($v === null || $v === '') && empty($def['optional'])) {
+            $problems[] = "$label: 값이 없습니다.";
         }
     }
     return $problems;
@@ -141,8 +193,7 @@ function ov_apply_to_final(array $fields, array $final, array $values, array $ma
     }
     foreach ($fields as $key => $def) {
         if (isset($def['derived']) && !in_array($key, $manualDerived, true) && !array_key_exists($key, $values)) {
-            [$wk, $lk] = $def['derived'];
-            $final[$key] = stats_rate_tenths($final[$wk], $final[$lk]);
+            $final[$key] = derived_calc($def, $final);
         }
     }
     return $final;

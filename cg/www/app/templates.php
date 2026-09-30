@@ -2,30 +2,29 @@
 declare(strict_types=1);
 
 /**
- * CG 템플릿 목록과 필드 정의, 파라미터 정규화, AUTO 값 계산, 표시 문자열(Presenter), HTML 조각.
- * 새 CG는 여기와 app/templates/<slug>.php, assets/cg.css 에 추가한다.
+ * CG 템플릿 목록과 공용 도우미.
+ * 템플릿마다 두 파일:
+ *   app/templates/<slug>.def.php  정의 (파라미터, 필드, AUTO 계산, 표시 문자열, 요약)
+ *   app/templates/<slug>.view.php HTML 조각 (모든 값은 h()로 이스케이프)
+ * 스타일은 assets/cg.css 에 템플릿 이름(.cg-<slug>)으로 둔다.
  */
 
 const RACE_NAMES = ['P' => '프로토스', 'T' => '테란', 'Z' => '저그'];
 
+/** @return array<string, array> slug => 정의 (표시 순서대로) */
 function cg_templates(): array
 {
-    $side = static fn(string $s, string $who) => [
-        "$s.name" => ['label' => "$who 이름", 'type' => 'text', 'max' => 12],
-        "$s.wins" => ['label' => "$who 승", 'type' => 'int'],
-        "$s.losses" => ['label' => "$who 패", 'type' => 'int'],
-        "$s.rate" => ['label' => "$who 승률", 'type' => 'rate', 'derived' => ["$s.wins", "$s.losses"]],
-    ];
-    return [
-        'race-win-rate' => [
-            'slug' => 'race-win-rate',
-            'name' => '상대 종족 승률',
-            'short' => '종족승률',
-            'default_title' => '중계진 스타 끝장전 상대 종족 승률',
-            'fields' => ['title' => ['label' => '제목', 'type' => 'text', 'max' => 40]]
-                + $side('a', 'A') + $side('b', 'B'),
-        ],
-    ];
+    static $all = null;
+    if ($all !== null) {
+        return $all;
+    }
+    $all = [];
+    foreach (glob(APP_DIR . '/templates/*.def.php') as $file) {
+        $def = require $file;
+        $all[$def['slug']] = $def;
+    }
+    uasort($all, static fn($a, $b) => $a['order'] <=> $b['order']);
+    return $all;
 }
 
 function template_get(string $slug): array
@@ -37,58 +36,152 @@ function template_get(string $slug): array
     return $all[$slug];
 }
 
-/**
- * 파라미터 정규화·검증. 같은 대상이면 입력 순서와 관계없이 같은 결과가 나온다.
- * @param array<string,array> $players 선수 목록(id => player)
- */
-function template_params(string $slug, array $in, array $players): array
+/** 파라미터 조회 맥락: 마지막 정상 데이터의 선수·예측자·연도 목록 */
+function template_ctx(): array
 {
-    template_get($slug);
+    return ['players' => players_cache(), 'predictors' => json_dec(setting_get('predictors_cache', '{}')) ?: [],
+        'years' => json_dec(setting_get('years_cache', '[]')) ?: []];
+}
+
+/**
+ * 파라미터 정규화·검증 (템플릿의 params 정의에 따라). 같은 대상이면 입력 순서와 관계없이 같은 결과.
+ * 키에 점이 있으면 중첩 배열로 저장한다: 'a.player' → ['a' => ['player' => …]]
+ */
+function template_params(string $slug, array $in, array $players, array $ctx = []): array
+{
+    $tpl = template_get($slug);
+    $ctx += ['players' => $players, 'predictors' => [], 'years' => []];
     $out = [];
-    foreach (['a' => 'A', 'b' => 'B'] as $s => $who) {
-        $player = strtolower(trim((string)($in[$s]['player'] ?? '')));
-        $vs = strtoupper(trim((string)($in[$s]['vs'] ?? '')));
-        if (!isset($players[$player])) {
-            throw new ActionError('BAD_PARAMS', "$who 선수를 선택하세요.", 422);
+    foreach ($tpl['params'] as $p) {
+        $raw = array_reduce(explode('.', $p['key']), static fn($c, $k) => is_array($c) ? ($c[$k] ?? null) : null, $in);
+        $v = param_value($p, $raw, $ctx);
+        $ref = &$out;
+        foreach (explode('.', $p['key']) as $k) {
+            $ref = &$ref[$k];
         }
-        if (!isset(RACE_NAMES[$vs])) {
-            throw new ActionError('BAD_PARAMS', "$who 선수의 상대 종족(P/T/Z)을 선택하세요.", 422);
-        }
-        $out[$s] = ['player' => $player, 'vs' => $vs];
+        $ref = $v;
+        unset($ref);
+    }
+    if (isset($tpl['check'])) {
+        $tpl['check']($out);
     }
     return $out;
+}
+
+function param_value(array $p, mixed $raw, array $ctx): mixed
+{
+    $s = is_scalar($raw) ? trim((string)$raw) : '';
+    $label = $p['label'];
+    switch ($p['type']) {
+        case 'player':
+            $s = strtolower($s);
+            if (!isset($ctx['players'][$s])) {
+                throw new ActionError('BAD_PARAMS', "$label: 선수를 선택하세요.", 422);
+            }
+            return $s;
+        case 'race':
+            $s = strtoupper($s);
+            if (!isset(RACE_NAMES[$s])) {
+                throw new ActionError('BAD_PARAMS', "$label: 종족(P/T/Z)을 선택하세요.", 422);
+            }
+            return $s;
+        case 'race_any':
+            // 값을 보내지 않으면 기본 종족, 빈 문자열이면 "전체 종족"
+            $s = $raw === null ? (string)($p['default_value'] ?? '') : strtoupper($s);
+            if ($s !== '' && !isset(RACE_NAMES[$s])) {
+                throw new ActionError('BAD_PARAMS', "$label: 종족을 다시 선택하세요.", 422);
+            }
+            return $s;
+        case 'int':
+            if ($s === '') {
+                return $p['default'];
+            }
+            if (!preg_match('/^\d{1,3}$/D', $s) || (int)$s < $p['min'] || (int)$s > $p['max']) {
+                throw new ActionError('BAD_PARAMS', "$label: {$p['min']}~{$p['max']} 사이로 입력하세요.", 422);
+            }
+            return (int)$s;
+        case 'year':
+            if ($s === '' && $ctx['years']) {
+                return (string)$ctx['years'][0];
+            }
+            if (!preg_match('/^(19|20)\d{2}$/D', $s)) {
+                throw new ActionError('BAD_PARAMS', "$label: 연도를 선택하세요.", 422);
+            }
+            return $s;
+        case 'predictor_slots':
+            $list = [];
+            foreach (is_array($raw) ? array_slice($raw, 0, $p['max']) : [] as $id) {
+                $id = strtolower(trim((string)$id));
+                if ($id === '') {
+                    continue;
+                }
+                if (!isset($ctx['predictors'][$id])) {
+                    throw new ActionError('BAD_PARAMS', "$label: 없는 예측자입니다.", 422);
+                }
+                if (in_array($id, $list, true)) {
+                    throw new ActionError('BAD_PARAMS', "$label: 같은 사람을 두 번 넣었습니다.", 422);
+                }
+                $list[] = $id;
+            }
+            return $list;
+    }
+    throw new ActionError('BAD_PARAMS', "$label: 알 수 없는 입력 종류입니다.", 422);
 }
 
 function params_key(array $params): string
 {
     $sort = static function (array $a) use (&$sort): array {
-        ksort($a);
+        if (!array_is_list($a)) {
+            ksort($a);
+        }
         return array_map(static fn($v) => is_array($v) ? $sort($v) : $v, $a);
     };
     return sha1(json_enc($sort($params)));
 }
 
-/** 입력 필드(파생 제외)의 AUTO 값 */
+/** 입력 필드(파생 제외)의 AUTO 값. 목록형 CG의 빈 행은 null */
 function template_auto(string $slug, array $params, array $ds): array
 {
     $tpl = template_get($slug);
-    $auto = ['title' => $tpl['default_title']];
-    foreach (['a', 'b'] as $s) {
-        $pid = $params[$s]['player'];
-        $rec = stats_race_record($ds['matches'], $pid, $params[$s]['vs']);
-        $auto["$s.name"] = $ds['players'][$pid]['name'] ?? $pid;
-        $auto["$s.wins"] = $rec['wins'];
-        $auto["$s.losses"] = $rec['losses'];
+    $auto = $tpl['auto']($params, $ds);
+    $out = [];
+    foreach ($tpl['fields'] as $key => $def) {
+        if (!isset($def['derived'])) {
+            $out[$key] = $auto[$key] ?? null;
+        }
     }
-    return $auto;
+    return $out;
 }
 
-/** 페이지 리스트에 보여 줄 한 줄 요약 */
-function template_summary(string $slug, array $params, array $players): string
+/** 페이지 리스트에 보여 줄 한 줄 요약. $ctx는 template_ctx() (여러 번 부를 때 한 번만 읽어 넘긴다) */
+function template_summary(string $slug, array $params, ?array $ctx = null): string
 {
-    $name = static fn(string $id) => $players[$id]['name'] ?? $id;
-    return sprintf('%s vs %s / %s vs %s',
-        $name($params['a']['player']), $params['a']['vs'], $name($params['b']['player']), $params['b']['vs']);
+    return template_get($slug)['summary']($params, $ctx ?? template_ctx());
+}
+
+/** FINAL 값 → 송출 화면 문자열 */
+function template_present(string $slug, array $final, array $params, bool $mock): array
+{
+    $view = template_get($slug)['present']($final, $params);
+    return ['template' => $slug, 'mock' => $mock] + $view;
+}
+
+/** HTML 조각 렌더링 */
+function cg_render(array $view): string
+{
+    $file = APP_DIR . '/templates/' . basename($view['template']) . '.view.php';
+    ob_start();
+    (static function () use ($file, $view) {
+        require $file;
+    })();
+    return (string)ob_get_clean();
+}
+
+// ---------------------------------------------------------------- 정의 파일에서 쓰는 도우미
+
+function pname(array $players, string $id): string
+{
+    return (string)($players[$id]['name'] ?? $id);
 }
 
 function fmt_rate(?int $tenths): string
@@ -108,32 +201,53 @@ function fmt_field(array $def, mixed $v): string
     };
 }
 
-/** FINAL 값 → 송출 화면 문자열 */
-function template_present(string $slug, array $final, array $params, bool $mock): array
+/** "33승 21패" */
+function text_record(?int $w, ?int $l): string
 {
-    $tpl = template_get($slug);
-    $cols = [];
-    foreach (['a', 'b'] as $s) {
-        $w = $final["$s.wins"];
-        $l = $final["$s.losses"];
-        $rate = $final["$s.rate"];
-        $cols[] = [
-            'name' => (string)$final["$s.name"],
-            'vs' => $params[$s]['vs'],
-            'record' => sprintf('%s승 %s패', $w ?? '-', $l ?? '-'),
-            'rate' => $rate === null ? '(자료 없음)' : '(' . fmt_rate($rate) . '%)',
-        ];
-    }
-    return ['template' => $tpl['slug'], 'title' => (string)$final['title'], 'cols' => $cols, 'mock' => $mock];
+    return sprintf('%s승 %s패', $w ?? '-', $l ?? '-');
 }
 
-/** HTML 조각 렌더링. 모든 값은 h()로 이스케이프한다. */
-function cg_render(array $view): string
+/** "(61.1%)" 또는 "(자료 없음)" */
+function text_rate_paren(?int $t): string
 {
-    $file = APP_DIR . '/templates/' . basename($view['template']) . '.php';
-    ob_start();
-    (static function () use ($file, $view) {
-        require $file;
-    })();
-    return (string)ob_get_clean();
+    return $t === null ? '(자료 없음)' : '(' . fmt_rate($t) . '%)';
+}
+
+/** "73.6%" 또는 "—" */
+function text_pct(?int $t): string
+{
+    return $t === null ? '—' : fmt_rate($t) . '%';
+}
+
+/** 목록형 CG의 행 필드 만들기: 1~$n행, 각 행은 $spec (필드 이름 => 정의), 모두 비울 수 있음 */
+function row_fields(int $n, array $spec): array
+{
+    $out = [];
+    for ($i = 1; $i <= $n; $i++) {
+        foreach ($spec as $k => $def) {
+            if (isset($def['derived'])) {
+                $def['derived'] = array_map(static fn($x) => "r$i.$x", $def['derived']);
+            }
+            $out["r$i.$k"] = $def + ['optional' => true, 'group' => "{$i}행"];
+        }
+    }
+    return $out;
+}
+
+/** 행 i의 값들 (접두어 제거). 행 전체가 비어 있으면 null */
+function row_values(array $final, int $i, array $keys): ?array
+{
+    $row = [];
+    foreach ($keys as $k) {
+        $row[$k] = $final["r$i.$k"] ?? null;
+    }
+    return array_filter($row, static fn($v) => $v !== null && $v !== '') ? $row : null;
+}
+
+/** 두 선수 파라미터 공통 검사 */
+function check_two_players(array $p): void
+{
+    if (($p['a']['player'] ?? null) === ($p['b']['player'] ?? null)) {
+        throw new ActionError('BAD_PARAMS', 'A와 B에 서로 다른 선수를 고르세요.', 422);
+    }
 }

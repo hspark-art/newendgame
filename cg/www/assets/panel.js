@@ -132,7 +132,7 @@
     renderEditor();
     renderSide();
     renderButtons();
-    if (first && s.source.status === 'NEVER') {
+    if (first && (s.source.status === 'NEVER' || !s.caches_ready)) {
       refresh(true);
     }
   }
@@ -273,8 +273,12 @@
   function buildEditor() {
     var body = $('edBody');
     if (!S.preview.instance_id) { body.innerHTML = ''; return; }
+    var group = '';
     body.innerHTML = S.preview.fields.map(function (f) {
-      return '<tr data-key="' + esc(f.key) + '">'
+      // 목록형 CG는 행(1행, 2행 …)마다 구분 줄을 넣는다
+      var head = f.group && f.group !== group ? '<tr class="grp"><th colspan="8">' + esc(f.group) + '</th></tr>' : '';
+      group = f.group;
+      return head + '<tr data-key="' + esc(f.key) + '">'
         + '<td class="label">' + esc(f.label) + '</td>'
         + '<td class="num auto"></td>'
         + '<td><input type="text" class="val" data-key="' + esc(f.key) + '" autocomplete="off"></td>'
@@ -414,11 +418,63 @@
 
   // ------------------------------------------------------------ 페이지 추가·수정
 
-  function fillPlayers(sel, value) {
-    sel.innerHTML = '<option value="">선택</option>' + S.players.map(function (p) {
-      return '<option value="' + esc(p.id) + '" data-race="' + esc(p.race) + '">' + esc(p.name) + ' (' + esc(p.race) + ')</option>';
+  // 입력칸은 템플릿의 params 정의(S.templates[].params)로 만든다. 키에 점이 있으면 중첩: 'a.player' → {a: {player}}
+  var RACES = [['P', 'P 프로토스'], ['T', 'T 테란'], ['Z', 'Z 저그']];
+
+  function tplBySlug(slug) {
+    return S.templates.filter(function (t) { return t.slug === slug; })[0];
+  }
+  function getPath(obj, key) {
+    return key.split('.').reduce(function (o, k) { return o && typeof o === 'object' ? o[k] : undefined; }, obj);
+  }
+  function setPath(obj, key, v) {
+    var ks = key.split('.');
+    var o = obj;
+    ks.slice(0, -1).forEach(function (k) { o = o[k] = o[k] || {}; });
+    o[ks[ks.length - 1]] = v;
+  }
+  function options(list, value) {
+    return list.map(function (o) {
+      return '<option value="' + esc(o[0]) + '"' + (o[2] ? ' data-race="' + esc(o[2]) + '"' : '')
+        + (String(o[0]) === String(value) ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
     }).join('');
-    sel.value = value || '';
+  }
+
+  function paramControl(p, v) {
+    var attr = ' data-key="' + esc(p.key) + '" data-type="' + esc(p.type) + '"';
+    switch (p.type) {
+      case 'player':
+        return '<select' + attr + '>' + options([['', '선택']].concat(S.players.map(function (x) {
+          return [x.id, x.name + ' (' + x.race + ')', x.race];
+        })), v) + '</select>';
+      case 'race':
+        return '<select' + attr + '>' + options(RACES, v || 'P') + '</select>';
+      case 'race_any':
+        return '<select' + attr + '>' + options([['', '전체 종족']].concat(RACES), v === undefined ? (p.default_value || '') : v) + '</select>';
+      case 'int':
+        return '<input type="number"' + attr + ' min="' + p.min + '" max="' + p.max + '" value="' + esc(v === undefined ? p.default : v) + '">';
+      case 'year':
+        return S.years.length
+          ? '<select' + attr + '>' + options(S.years.map(function (y) { return [y, y + '년']; }), v || S.years[0]) + '</select>'
+          : '<input type="text"' + attr + ' maxlength="4" placeholder="예: 2026" value="' + esc(v || '') + '">';
+      case 'predictor_slots':
+        var list = [['', '—']].concat(S.predictors.map(function (x) { return [x.id, x.name]; }));
+        var html = '<span class="slots">';
+        for (var i = 0; i < p.max; i++) {
+          html += '<select data-slot="' + i + '"' + attr + ' aria-label="' + (i + 1) + '번 자리">' + options(list, (v || [])[i] || '') + '</select>';
+        }
+        return html + '</span>';
+    }
+    return '';
+  }
+
+  function buildParams(slug, params) {
+    var tpl = tplBySlug(slug);
+    $('pParams').innerHTML = tpl.params.map(function (p) {
+      return '<label class="prm"><span>' + esc(p.label) + '</span>' + paramControl(p, getPath(params || {}, p.key)) + '</label>';
+    }).join('');
+    var linked = tpl.params.some(function (p) { return p.auto_from; });
+    $('pHint').textContent = linked ? '선수를 고르면 상대 종족이 서로의 종족으로 자동 선택됩니다. 필요하면 바꾸세요.' : '';
   }
 
   function openPage(row) {
@@ -429,33 +485,42 @@
     editingPageId = row ? row.id : null;
     $('pageTitle').textContent = row ? pad3(row.page_no) + ' 페이지 수정' : '페이지 추가';
     $('pTemplate').innerHTML = S.templates.map(function (t) { return '<option value="' + esc(t.slug) + '">' + esc(t.name) + '</option>'; }).join('');
+    $('pTemplate').value = row ? row.template : S.templates[0].slug;
     $('pTemplate').disabled = !!row;
-    fillPlayers($('pAPlayer'), row ? row.params.a.player : '');
-    fillPlayers($('pBPlayer'), row ? row.params.b.player : '');
-    $('pAVs').value = row ? row.params.a.vs : 'P';
-    $('pBVs').value = row ? row.params.b.vs : 'Z';
+    buildParams($('pTemplate').value, row ? row.params : null);
     $('pNo').value = row ? row.page_no : '';
     $('pLabel').value = row ? row.label : '';
     $('dlgPage').returnValue = '';
     $('dlgPage').showModal();
   }
 
-  function playerRace(sel) {
+  /** 선수를 바꾸면 그 선수를 auto_from으로 가리키는 종족 칸을 선수의 종족으로 맞춘다 */
+  function autoRace(sel) {
     var o = sel.options[sel.selectedIndex];
-    return o ? o.getAttribute('data-race') : null;
+    var race = o ? o.getAttribute('data-race') : null;
+    if (!race) { return; }
+    tplBySlug($('pTemplate').value).params.forEach(function (p) {
+      if (p.auto_from === sel.getAttribute('data-key')) {
+        $('pParams').querySelector('[data-key="' + p.key + '"]').value = race;
+      }
+    });
   }
-  function autoVs() {
-    var ra = playerRace($('pAPlayer')), rb = playerRace($('pBPlayer'));
-    if (rb) { $('pAVs').value = rb; }
-    if (ra) { $('pBVs').value = ra; }
+
+  function readParams() {
+    var out = {};
+    tplBySlug($('pTemplate').value).params.forEach(function (p) {
+      var els = $('pParams').querySelectorAll('[data-key="' + p.key + '"]');
+      if (p.type === 'predictor_slots') {
+        setPath(out, p.key, Array.prototype.map.call(els, function (e) { return e.value; }).filter(Boolean));
+      } else {
+        setPath(out, p.key, els[0].value);
+      }
+    });
+    return out;
   }
 
   function submitPage() {
-    var payload = {
-      template: $('pTemplate').value,
-      params: { a: { player: $('pAPlayer').value, vs: $('pAVs').value }, b: { player: $('pBPlayer').value, vs: $('pBVs').value } },
-      label: $('pLabel').value
-    };
+    var payload = { template: $('pTemplate').value, params: readParams(), label: $('pLabel').value };
     if ($('pNo').value !== '') { payload.page_no = $('pNo').value; }
     var p = editingPageId ? api('page_update', Object.assign({ id: editingPageId }, payload)) : api('page_add', payload);
     p.then(function (r) { toast(pad3(r.page_no) + ' 페이지를 저장했습니다.', 'ok'); }, function () { $('dlgPage').showModal(); });
@@ -537,9 +602,15 @@
         });
       }
     });
-    $('dlgPage').addEventListener('close', function () { if (this.returnValue === 'ok') { submitPage(); } });
-    $('pAPlayer').onchange = autoVs;
-    $('pBPlayer').onchange = autoVs;
+    $('dlgPage').addEventListener('close', function () {
+      // 닫은 뒤 포커스가 "페이지 추가" 버튼에 남으면 번호+Enter 큐가 버튼 클릭이 되므로 풀어 둔다
+      if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
+      if (this.returnValue === 'ok') { submitPage(); }
+    });
+    $('pTemplate').onchange = function () { buildParams(this.value, null); };
+    $('pParams').addEventListener('change', function (e) {
+      if (e.target.getAttribute('data-type') === 'player') { autoRace(e.target); }
+    });
 
     $('rdBody').addEventListener('click', function (e) {
       var tr = e.target.closest('tr');

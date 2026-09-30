@@ -17,7 +17,8 @@ function fmt_input(array $def, mixed $v): string
 function panel_state(array $op): array
 {
     $sid = current_session_id();
-    $players = players_cache();
+    $ctx = template_ctx();
+    $players = $ctx['players'];
     $pv = channel_get('preview');
     $pg = channel_get('program');
     $snap = $pg['snapshot'];
@@ -41,7 +42,7 @@ function panel_state(array $op): array
             'label' => $r['label'],
             'template' => $r['template'],
             'short' => $tpl['short'],
-            'summary' => template_summary($r['template'], json_dec($r['params_json']), $players),
+            'summary' => template_summary($r['template'], json_dec($r['params_json']), $ctx),
             'params' => json_dec($r['params_json']),
             'instance_id' => $iid,
             'manual' => $manual[$iid] ?? 0,
@@ -67,7 +68,8 @@ function panel_state(array $op): array
             $def = $st['tpl']['fields'][$key];
             $live = $sameLive ? ($snap['final'][$key] ?? null) : null;
             $preview['fields'][] = [
-                'key' => $key, 'label' => $def['label'], 'type' => $def['type'], 'derived' => isset($def['derived']),
+                'key' => $key, 'label' => $def['label'], 'group' => $def['group'] ?? '', 'type' => $def['type'],
+                'derived' => isset($def['derived']),
                 'has_manual' => $f['has_manual'], 'origin' => $f['origin'], 'differs' => $f['differs'],
                 'auto_changed' => $f['auto_changed'], 'keep' => $f['keep'],
                 'auto_text' => fmt_field($def, $f['auto']),
@@ -84,7 +86,7 @@ function panel_state(array $op): array
             'label' => $row['label'] ?? '',
             'template' => $inst['template'],
             'template_name' => $st['tpl']['name'],
-            'summary' => template_summary($inst['template'], $inst['params'], $players),
+            'summary' => template_summary($inst['template'], $inst['params'], $ctx),
             'problems' => $st['problems'],
             'mock' => $st['mock'],
             'auto_missing' => $inst['auto'] === null,
@@ -116,9 +118,16 @@ function panel_state(array $op): array
         'session' => $session,
         'keep_count' => (int)db_value('SELECT COUNT(*) FROM cg_overrides WHERE session_id = ? AND keep_next = 1', [$sid]),
         'source' => source_status(),
-        'templates' => array_map(static fn($t) => ['slug' => $t['slug'], 'name' => $t['name'], 'short' => $t['short']],
+        // 이전 버전에서 올린 뒤 아직 새로고침하지 않아 예측자·연도 목록이 없음 → 패널이 한 번 새로고침한다
+        'caches_ready' => setting_get('years_cache') !== null,
+        // 페이지 추가 대화상자는 템플릿의 params 정의로 입력칸을 만든다
+        'templates' => array_map(static fn($t) => ['slug' => $t['slug'], 'name' => $t['name'], 'short' => $t['short'],
+            'params' => array_map(static fn($p) => array_intersect_key($p,
+                array_flip(['key', 'label', 'type', 'auto_from', 'default_value', 'min', 'max', 'default'])), $t['params'])],
             array_values(cg_templates())),
         'players' => array_values($players),
+        'predictors' => array_values($ctx['predictors']),
+        'years' => $ctx['years'],
         'rundown' => $rundown,
         'preview' => $preview,
         'program' => $program,

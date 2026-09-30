@@ -135,6 +135,7 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .ed td.live.diff { color: var(--warn); font-weight: 700; }
 .ed .sub { display: block; color: var(--dim); font-size: 11px; }
 .ed .sub.warn { color: var(--warn); }
+.ed tr.grp th { width: auto; padding: 6px 8px 2px; text-align: left; font-weight: 700; font-size: 12px; color: var(--accent); border-top: 1px solid var(--line2); }
 .ed-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .livebox { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 2px solid var(--live); border-radius: var(--radius); color: #fda4af; font-size: 12px; }
 
@@ -168,6 +169,10 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .dlg fieldset { border: 1px solid var(--line2); border-radius: 6px; margin: 8px 0; padding: 6px 10px 10px; }
 .dlg legend { color: var(--muted); padding: 0 4px; }
 .dlg select, .dlg input[type=text], .dlg input[type=number] { min-width: 140px; }
+.dlg .prm { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 8px; margin: 6px 0; }
+.dlg .prm > span:first-child { color: var(--muted); }
+.dlg .slots { display: flex; flex-wrap: wrap; gap: 4px; }
+.dlg .slots select { min-width: 90px; }
 .dlg-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .diff { margin: 6px 0; padding: 0; list-style: none; }
 .diff li { padding: 3px 0; border-bottom: 1px solid var(--line); }

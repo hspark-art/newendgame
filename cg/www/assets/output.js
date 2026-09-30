@@ -46,7 +46,8 @@
     for (var i = 0; i < items.length; i++) {
       var el = items[i];
       el.style.fontSize = '';
-      var box = el.parentNode.clientWidth - 8;
+      var ps = window.getComputedStyle(el.parentNode);
+      var box = el.parentNode.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight) - 4;
       if (box > 0 && el.scrollWidth > box) {
         var base = parseFloat(window.getComputedStyle(el).fontSize);
         el.style.fontSize = Math.max(base * 0.6, base * box / el.scrollWidth) + 'px';

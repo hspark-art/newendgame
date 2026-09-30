@@ -30,12 +30,12 @@ cg/
 │     ├─ guard.php          접근 규칙 (desktop: 로컬 PC만 / web: 로그인·역할) + CSRF·Origin
 │     ├─ provider.php       데이터 소스 (현재 MOCK) fetch → normalize → validate
 │     ├─ stats.php          통계 엔진 (순수 함수)
-│     ├─ templates.php      CG 템플릿 목록·필드 정의·표시 문자열(Presenter)
+│     ├─ templates.php      CG 템플릿 목록·파라미터 검사·공용 도우미
 │     ├─ override.php       수동 수정 검증·병합 (순수 함수)
 │     ├─ control.php        방송 세션·페이지 리스트·PREVIEW·PROGRAM 동작
 │     ├─ auth.php           웹 계정 (초대·가입·승인·재설정·정지·시도 제한)
 │     ├─ release.php        버전·무결성 검사
-│     ├─ templates/         CG HTML 조각 (race-win-rate.php …)
+│     ├─ templates/         CG 9종: <slug>.def.php(파라미터·필드·AUTO·표시 문자열) + <slug>.view.php(HTML)
 │     └─ data/mock/         MOCK 선수·경기 JSON
 ├─ desktop/                 PC 전용: 시작.bat, 종료.bat, PHP 준비, router.php, php.ini, 설정
 ├─ web/                     웹 전용: 설치·패치 안내, 설정 견본
