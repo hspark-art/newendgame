@@ -12,3 +12,8 @@ function auth_csrf_token(): string
 {
     return '';
 }
+
+function auth_user_optional(): ?array
+{
+    return null;
+}

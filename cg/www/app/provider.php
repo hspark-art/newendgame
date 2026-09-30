@@ -25,7 +25,7 @@ function provider_load(string $sourceId = 'mock', ?string $dir = null): array
     if ($sourceId !== 'mock') {
         throw new ProviderError("알 수 없는 데이터 소스: $sourceId");
     }
-    $raw = mock_fetch($dir ?? APP_DIR . '/data/mock');
+    $raw = mock_fetch($dir ?? (string)config('mock_dir', APP_DIR . '/data/mock'));
     $ds = dataset_normalize($raw, 'mock');
     $problems = dataset_validate($ds);
     if ($problems) {

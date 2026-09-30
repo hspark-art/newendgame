@@ -1,0 +1,188 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * 조작 패널 (토네이도식 페이지 리스트 + PREVIEW/PROGRAM 모니터 + 타이틀 에디터).
+ * 화면 내용은 assets/panel.js 가 api/state.php 를 폴링해 그린다.
+ */
+require __DIR__ . '/app/bootstrap.php';
+
+app_start('panel');
+$op = guard_control();
+?>
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="<?= h(csrf_token()) ?>">
+<meta name="app-mode" content="<?= h((string)config('mode')) ?>">
+<title>끝장전 CG</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="<?= h(asset_url('panel.css')) ?>">
+</head>
+<body class="mode-<?= h((string)config('mode')) ?>">
+<header class="top">
+  <div class="brand">끝장전 CG <span class="ver">v<?= h(APP_VERSION) ?></span>
+    <span class="chip"><?= is_web() ? '웹' : 'PC' ?></span></div>
+  <div class="top-session">
+    <span class="muted">세션</span> <b id="sessName">-</b>
+    <button type="button" id="btnNewSession" class="btn sm">새 세션</button>
+  </div>
+  <div class="top-source">
+    <span class="chip mock" id="mockBadge" hidden>MOCK 데이터</span>
+    <span class="status" id="srcStatus">-</span>
+    <label class="check"><input type="checkbox" id="autoRefresh" checked> 자동 새로고침</label>
+    <button type="button" id="btnRefresh" class="btn sm">데이터 새로고침 <kbd>F5</kbd></button>
+  </div>
+  <div class="top-right">
+    <span class="outputs" id="outSeen"><i class="dot"></i> 출력 연결 확인 중</span>
+    <span class="conn" id="conn" hidden>서버 연결 끊김 — 재시도 중</span>
+    <span class="clock" id="clock">--:--:--</span>
+<?php if (is_web()): ?>
+    <span class="user"><?= h($op['name']) ?></span>
+    <?php if ($op['role'] === 'admin'): ?><a class="btn sm" href="admin.php">관리자</a><?php endif ?>
+    <a class="btn sm" href="account.php">내 계정</a>
+    <form method="post" action="logout.php" class="inline"><input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><button class="btn sm">로그아웃</button></form>
+<?php endif ?>
+  </div>
+</header>
+
+<main class="grid">
+  <section class="panel rundown">
+    <div class="panel-head">
+      <div class="pagebox" title="숫자를 누르고 Enter: 해당 페이지를 PREVIEW에 큐">PAGE <span id="pageBuf">___</span></div>
+      <h2>페이지 리스트</h2>
+      <div class="spacer"></div>
+      <button type="button" id="btnAdd" class="btn primary">+ 페이지 추가</button>
+      <button type="button" id="btnExport" class="btn">내보내기</button>
+      <button type="button" id="btnImport" class="btn">가져오기</button>
+      <input type="file" id="fileImport" accept=".json,application/json" hidden>
+    </div>
+    <div class="table-wrap">
+      <table class="rd">
+        <thead><tr><th class="c-no">No</th><th class="c-type">종류</th><th>내용</th><th class="c-memo">메모</th><th class="c-state">상태</th><th class="c-air">송출</th><th class="c-act"></th></tr></thead>
+        <tbody id="rdBody"></tbody>
+      </table>
+      <p class="empty" id="rdEmpty" hidden>페이지가 없습니다. <b>+ 페이지 추가</b>로 이번 경기에 쓸 CG를 등록하세요.</p>
+    </div>
+    <p class="hint">숫자 + Enter 큐 · ↑↓ 이전/다음 · Space·F1 TAKE · F2 OUT · F3 SHOW · F4 NEXT · F5 새로고침 · Ctrl+S 저장</p>
+  </section>
+
+  <section class="panel switcher">
+    <div class="monitors">
+      <div class="mon pvw">
+        <div class="mon-label"><b>PREVIEW</b> <span id="pvwInfo" class="ellipsis">-</span></div>
+        <div class="mon-frame zoom" id="pvwFrame"><iframe title="PREVIEW" id="pvwIframe" width="1920" height="1080" tabindex="-1"></iframe></div>
+      </div>
+      <div class="mon pgm">
+        <div class="mon-label"><b>PROGRAM</b> <span id="pgmBadge" class="air off">비어 있음</span>
+          <span id="pgmInfo" class="ellipsis"></span> <span id="pgmElapsed" class="elapsed"></span></div>
+        <div class="mon-frame zoom" id="pgmFrame"><iframe title="PROGRAM" id="pgmIframe" width="1920" height="1080" tabindex="-1"></iframe></div>
+      </div>
+    </div>
+    <div class="fxbar">
+      <label>효과 <select id="fx"><option value="slide">SLIDE</option><option value="fade">FADE</option><option value="cut">CUT</option></select></label>
+      <label>시간 <input type="number" id="fxDur" min="0.1" max="2" step="0.05" value="0.35"> 초</label>
+      <label class="check"><input type="checkbox" id="autoNext"> TAKE 후 자동 NEXT</label>
+      <div class="spacer"></div>
+      <button type="button" id="btnZoom" class="btn sm">전체 화면 보기</button>
+    </div>
+    <div class="bigbtns">
+      <button type="button" id="btnTake" class="big take">TAKE<kbd>F1 · Space</kbd></button>
+      <button type="button" id="btnOut" class="big out">OUT<kbd>F2</kbd></button>
+      <button type="button" id="btnShow" class="big show">SHOW<kbd>F3</kbd></button>
+      <button type="button" id="btnPrev" class="big prev">◀ PREV<kbd>↑</kbd></button>
+      <button type="button" id="btnNext" class="big next">NEXT ▶<kbd>F4 · ↓</kbd></button>
+    </div>
+    <p class="hint" id="takeHint">TAKE: PREVIEW를 송출하고 표시합니다 (선택한 효과). OUT은 내리기만 하며 데이터는 지우지 않습니다.</p>
+    <div class="sw-info">
+      <div class="block">
+        <h3>송출 주소 <small>클릭하면 복사</small></h3>
+        <div id="urlList" class="urls"></div>
+        <p class="hint" title="특정 CG만 띄우려면 주소 끝에 &amp;template=race-win-rate">OBS/vMix 브라우저 소스 1920 × 1080</p>
+      </div>
+      <div class="block">
+        <h3>위치 · 크기 <small>PREVIEW에 바로, PROGRAM은 다음 TAKE부터</small></h3>
+        <div class="display-form">
+          <label>오른쪽 <input type="number" id="dRight" step="1"> px</label>
+          <label>아래 <input type="number" id="dBottom" step="1"> px</label>
+          <label>크기 <input type="number" id="dScale" min="50" max="200" step="5"> %</label>
+          <button type="button" id="btnDisplay" class="btn sm">적용</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel editor">
+    <div class="panel-head">
+      <h2>타이틀 에디터</h2>
+      <span id="edTarget" class="ellipsis muted">PREVIEW에 큐된 페이지가 없습니다.</span>
+    </div>
+    <div id="edNotice" class="notice" hidden></div>
+    <div class="table-wrap">
+      <table class="ed">
+        <thead><tr><th>항목</th><th>AUTO</th><th>MANUAL 입력</th><th>FINAL</th><th>LIVE (송출값)</th><th>상태</th><th title="다음 방송 세션에도 이 수정값 유지">KEEP</th><th></th></tr></thead>
+        <tbody id="edBody"></tbody>
+      </table>
+    </div>
+    <div class="ed-actions">
+      <button type="button" id="btnSave" class="btn save">SAVE TO PREVIEW <kbd>Ctrl+S</kbd></button>
+      <button type="button" id="btnDiscard" class="btn">입력 취소</button>
+      <button type="button" id="btnResetAll" class="btn">전체 되돌리기 (AUTO)</button>
+      <div class="spacer"></div>
+      <div class="livebox">
+        <span>긴급 송출 수정 — 송출 중인 같은 CG에 바로 반영</span>
+        <button type="button" id="btnLive" class="btn live">UPDATE LIVE</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel side">
+    <div class="block grow">
+      <h3>송출 로그</h3>
+      <ol id="logList" class="log"></ol>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<dialog id="dlgPage" class="dlg">
+  <form method="dialog" id="pageForm">
+    <h3 id="pageTitle">페이지 추가</h3>
+    <label>종류 <select id="pTemplate"></select></label>
+    <fieldset><legend>A 선수 (왼쪽)</legend>
+      <select id="pAPlayer"></select> vs <select id="pAVs"><option value="P">P</option><option value="T">T</option><option value="Z">Z</option></select>
+    </fieldset>
+    <fieldset><legend>B 선수 (오른쪽)</legend>
+      <select id="pBPlayer"></select> vs <select id="pBVs"><option value="P">P</option><option value="T">T</option><option value="Z">Z</option></select>
+    </fieldset>
+    <p class="hint">선수를 고르면 상대 종족이 서로의 종족으로 자동 선택됩니다. 필요하면 바꾸세요.</p>
+    <label>페이지 번호 <input type="number" id="pNo" min="1" max="999" placeholder="비우면 다음 번호"></label>
+    <label>메모 <input type="text" id="pLabel" maxlength="100" placeholder="예: 3세트 전"></label>
+    <div class="dlg-btns"><button value="cancel" class="btn">취소</button><button value="ok" id="pOk" class="btn primary">저장</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgConfirm" class="dlg">
+  <form method="dialog">
+    <h3 id="cfTitle">확인</h3>
+    <div id="cfBody"></div>
+    <div class="dlg-btns"><button value="cancel" class="btn">취소</button><button value="ok" id="cfOk" class="btn primary">확인</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgSession" class="dlg">
+  <form method="dialog">
+    <h3>새 방송 세션 시작</h3>
+    <p>수정값(MANUAL)은 방송 세션마다 따로 관리됩니다. 새 세션은 모든 CG가 AUTO로 시작하며,
+      <b>KEEP</b>을 체크한 수정값 <b id="keepCount">0</b>개만 넘어갑니다. PROGRAM(송출 중 화면)은 바뀌지 않습니다.</p>
+    <label>세션 이름 <input type="text" id="sessNameInput" maxlength="100"></label>
+    <div class="dlg-btns"><button value="cancel" class="btn">취소</button><button value="ok" class="btn primary">새 세션 시작</button></div>
+  </form>
+</dialog>
+
+<script src="<?= h(asset_url('panel.js')) ?>"></script>
+</body>
+</html>

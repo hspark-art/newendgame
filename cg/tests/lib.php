@@ -8,6 +8,14 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/www/app/bootstrap.php';
 
+// 경고·알림도 실패로 처리한다
+set_error_handler(static function (int $no, string $msg, string $file, int $line): bool {
+    if (!(error_reporting() & $no)) {
+        return false; // @로 의도적으로 숨긴 경고
+    }
+    throw new ErrorException($msg, 0, $no, $file, $line);
+});
+
 $GLOBALS['TESTS'] = [];
 $GLOBALS['TEST_TMP'] = sys_get_temp_dir() . '/cg-test-' . getmypid();
 

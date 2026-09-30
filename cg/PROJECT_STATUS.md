@@ -5,11 +5,11 @@
 
 | 항목 | PC 응용프로그램 | 웹 버전 |
 |---|---|---|
-| 상태 | 개발 중 | 개발 중 |
-| 상대 종족 승률 CG (MOCK) | 개발 중 | 개발 중 (공용) |
-| 페이지 리스트·번호 큐·단축키 | 개발 중 | 개발 중 (공용) |
-| PREVIEW/PROGRAM·TAKE·SHOW/OUT | 개발 중 | 개발 중 (공용) |
-| QUICK EDIT·Override·UPDATE LIVE | 개발 중 | 개발 중 (공용) |
+| 상태 | 첫 MVP 완료 (Windows 실행 미검증) | 개발 중 (계정·설치) |
+| 상대 종족 승률 CG (MOCK) | 구현 | 공용 코드 |
+| 페이지 리스트·번호 큐·단축키 | 구현 | 공용 코드 |
+| PREVIEW/PROGRAM·TAKE·SHOW/OUT | 구현 | 공용 코드 |
+| QUICK EDIT·Override·UPDATE LIVE | 구현 | 공용 코드 |
 | 실행 방법 | 시작.bat (포터블 PHP) | 웹호스팅 업로드 + install.php |
 | 계정 | 없음 (이 PC 전용) | 초대 → 가입 → 승인, 관리자/운영자 |
 | 송출 주소 | 127.0.0.1 / LAN IP | 비밀 토큰 주소 |

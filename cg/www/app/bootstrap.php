@@ -20,6 +20,12 @@ require_once APP_DIR . '/guard.php';
 require_once APP_DIR . '/auth.php';
 require_once APP_DIR . '/stats.php';
 require_once APP_DIR . '/provider.php';
+require_once APP_DIR . '/templates.php';
+require_once APP_DIR . '/override.php';
+require_once APP_DIR . '/log.php';
+require_once APP_DIR . '/control.php';
+require_once APP_DIR . '/views.php';
+require_once APP_DIR . '/actions.php';
 
 define('APP_VERSION', (string)(json_decode((string)file_get_contents(APP_DIR . '/version.json'), true)['version'] ?? '0'));
 

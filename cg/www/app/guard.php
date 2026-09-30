@@ -74,6 +74,38 @@ function guard_post(): void
     }
 }
 
+/** 송출 화면 요청 값: [채널, 조작 패널용 모니터 여부, 레이어] */
+function output_request(): array
+{
+    $ch = ($_GET['ch'] ?? 'program') === 'preview' ? 'preview' : 'program';
+    $ghost = ($_GET['ghost'] ?? '') === '1';
+    $layer = ctype_digit((string)($_GET['layer'] ?? '1')) ? (int)$_GET['layer'] : 1;
+    return [$ch, $ghost, max(1, min(8, $layer))];
+}
+
+/**
+ * 송출 화면 접근 규칙.
+ * - PROGRAM 송출(OBS/vMix): PC는 서버에 닿으면 허용(LAN 모드 포함), 웹은 비밀 출력 주소(t) 또는 로그인 사용자.
+ * - PREVIEW·패널 모니터(ghost): 조작 권한이 있어야 한다. 방송 전 준비 화면이 밖으로 나가지 않게 한다.
+ */
+function output_access(string $ch, bool $ghost): void
+{
+    if ($ch === 'program' && !$ghost) {
+        if (is_desktop()) {
+            return;
+        }
+        $t = (string)($_GET['t'] ?? '');
+        if ($t !== '' && hash_equals((string)setting_get('output_token', ''), $t)) {
+            return;
+        }
+        if (auth_user_optional() !== null) {
+            return;
+        }
+        deny(404, 'NOT_FOUND', '없는 주소입니다.');
+    }
+    guard_control();
+}
+
 /** Origin 머리글이 현재 접속 주소와 같은지 (없으면 거부) */
 function same_origin(): bool
 {

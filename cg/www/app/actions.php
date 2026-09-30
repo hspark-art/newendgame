@@ -1,0 +1,61 @@
+<?php
+declare(strict_types=1);
+
+/** 조작 API(api/action.php)의 동작 이름 → 함수 연결 */
+
+function in_int(array $in, string $key): int
+{
+    $v = $in[$key] ?? null;
+    if (is_int($v)) {
+        return $v;
+    }
+    if (is_string($v) && preg_match('/^-?\d{1,9}$/D', $v)) {
+        return (int)$v;
+    }
+    throw new ActionError('BAD_REQUEST', "요청 값이 올바르지 않습니다: $key", 400);
+}
+
+/** 수정값 묶음 {필드: 문자열} */
+function in_values(array $in, bool $allowEmpty = false): array
+{
+    $v = $in['values'] ?? [];
+    if (!is_array($v) || array_is_list($v) && $v !== []) {
+        throw new ActionError('BAD_REQUEST', '수정값 형식이 올바르지 않습니다.', 400);
+    }
+    if (!$v && !$allowEmpty) {
+        throw new ActionError('VALIDATION', '저장할 수정값이 없습니다.', 422);
+    }
+    return $v;
+}
+
+function action_dispatch(string $action, array $in, array $op): mixed
+{
+    return match ($action) {
+        'page_add' => page_add($in, $op),
+        'page_update' => page_update(in_int($in, 'id'), $in, $op),
+        'page_copy' => page_copy(in_int($in, 'id'), $op),
+        'page_remove' => page_remove(in_int($in, 'id'), $op),
+        'page_move' => page_move(in_int($in, 'id'), in_int($in, 'dir')),
+        'cue_page' => cue_page(in_int($in, 'page_no')),
+        'next' => cue_step(1),
+        'prev' => cue_step(-1),
+        'take' => program_take(in_int($in, 'preview_rev'), [
+            'effect' => (string)($in['effect'] ?? 'slide'),
+            'dur_ms' => (int)($in['dur_ms'] ?? 350),
+            'auto_next' => !empty($in['auto_next']),
+        ], $op),
+        'show' => program_visibility(true, $op),
+        'out' => program_visibility(false, $op),
+        'set_display' => preview_display($in, $op),
+        'refresh_data' => data_refresh($op),
+        'save_preview' => preview_save(in_int($in, 'instance_id'), in_values($in), $op),
+        'reset' => override_reset(in_int($in, 'instance_id'), isset($in['field']) ? (string)$in['field'] : null, $op),
+        'set_keep' => override_keep(in_int($in, 'instance_id'), (string)($in['field'] ?? ''), !empty($in['keep']), $op),
+        'update_live' => program_update_live(in_int($in, 'instance_id'), in_int($in, 'take_id'), in_int($in, 'preview_rev'),
+            in_values($in, true), $op),
+        'new_session' => session_start_new((string)($in['name'] ?? ''), $op),
+        'rundown_export' => rundown_export(),
+        'rundown_import' => rundown_import($in['data'] ?? null, $op),
+        default => throw new ActionError('UNKNOWN_ACTION', '알 수 없는 동작입니다.', 400),
+    };
+}

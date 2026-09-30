@@ -1,0 +1,65 @@
+/* CG 테마. 색·폰트는 이 변수만 바꾸면 전체에 반영된다.
+   폰트: 방송 폰트 미확정(NEEDS CONFIRMATION) → Windows 기본 맑은 고딕으로 시작. 라이선스 확인된 폰트로 교체 가능. */
+:root {
+  --cg-font: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", "Noto Sans CJK KR", sans-serif;
+  --cg-text: #ffffff;
+  --cg-muted: #d7dbe2;
+  --cg-accent: #f2e500;
+  --cg-title-bg: linear-gradient(90deg, #3d1b20 0%, #2c2226 34%, #2a2e36 64%, #5d6778 100%);
+  --cg-band: #07080a;
+  --cg-head-bg: linear-gradient(180deg, #8f98a6 0%, #636b79 40%, #3a404b 52%, #474e5a 100%);
+  --cg-body-bg: linear-gradient(180deg, #30353e 0%, #1d2128 52%, #282d35 100%);
+  --cg-border: rgba(255, 255, 255, .16);
+  --cg-shadow: 0 6px 18px rgba(0, 0, 0, .45);
+}
+
+.cg-box {
+  position: relative; display: flex; flex-direction: column; overflow: hidden;
+  width: 560px; height: 250px; border-radius: 14px 0 0 0;
+  background: var(--cg-body-bg); box-shadow: var(--cg-shadow); border: 1px solid var(--cg-border); border-right: 0;
+  font-family: var(--cg-font); color: var(--cg-text); box-sizing: border-box;
+}
+.cg-fit { display: inline-block; white-space: nowrap; }
+
+/* 제목바: 적갈색→차콜→청회색 그라데이션 + 윗부분 광택 */
+.cg-title {
+  position: relative; flex: none; height: 66px; padding: 0 20px;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  background: var(--cg-title-bg);
+}
+.cg-title::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 52%; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .02));
+}
+.cg-title .cg-fit {
+  position: relative; z-index: 1; font-size: 31px; font-weight: 800; font-style: italic; letter-spacing: -.5px;
+  text-shadow: 0 2px 2px rgba(0, 0, 0, .85), 0 0 6px rgba(0, 0, 0, .5);
+}
+.cg-band { flex: none; height: 12px; background: var(--cg-band); }
+
+/* 상대 종족 승률 */
+.cg-head { flex: none; display: flex; height: 46px; background: var(--cg-head-bg); border-bottom: 2px solid #0c0e12; }
+.cg-head .cg-cell {
+  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; overflow: hidden;
+  font-size: 27px; text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
+}
+.cg-name { font-weight: 600; }
+.cg-vs { font-weight: 400; color: var(--cg-muted); }
+.cg-body { flex: 1; display: flex; }
+.cg-body .cg-cell {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden;
+}
+.cg-record { font-size: 42px; font-weight: 700; line-height: 1.1; letter-spacing: -1px; text-shadow: 0 2px 3px rgba(0, 0, 0, .7); }
+.cg-rate { font-size: 24px; line-height: 1.25; color: var(--cg-muted); }
+
+/* MOCK 데이터 표시 (실제 데이터 연결 시 사라짐) */
+.cg-mock {
+  position: absolute; left: 8px; bottom: 6px; padding: 2px 5px; border-radius: 2px;
+  font: 700 11px/1 var(--cg-font); letter-spacing: 1px; color: #111; background: var(--cg-accent); opacity: .85;
+}
+/* 값이 비어 송출할 수 없는 CG (PREVIEW에서만 보임) */
+.cg-empty {
+  display: flex; align-items: center; justify-content: center; width: 560px; height: 250px; border-radius: 14px 0 0 0;
+  background: repeating-linear-gradient(45deg, #3b1c1c 0 12px, #2a1414 12px 24px);
+  color: #fff; font: 700 22px var(--cg-font);
+}

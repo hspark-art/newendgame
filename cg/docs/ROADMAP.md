@@ -44,12 +44,22 @@ CLAUDE.md → 아래 진행 기록 → 현재 단계 관련 문서·코드만 �
 
 | 항목 | 현재 기록 |
 |---|---|
-| 현재 단계 | PHASE 3 완료 → PHASE 4 진행 |
-| 완료 단계 | PHASE 0 (스크린샷 분석), 1 (ARCHITECTURE), 2 (DATA_MODEL, DB 계층·마이그레이션·테스트 러너), 3 (MOCK JSON, provider 검증, stats) |
-| 변경 파일 | cg/www/app/{helpers,db,migrate,guard,route,bootstrap,stats,provider}.php, data/mock/*.json, tests/* |
-| 검증 결과 / 미검증 | php tests/run.php 16건 통과 (SQLite, MySQL 10.11 모두). MOCK 33-21→61.1%, 129-123→51.2%, 0경기→null 확인 |
+| 현재 단계 | PHASE 6 완료 (PC 첫 MVP) → W 웹 버전 진행 |
+| 완료 단계 | 0 스크린샷 분석, 1 ARCHITECTURE, 2 DATA_MODEL·DB 계층, 3 MOCK·stats, 4 상대 종족 승률 CG·송출 화면·패널·PC 실행기, 5 PVW/PGM·TAKE/SHOW/OUT·페이지 리스트·단축키·폴링, 6 QUICK EDIT·Override·RESET·KEEP·UPDATE LIVE·세션·내보내기/가져오기 |
+| 변경 파일 | www/{index,output}.php, www/api/*, www/assets/{panel,output,cg}.*, www/app/{templates,override,control,views,actions,log}.php, desktop/* |
+| 검증 결과 / 미검증 | 자동 테스트 34건 통과(SQLite·MySQL). 브라우저(Chromium) 18항목 통과: 투명 1920×1080, TAKE·OUT·SHOW·NEXT·번호 큐, SAVE 후 PGM 불변, UPDATE LIVE 즉시 반영, 입력 중 단축키 무시, 서버 종료 시 송출 화면 유지·재시작 복구. **미검증**: Windows 실행기(bat·Edge·포터블 PHP), OBS/vMix 실송출, 맑은 고딕 글자 폭 |
 | 미확정·장애 | 집계 단위(세트/매치), 방송 폰트, 예측 순위 정렬 기준, CG W/H 조정 여부, 웹 도메인·호스팅 |
-| 다음 작업 | PHASE 4 첫 CG·패널 골격·PC 실행기 |
+| 다음 작업 | W 웹 버전(계정·비밀 출력 주소·설치) → R 배포 패키지 |
+
+**MVP 검수표 (PHASE 0~6)**
+- [x] 조작 패널과 더블클릭 시작 수단 (Electron 대신 PHP 로컬 서버 + Edge 앱 창; Windows 실행은 미검증)
+- [x] MOCK: 조일장 vs P 33승 21패 → 61.1%; 장윤철 vs Z 129승 123패 → 51.2%
+- [x] 상대 종족 승률 CG, 독립 송출 주소, 1920×1080 투명 배경, 레퍼런스에 가까운 우측 하단 배치
+- [x] PREVIEW/PROGRAM 표시, SHOW/OUT/TAKE, 실시간 반영(WebSocket 대신 폴링)
+- [x] QUICK EDIT → SAVE TO PREVIEW, 필드 Override, 자동 재계산/직접 승률 입력, RESET TO AUTO
+- [x] UPDATE LIVE가 현재 PROGRAM 대상에만 명시적으로 적용
+- [x] 자동값 변경 시 수동값 보존, 세션 초기화/KEEP OVERRIDE, 수정 이력
+- [x] 자동 테스트·브라우저 확인 결과 기록, OBS/vMix 미검증 명시
 
 ### 추가 단계 (사용자 요청, 2026-09-30)
 | 단계 | 작업 | 완료 조건 |
