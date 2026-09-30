@@ -1,0 +1,42 @@
+/* 웹 버전 계정 화면 (로그인·가입·관리자). 조작 패널과 같은 어두운 콘솔 톤 */
+:root { --bg: #0d1015; --panel: #151a21; --line: #2a323d; --text: #e7edf4; --muted: #8e99a8; --accent: #3b82f6;
+  --ok: #22c55e; --err: #ef4444; --warn: #f59e0b; --font: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.55 var(--font); }
+a { color: #93c5fd; }
+.bar { display: flex; align-items: center; gap: 10px; padding: 10px 18px; background: #0a0c10; border-bottom: 1px solid var(--line); }
+.brand { font-weight: 800; font-size: 16px; color: var(--text); text-decoration: none; }
+.ver { color: var(--muted); font-size: 12px; }
+.bar nav { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.who { color: var(--muted); }
+main { margin: 28px auto; padding: 0 16px; }
+main.narrow { max-width: 460px; } main.wide { max-width: 1180px; }
+h1 { font-size: 22px; margin: 0 0 16px; } h2 { font-size: 16px; margin: 28px 0 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+label { display: block; margin: 0 0 12px; color: var(--muted); }
+input, select { display: block; width: 100%; margin-top: 4px; padding: 8px 10px; border-radius: 6px; border: 1px solid #36404d; background: #0b0e13; color: var(--text); font: inherit; }
+.row label { display: inline-block; margin: 0 12px 0 0; } .row input, .row select { display: inline-block; width: auto; }
+.row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+button, .btn { display: inline-block; padding: 8px 16px; border-radius: 6px; border: 1px solid #36404d; background: #1b212a; color: var(--text); font: inherit; cursor: pointer; text-decoration: none; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+button.danger { background: #7f1d1d; border-color: var(--err); color: #fff; }
+button.sm { padding: 3px 9px; font-size: 12px; }
+button.link { background: none; border: 0; color: #93c5fd; padding: 0; }
+form.inline { display: inline; }
+.msg { padding: 10px 14px; border-radius: 6px; background: #1f2937; border: 1px solid var(--line); }
+.msg.ok { border-color: var(--ok); } .msg.err { background: #450a0a; border-color: var(--err); }
+.hint { color: var(--muted); font-size: 13px; }
+.muted { color: var(--muted); }
+table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+th { color: var(--muted); font-weight: 600; background: #1b212a; }
+td.actions { white-space: nowrap; } td.actions form { margin-right: 4px; }
+tr.st-pending .st { color: #111; background: var(--warn); padding: 1px 6px; border-radius: 3px; font-weight: 700; }
+tr.st-suspended .st, tr.st-rejected .st { color: #fca5a5; }
+.tag { font-size: 11px; padding: 0 5px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); }
+code.copy { display: block; margin: 8px 0; padding: 10px 12px; border: 1px dashed #36404d; border-radius: 6px; background: #0b0e13; word-break: break-all; cursor: copy; font-family: Consolas, ui-monospace, monospace; }
+code.copy:hover, code.copy:focus { border-color: var(--accent); outline: none; }
+code.copy.copied { border-color: var(--ok); }
+.newlink { border-color: var(--ok); margin-bottom: 16px; }
+.files { color: #fca5a5; }
+table.log td { font-size: 12px; color: var(--muted); }

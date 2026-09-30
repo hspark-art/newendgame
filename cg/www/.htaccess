@@ -1,0 +1,12 @@
+# 웹 버전 (Apache): 폴더 목록 숨김, 숨김 파일 차단. app/ 폴더는 app/.htaccess 가 막는다.
+Options -Indexes
+AddDefaultCharset UTF-8
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

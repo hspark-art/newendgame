@@ -26,6 +26,8 @@ require_once APP_DIR . '/log.php';
 require_once APP_DIR . '/control.php';
 require_once APP_DIR . '/views.php';
 require_once APP_DIR . '/actions.php';
+require_once APP_DIR . '/portal.php';
+require_once APP_DIR . '/release.php';
 
 define('APP_VERSION', (string)(json_decode((string)file_get_contents(APP_DIR . '/version.json'), true)['version'] ?? '0'));
 

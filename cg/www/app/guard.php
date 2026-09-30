@@ -28,7 +28,7 @@ function deny(int $status, string $code, string $message): never
     }
     http_response_code($status);
     header('Content-Type: text/html; charset=utf-8');
-    echo '<!doctype html><meta charset="utf-8"><title>' . h((string)$status) . '</title><p>' . h($message) . '</p>';
+    echo '<!doctype html><meta charset="utf-8"><link rel="icon" href="data:,"><title>' . h((string)$status) . '</title><p>' . h($message) . '</p>';
     exit;
 }
 

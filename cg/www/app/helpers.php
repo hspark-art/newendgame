@@ -148,7 +148,10 @@ function send_headers(string $kind): void
     $frame = $kind === 'output' ? "'self'" : "'none'";
     header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors $frame");
     header('X-Content-Type-Options: nosniff');
-    header('Referrer-Policy: no-referrer');
+    // 송출 화면은 주소에 비밀 토큰이 있으므로 Referer를 보내지 않는다.
+    // 나머지는 same-origin: 폼 제출 때 브라우저가 Origin을 정상적으로 보내야 같은 출처 확인이 된다
+    // (no-referrer면 폼 POST의 Origin이 'null'이 됨).
+    header('Referrer-Policy: ' . ($kind === 'output' ? 'no-referrer' : 'same-origin'));
     if ($kind !== 'output') {
         header('X-Frame-Options: DENY');
     }

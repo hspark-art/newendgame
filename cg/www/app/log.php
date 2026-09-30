@@ -21,7 +21,8 @@ function cg_log(string $type, string $action, array $op, array $ctx = []): void
     );
 }
 
+/** 조작 패널용 최근 기록 (계정 기록은 관리자 화면에서만) */
 function logs_recent(int $limit = 30): array
 {
-    return db_all('SELECT * FROM cg_logs ORDER BY id DESC LIMIT ' . max(1, min(200, $limit)));
+    return db_all("SELECT * FROM cg_logs WHERE type <> 'auth' ORDER BY id DESC LIMIT " . max(1, min(200, $limit)));
 }

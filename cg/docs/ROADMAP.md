@@ -44,12 +44,12 @@ CLAUDE.md → 아래 진행 기록 → 현재 단계 관련 문서·코드만 �
 
 | 항목 | 현재 기록 |
 |---|---|
-| 현재 단계 | PHASE 6 완료 (PC 첫 MVP) → W 웹 버전 진행 |
-| 완료 단계 | 0 스크린샷 분석, 1 ARCHITECTURE, 2 DATA_MODEL·DB 계층, 3 MOCK·stats, 4 상대 종족 승률 CG·송출 화면·패널·PC 실행기, 5 PVW/PGM·TAKE/SHOW/OUT·페이지 리스트·단축키·폴링, 6 QUICK EDIT·Override·RESET·KEEP·UPDATE LIVE·세션·내보내기/가져오기 |
+| 현재 단계 | W 완료 (웹 첫 MVP) → R 배포 패키지 진행 |
+| 완료 단계 | 0 스크린샷 분석, 1 ARCHITECTURE, 2 DATA_MODEL·DB 계층, 3 MOCK·stats, 4 상대 종족 승률 CG·송출 화면·패널·PC 실행기, 5 PVW/PGM·TAKE/SHOW/OUT·페이지 리스트·단축키·폴링, 6 QUICK EDIT·Override·RESET·KEEP·UPDATE LIVE·세션·내보내기/가져오기, W 웹 계정(설치·초대·승인·재설정·정지·시도 제한)·관리자 화면·비밀 송출 주소 |
 | 변경 파일 | www/{index,output}.php, www/api/*, www/assets/{panel,output,cg}.*, www/app/{templates,override,control,views,actions,log}.php, desktop/* |
 | 검증 결과 / 미검증 | 자동 테스트 34건 통과(SQLite·MySQL). 브라우저(Chromium) 18항목 통과: 투명 1920×1080, TAKE·OUT·SHOW·NEXT·번호 큐, SAVE 후 PGM 불변, UPDATE LIVE 즉시 반영, 입력 중 단축키 무시, 서버 종료 시 송출 화면 유지·재시작 복구. **미검증**: Windows 실행기(bat·Edge·포터블 PHP), OBS/vMix 실송출, 맑은 고딕 글자 폭 |
 | 미확정·장애 | 집계 단위(세트/매치), 방송 폰트, 예측 순위 정렬 기준, CG W/H 조정 여부, 웹 도메인·호스팅 |
-| 다음 작업 | W 웹 버전(계정·비밀 출력 주소·설치) → R 배포 패키지 |
+| 다음 작업 | R 배포 패키지(PC zip·웹 zip·패치 zip·검증 기록) |
 
 **MVP 검수표 (PHASE 0~6)**
 - [x] 조작 패널과 더블클릭 시작 수단 (Electron 대신 PHP 로컬 서버 + Edge 앱 창; Windows 실행은 미검증)
