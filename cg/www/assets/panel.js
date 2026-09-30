@@ -15,7 +15,8 @@
   var edKey = '';          // 에디터가 그리고 있는 대상 (인스턴스 + 필드 목록)
   var pageBuf = '';        // 페이지 번호 입력
   var pageBufTimer = null;
-  var takeLockUntil = 0;   // TAKE 연타 방지
+  var takeLockUntil = 0;   // TAKE 연타 방지 (애니메이션 시간)
+  var takeBusy = false;    // TAKE 요청이 끝날 때까지 다시 누르지 않게
   var failCount = 0;
   var editingPageId = null;
 
@@ -230,7 +231,7 @@
 
   function renderButtons() {
     var pv = S.preview, pg = S.program;
-    $('btnTake').disabled = !pv.instance_id || pv.problems.length > 0 || Date.now() < takeLockUntil;
+    $('btnTake').disabled = !pv.instance_id || pv.problems.length > 0 || takeBusy || Date.now() < takeLockUntil;
     $('btnOut').disabled = pg.empty || !pg.visible;
     $('btnShow').disabled = pg.empty || pg.visible;
     $('btnNext').disabled = S.rundown.length === 0;
@@ -240,7 +241,7 @@
     $('btnSave').classList.toggle('dirty', hasDirty);
     $('btnDiscard').disabled = !hasDirty;
     $('btnResetAll').disabled = !pv.instance_id || !pv.fields.some(function (f) { return f.has_manual; });
-    $('btnLive').disabled = !pg.same_target || !(hasDirty || pg.pending_live);
+    $('btnLive').disabled = !pg.same_target || !(hasDirty || pg.live_manual);
     $('btnLive').title = pg.same_target ? '' : 'PREVIEW에 큐된 CG가 현재 PROGRAM과 같을 때만 사용할 수 있습니다.';
   }
 
@@ -339,10 +340,12 @@
     var fx = $('fx').value;
     var dur = Math.round(parseFloat($('fxDur').value || '0.35') * 1000);
     takeLockUntil = Date.now() + (fx === 'cut' ? 300 : dur * 2 + 200);
+    takeBusy = true;
     $('btnTake').disabled = true;
     window.setTimeout(renderButtons, takeLockUntil - Date.now() + 20);
     api('take', { preview_rev: S.preview.rev, effect: fx, dur_ms: dur, auto_next: $('autoNext').checked })
-      .then(function () { toast('TAKE — 송출했습니다.', 'ok'); }, function () { takeLockUntil = 0; renderButtons(); });
+      .then(function () { toast('TAKE — 송출했습니다.', 'ok'); }, function () { takeLockUntil = 0; })
+      .then(function () { takeBusy = false; renderButtons(); });
   }
   function out() { if (!$('btnOut').disabled) { api('out'); } }
   function show() { if (!$('btnShow').disabled) { api('show'); } }
@@ -358,10 +361,18 @@
     }, function (e) { if (quiet && e.data) { toast(e.data.error, 'err'); } });
   }
 
+  /* 요청에 보낸 값만 입력 중 목록에서 지운다 (요청 중에 다시 고친 칸은 남겨 둔다) */
+  function clearSent(sent) {
+    Object.keys(sent).forEach(function (k) { if (dirty[k] === sent[k]) { delete dirty[k]; } });
+    renderEditor();
+    renderButtons();
+  }
+
   function save() {
     if (!S || !S.preview.instance_id || !Object.keys(dirty).length) { return; }
-    api('save_preview', { instance_id: S.preview.instance_id, values: dirty })
-      .then(function () { dirty = {}; toast('PREVIEW에 저장했습니다. 송출은 TAKE 또는 UPDATE LIVE로 반영됩니다.', 'ok'); renderEditor(); renderButtons(); },
+    var sent = Object.assign({}, dirty);
+    api('save_preview', { instance_id: S.preview.instance_id, values: sent })
+      .then(function () { clearSent(sent); toast('PREVIEW에 저장했습니다. 송출은 TAKE 또는 UPDATE LIVE로 반영됩니다.', 'ok'); },
         function (e) { markFieldErrors(e.data && e.data.fields); });
   }
 
@@ -375,21 +386,28 @@
 
   function updateLive() {
     if ($('btnLive').disabled) { return; }
-    var rows = [];
+    // 확인창에 보여 준 상태 그대로 보낸다 (창이 열린 동안 폴링으로 바뀐 값은 보내지 않음)
+    var sent = Object.assign({}, dirty);
+    var req = { instance_id: S.preview.instance_id, take_id: S.program.take_id, preview_rev: S.preview.rev, values: sent };
+    var rows = [], autoOnly = [];
     S.preview.fields.forEach(function (f) {
-      if (dirty[f.key] !== undefined) {
-        rows.push('<li>' + esc(f.label) + ': <span class="from">' + esc(f.live_text) + '</span> → <span class="to">' + esc(dirty[f.key]) + ' (입력)</span></li>');
-      } else if (f.live_differs) {
+      if (sent[f.key] !== undefined) {
+        rows.push('<li>' + esc(f.label) + ': <span class="from">' + esc(f.live_text) + '</span> → <span class="to">' + esc(sent[f.key]) + ' (입력)</span></li>');
+      } else if (f.live_differs && f.has_manual) {
         rows.push('<li>' + esc(f.label) + ': <span class="from">' + esc(f.live_text) + '</span> → <span class="to">' + esc(f.final_text) + '</span></li>');
+      } else if (f.live_differs && !f.derived) {
+        autoOnly.push(esc(f.label));
       }
     });
     confirmBox('UPDATE LIVE — 송출 중인 CG를 바로 수정합니다',
       '<p>' + pad3(S.program.page_no) + ' · ' + esc(S.program.title) + '</p><ul class="diff">' + rows.join('') + '</ul>'
-      + '<p class="hint">승률은 승·패에 맞춰 다시 계산될 수 있습니다. 수정값은 PREVIEW에도 저장됩니다.</p>', 'UPDATE LIVE')
+      + '<p class="hint">승률은 승·패에 맞춰 다시 계산됩니다. 수정값은 PREVIEW에도 저장됩니다.</p>'
+      + (autoOnly.length ? '<p class="hint">자동값이 바뀐 항목(' + autoOnly.join(', ') + ')은 반영하지 않습니다. 반영하려면 TAKE 하세요.</p>' : ''),
+      'UPDATE LIVE')
       .then(function (ok) {
         if (!ok) { return; }
-        api('update_live', { instance_id: S.preview.instance_id, take_id: S.program.take_id, preview_rev: S.preview.rev, values: dirty })
-          .then(function () { dirty = {}; toast('송출 중인 CG를 수정했습니다.', 'ok'); renderEditor(); renderButtons(); },
+        api('update_live', req)
+          .then(function () { clearSent(sent); toast('송출 중인 CG를 수정했습니다.', 'ok'); },
             function (e) { markFieldErrors(e.data && e.data.fields); });
       });
   }
@@ -619,6 +637,10 @@
     var t = e.target;
     var typing = t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
     if (e.key === 'F5') { e.preventDefault(); }
+    if (e.defaultPrevented) { return; } // 주소 복사 등 다른 곳에서 처리한 키
+    // 포커스된 버튼·주소 칸에서 Space/Enter는 그 요소의 동작만 한다 (TAKE가 같이 실행되지 않게)
+    var focusable = t && t !== document.body && (t.tagName === 'BUTTON' || t.tagName === 'A' || t.hasAttribute('tabindex'));
+    if (focusable && (e.key === ' ' || e.key === 'Enter')) { return; }
     if (e.isComposing || e.repeat || dialogOpen() || typing || e.ctrlKey || e.altKey || e.metaKey || !S) {
       return;
     }

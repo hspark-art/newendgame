@@ -58,6 +58,7 @@ test('http(web): 설치 → 초대 → 가입 → 승인 → 조작 → 비밀 �
         $r = $op->form('/invite.php?token=' . $token, ['username' => 'writer1', 'name' => '박작가', 'password' => 'operator-pass-1', 'password2' => 'operator-pass-1']);
         assert_same('pending.php', $r['location']);
         assert_same('pending.php', $op->get('/index.php')['location'], '승인 전에는 패널 대신 대기 화면');
+        assert_same(404, $op->get('/output.php?layer=1')['status'], '승인 전 계정은 송출 화면도 불가');
         assert_same(403, $op->get('/api/state.php')['status']);
         $other = new Client($b);
         assert_same(410, $other->get('/invite.php?token=' . $token)['status'], '사용한 초대 링크 재사용 불가');
@@ -100,6 +101,7 @@ test('http(web): 설치 → 초대 → 가입 → 승인 → 조작 → 비밀 �
         assert_same(401, $obs->get('/api/output.php?t=' . $q['t'] . '&layer=1&ch=preview')['status'], '토큰으로 PREVIEW는 불가');
         assert_same(401, $obs->get('/api/state.php')['status'], '토큰으로 패널 상태 불가');
         assert_same(404, $obs->get('/output.php?t=wrong&layer=1')['status']);
+        assert_same(404, $obs->get('/api/output.php?t=' . $q['t'] . '&layer=2')['status'], '없는 레이어 404');
 
         // 송출 주소 재발급
         $admin->get('/admin.php');
@@ -184,7 +186,8 @@ test('http(pc): 조작은 로컬 Host만, 웹 전용 화면·내부 파일 차�
         assert_same(200, $c->get('/')['status']);
         assert_true(str_contains($c->get('/')['headers'], 'X-Frame-Options: DENY'), '패널은 프레임 금지');
         assert_same(200, $c->get('/output.php?layer=1')['status']);
-        foreach (['/login.php', '/admin.php', '/install.php', '/app/config.php', '/app/control.php', '/APP/control.php'] as $p) {
+        foreach (['/login.php', '/admin.php', '/install.php', '/app/config.php', '/app/control.php', '/APP/control.php',
+            '//app/config.php', '//api/state.php'] as $p) {
             assert_same(404, $c->get($p)['status'], "차단: $p");
         }
         $evil = $c->req('GET', '/api/state.php', null, ['Host: attacker.example:' . parse_url($srv->base, PHP_URL_PORT)]);
@@ -194,6 +197,9 @@ test('http(pc): 조작은 로컬 Host만, 웹 전용 화면·내부 파일 차�
         $r = $c->req('POST', '/api/action.php', ['action' => 'refresh_data'], ['Origin: ' . $srv->base, 'X-CSRF-Token: ' . $c->csrf]);
         assert_same(415, $r['status'], 'JSON이 아닌 조작 요청 거부');
         assert_true($c->action('refresh_data')['json']['ok'] === true, '정상 조작');
+        assert_same(false, $c->get('/api/ping.php')['json']['lan'], 'ping: 이 PC 전용 모드');
+        assert_same(404, $c->get('/output.php?layer=3')['status'], '없는 레이어 404');
+        assert_true(!is_file($dir . '/error.log') || !str_contains((string)file_get_contents($dir . '/error.log'), 'BAD_LAYER'), '없는 레이어는 오류 기록에 남지 않음');
     } finally {
         $srv->stop();
     }

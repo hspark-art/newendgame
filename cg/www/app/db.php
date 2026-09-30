@@ -125,6 +125,9 @@ function db_tx(callable $fn): mixed
         $pdo->exec('BEGIN IMMEDIATE');
     } else {
         $pdo->beginTransaction();
+        // InnoDB의 일반 SELECT는 잠그지 않으므로, 설정 한 행을 잠가 모든 변경 트랜잭션을 한 줄로 세운다.
+        // (두 운영자의 TAKE/UPDATE LIVE가 서로 덮어쓰거나 같은 초대 링크로 두 명이 가입하는 것을 막음)
+        db_query("SELECT v FROM cg_settings WHERE k = 'state_rev' FOR UPDATE");
     }
     $GLOBALS['CG_TX_DEPTH'] = 1;
     try {
@@ -136,10 +139,14 @@ function db_tx(callable $fn): mixed
         }
         return $result;
     } catch (Throwable $e) {
-        if (db_driver() === 'sqlite') {
-            $pdo->exec('ROLLBACK');
-        } elseif ($pdo->inTransaction()) {
-            $pdo->rollBack();
+        try {
+            if (db_driver() === 'sqlite') {
+                $pdo->exec('ROLLBACK');
+            } elseif ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+        } catch (Throwable) {
+            // 되돌리기 실패가 원래 오류를 가리지 않게 한다
         }
         throw $e;
     } finally {

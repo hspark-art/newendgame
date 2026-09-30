@@ -242,6 +242,37 @@ test('시나리오6: UPDATE LIVE → 같은 대상만 즉시 변경, 불일치 �
     assert_same($snap, program_json());
 });
 
+test('UPDATE LIVE: 자동 갱신으로 바뀐 AUTO 값은 내보내지 않고 수정값만 반영', function () {
+    setup_rwr();
+    $iid = channel_get('preview')['instance_id'];
+    take_now();
+    $ds = provider_load('mock');
+    $ds['matches'][0]['scoreA'] = 2; // 조일장 vs P: 33승 20패 (AUTO 변경)
+    data_refresh(op(), $ds);
+    assert_same('20', pv_field('a.losses')['final_text'], 'PREVIEW에는 새 AUTO');
+    assert_true(panel_state(op())['program']['pending_live'], '송출값과 다름 표시');
+    assert_true(!panel_state(op())['program']['live_manual'], '보낼 수정값은 없음');
+    assert_throws(ActionError::class, fn() => program_update_live($iid, 1, channel_get('preview')['rev'], [], op()), 'NO_CHANGE');
+    program_update_live($iid, 1, channel_get('preview')['rev'], ['title' => '긴급 제목'], op());
+    $snap = channel_get('program')['snapshot'];
+    assert_same('긴급 제목', $snap['view']['title']);
+    assert_same(21, $snap['final']['a.losses'], 'AUTO 변경(20)은 송출에 반영 안 됨');
+    assert_same('33승 21패', $snap['view']['cols'][0]['record']);
+    // 저장만 해 둔 수정값은 다음 UPDATE LIVE에서 반영, 승률은 송출 스냅샷 기준으로 재계산
+    preview_save($iid, ['a.wins' => '40'], op());
+    assert_true(panel_state(op())['program']['live_manual']);
+    $r = program_update_live($iid, 1, channel_get('preview')['rev'], [], op());
+    assert_same(['a.wins', 'a.rate'], $r['changed']);
+    $snap = channel_get('program')['snapshot'];
+    assert_same('40승 21패', $snap['view']['cols'][0]['record']);
+    assert_same(656, $snap['final']['a.rate'], '40/61 = 65.6% (송출 중인 패 21 기준)');
+    // 직접 입력한 승률은 재계산하지 않음
+    program_update_live($iid, 1, channel_get('preview')['rev'], ['a.rate' => '70.0'], op());
+    assert_same('(70.0%)', channel_get('program')['snapshot']['view']['cols'][0]['rate']);
+    program_update_live($iid, 1, channel_get('preview')['rev'], ['a.wins' => '41'], op());
+    assert_same(700, channel_get('program')['snapshot']['final']['a.rate']);
+});
+
 test('시나리오9: 새 세션 → AUTO, KEEP만 유지, PROGRAM 불변, 재시작 복원', function () {
     setup_rwr();
     $iid = channel_get('preview')['instance_id'];

@@ -74,10 +74,10 @@ test('release: 패치 zip은 바뀐 파일만, 버전 파일은 마지막', func
     $z->addFromString("$top/www/assets/extra.js", "// new\n");
     $z->deleteName("$top/www/app/data/mock/players.json");
     $v = json_decode((string)$z->getFromName("$top/www/app/version.json"), true);
-    $v['version'] = '0.1.1';
+    $v['version'] = APP_VERSION . '-next';
     $z->addFromString("$top/www/app/version.json", json_encode($v));
     $pv = json_decode((string)$z->getFromName("$top/VERSION.json"), true);
-    $pv['version'] = '0.1.1';
+    $pv['version'] = APP_VERSION . '-next';
     $z->addFromString("$top/VERSION.json", json_encode($pv));
     $z->addFromString("$top/www/app/manifest.sha256", "changed\n");
     $z->close();
@@ -89,7 +89,7 @@ test('release: 패치 zip은 바뀐 파일만, 버전 파일은 마지막', func
     assert_true(isset($p['PATCH_INFO.txt'], $p['patch.json'], $p['files/www/assets/panel.css']));
     assert_true(!isset($p['files/www/index.php']), '안 바뀐 파일은 제외');
     $meta = json_decode($p['patch.json'], true);
-    assert_same(['0.1.0', '0.1.1'], [$meta['from'], $meta['to']]);
+    assert_same([APP_VERSION, APP_VERSION . '-next'], [$meta['from'], $meta['to']]);
     assert_true(str_contains($p['PATCH_INFO.txt'], 'config.php 는 절대 덮어쓰지'), '안내문');
     $pc = release_build(dirname(__DIR__), 'pc', $out);
     assert_throws(RuntimeException::class, fn() => patch_build($pc['zip'], $new, "$out/bad.zip"));

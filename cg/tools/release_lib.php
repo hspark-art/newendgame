@@ -172,7 +172,7 @@ function patch_build(string $oldZip, string $newZip, string $outZip): array
     if ($kind === 'web') {
         $info .= "웹: 아래 파일을 순서대로 FTP 업로드하세요. www/ 안의 파일은 서버 웹 폴더 기준 경로입니다.\n"
             . "버전 파일(app/version.json)은 반드시 마지막에 올리고, 관리자 화면에서 '파일 무결성 검사'로 확인하세요.\n"
-            . "app/config.php 는 절대 덮어쓰지 마세요.\n\n";
+            . "app/config.php 는 절대 덮어쓰지 마세요. www/ 밖의 파일(VERSION.json 등)은 서버에 올리지 않습니다.\n\n";
     } else {
         $info .= "PC: 전체 배포 zip을 새 폴더에 푸는 방법을 권장합니다 (작업 데이터는 %LOCALAPPDATA%\\EndgameCG 에 그대로 있음).\n"
             . "이 패치로 덮어쓸 때는 프로그램을 종료한 뒤 아래 파일을 같은 위치에 복사하세요.\n\n";

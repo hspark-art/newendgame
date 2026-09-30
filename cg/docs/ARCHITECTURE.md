@@ -72,7 +72,7 @@ MOCK JSON (추후 Google Sheets / 외부 사이트)
 ```
 
 - **PROGRAM은 스냅샷이다.** 자동 갱신·PREVIEW 편집·RESET은 PROGRAM을 바꾸지 않는다. PROGRAM을 바꾸는 것은 TAKE와 UPDATE LIVE뿐이다.
-- **UPDATE LIVE**는 현재 PROGRAM과 같은 CG 인스턴스일 때만 허용한다. 제출한 필드만 스냅샷에서 교체하고 파생값(승률)을 다시 계산한다.
+- **UPDATE LIVE**는 현재 PROGRAM과 같은 CG 인스턴스일 때만 허용한다. 수정값(MANUAL, 이번 입력 포함) 필드만 스냅샷에서 교체하고 파생값(승률)을 다시 계산한다. 자동 갱신으로 바뀐 AUTO 값은 반영하지 않고 TAKE로만 반영한다.
 - **승률**은 0.1% 단위 정수로 저장한다(61.1% → 611). 계산식은 `intdiv(2000×승 + 경기수, 2×경기수)`로 반올림이 PHP 버전과 무관하다. 0경기는 null이며 "자료 없음"으로 표시한다.
 - **표시 문자열**("33승 21패", "(61.1%)")은 PHP Presenter가 만든다. 송출 화면 JS는 HTML 교체·애니메이션·폴링만 한다.
 
@@ -98,7 +98,7 @@ MOCK JSON (추후 Google Sheets / 외부 사이트)
   - 비밀번호는 `password_hash`로 저장한다.
   - 초대·재설정 링크는 32바이트 난수이고 DB에는 SHA-256만 저장한다.
   - 로그인 시도 제한: 5분 동안 IP당 30회, 아이디당 10회.
-  - 세션 쿠키는 HttpOnly·SameSite=Strict이며, https면 Secure를 붙인다.
+  - 세션 쿠키는 HttpOnly·SameSite=Lax이며, https면 Secure를 붙인다. Lax인 이유: 메신저 링크로 들어와도 기존 로그인이 끊기지 않게 한다. 조작 위조는 CSRF 토큰과 Origin 확인으로 막는다.
   - 계정 정지나 비밀번호 재설정 시 `session_gen`이 올라가 기존 로그인이 즉시 끊긴다.
 - **비밀 출력 주소(웹)**
   - `output_token`(32바이트)을 가진 주소는 로그인 없이 PROGRAM 송출 화면만 읽는다. PREVIEW·패널 데이터·조작은 막는다.

@@ -123,6 +123,11 @@ test('auth: 로그인 실패 제한은 5분 창', function () {
     }
     assert_throws(ActionError::class, fn() => auth_login('boss', 'boss-pass-12345'), 'RATE_LIMIT');
     db_exec("UPDATE cg_attempts SET window_start = '2000-01-01 00:00:00'");
+    for ($i = 0; $i < 9; $i++) {
+        assert_throws(ActionError::class, fn() => auth_login('boss', 'bad'), 'LOGIN_FAILED');
+    }
+    assert_same('boss', auth_login('boss', 'boss-pass-12345')['username'], '9번 실패 후 10번째 성공');
+    assert_same(null, db_value("SELECT hits FROM cg_attempts WHERE bucket = 'user:boss'"), '성공하면 아이디 기록 삭제');
     assert_same('boss', auth_login('boss', 'boss-pass-12345')['username'], '창이 지나면 다시 로그인');
     assert_throws(ActionError::class, fn() => auth_login('ghost', 'whatever-123'), 'LOGIN_FAILED');
 });

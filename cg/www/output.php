@@ -11,6 +11,7 @@ require __DIR__ . '/app/bootstrap.php';
 app_start('output');
 [$ch, $ghost, $layer] = output_request();
 output_access($ch, $ghost);
+output_layer_check($layer);
 $state = output_payload($ch, $layer);
 $only = preg_match('/^[a-z0-9-]{1,40}$/D', (string)($_GET['template'] ?? '')) ? (string)$_GET['template'] : '';
 $api = 'api/output.php?' . http_build_query(array_filter([

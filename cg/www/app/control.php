@@ -590,7 +590,8 @@ function override_keep(int $instanceId, string $field, bool $keep, array $op): v
 /**
  * UPDATE LIVE: 송출 중인 CG(PROGRAM)를 TAKE 없이 바로 수정한다.
  * - PREVIEW에 큐된 CG가 현재 PROGRAM과 같은 인스턴스여야 한다 (다른 CG를 덮어쓰지 않음).
- * - 입력값을 수정값으로 저장한 뒤, 그 CG의 현재 FINAL을 송출 스냅샷에 반영한다 (표시 상태·위치·take_id 유지).
+ * - 입력값을 수정값으로 저장한 뒤, 수정값(MANUAL) 필드만 송출 스냅샷에 반영하고 승률을 다시 계산한다.
+ *   자동 갱신으로 바뀐 AUTO 값은 반영하지 않는다. 표시 상태·위치·take_id는 유지한다.
  */
 function program_update_live(int $instanceId, int $expectedTakeId, int $expectedPreviewRev, array $values, array $op): array
 {
@@ -621,22 +622,30 @@ function program_update_live(int $instanceId, int $expectedTakeId, int $expected
             override_store($inst, override_parse(template_get($inst['template']), $values), $op, $sid);
         }
         $st = instance_state($inst, $sid);
-        if ($st['problems']) {
-            throw new ActionError('NOT_SENDABLE', '값이 비어 있어 송출할 수 없습니다: ' . implode(' ', $st['problems']), 422);
-        }
         $snap = $pg['snapshot'];
-        $changed = [];
-        foreach ($st['final'] as $key => $v) {
-            if (($snap['final'][$key] ?? null) !== $v) {
-                $changed[] = $key;
+        // 송출에 반영하는 값: 수정값(MANUAL, 이번 입력 포함) 중 송출값과 다른 것만.
+        // 자동 갱신으로 바뀐 AUTO 값은 UPDATE LIVE로 내보내지 않는다 (의도하지 않은 값이 송출되지 않게, TAKE로만 반영).
+        $apply = [];
+        $manualDerived = [];
+        foreach ($st['merged'] as $key => $f) {
+            if (isset($st['tpl']['fields'][$key]['derived']) && $f['has_manual']) {
+                $manualDerived[] = $key;
+            }
+            if ($f['has_manual'] && ($snap['final'][$key] ?? null) !== $f['final']) {
+                $apply[$key] = $f['final'];
             }
         }
+        $final = ov_apply_to_final($st['tpl']['fields'], $snap['final'], $apply, $manualDerived);
+        $changed = array_keys(array_filter($final, static fn($v, $k) => ($snap['final'][$k] ?? null) !== $v, ARRAY_FILTER_USE_BOTH));
         if (!$changed) {
-            throw new ActionError('NO_CHANGE', '송출 중인 값과 같아서 바꿀 내용이 없습니다.', 409);
+            throw new ActionError('NO_CHANGE', '송출 중인 값과 같아서 바꿀 내용이 없습니다. (자동값 변경은 TAKE로 반영됩니다)', 409);
         }
-        $snap['final'] = $st['final'];
-        $snap['view'] = $st['view'];
-        $snap['mock'] = $st['mock'];
+        $problems = ov_sendable($st['tpl']['fields'], $final);
+        if ($problems) {
+            throw new ActionError('NOT_SENDABLE', '값이 비어 있어 송출할 수 없습니다: ' . implode(' ', $problems), 422);
+        }
+        $snap['final'] = $final;
+        $snap['view'] = template_present($inst['template'], $final, $inst['params'], $st['mock']);
         $snap['updated_live_at'] = now();
         db_exec("UPDATE cg_channels SET snapshot_json = ? WHERE layer = 1 AND kind = 'program'", [json_enc($snap)]);
         cg_log('broadcast', 'UPDATE_LIVE', $op, ['session_id' => $sid, 'instance_id' => $instanceId, 'template' => $inst['template'],

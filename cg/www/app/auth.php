@@ -51,7 +51,9 @@ function auth_session(bool $write): void
         'path' => app_base_path(),
         'secure' => is_https(),
         'httponly' => true,
-        'samesite' => 'Strict',
+        // Lax: 메신저 등 다른 사이트의 링크로 들어와도 로그인 쿠키가 전달되어 새 세션으로 덮어쓰지 않는다.
+        // 조작 요청의 위조 방지는 CSRF 토큰 + 같은 출처(Origin) 확인이 맡는다.
+        'samesite' => 'Lax',
     ]);
     session_start($write ? [] : ['read_and_close' => true]);
 }
@@ -200,7 +202,16 @@ function auth_login(string $username, string $password): array
     $username = strtolower(trim($username));
     $ipBucket = 'ip:' . client_ip();
     $userBucket = 'user:' . mb_substr($username, 0, 60);
-    if (attempt_blocked($ipBucket, AUTH_LIMIT_IP) || attempt_blocked($userBucket, AUTH_LIMIT_USER)) {
+    // 확인 전에 먼저 센다: 동시에 여러 요청을 보내도 제한을 넘을 수 없다 (트랜잭션이 한 줄로 처리)
+    $blocked = db_tx(function () use ($ipBucket, $userBucket) {
+        if (attempt_blocked($ipBucket, AUTH_LIMIT_IP) || attempt_blocked($userBucket, AUTH_LIMIT_USER)) {
+            return true;
+        }
+        attempt_fail($ipBucket);
+        attempt_fail($userBucket);
+        return false;
+    });
+    if ($blocked) {
         throw new ActionError('RATE_LIMIT', '로그인 시도가 너무 많습니다. 5분 뒤 다시 시도하세요.', 429);
     }
     $u = $username === '' ? null : db_one('SELECT * FROM cg_users WHERE username = ?', [$username]);
@@ -208,10 +219,6 @@ function auth_login(string $username, string $password): array
     $dummy ??= password_hash('timing-equalizer', PASSWORD_DEFAULT);
     $ok = password_verify($password, $u['password_hash'] ?? $dummy) && $u !== null;
     if (!$ok) {
-        db_tx(function () use ($ipBucket, $userBucket) {
-            attempt_fail($ipBucket);
-            attempt_fail($userBucket);
-        });
         throw new ActionError('LOGIN_FAILED', '아이디 또는 비밀번호가 맞지 않습니다.', 401);
     }
     if (!in_array($u['status'], ['active', 'pending'], true)) {
@@ -243,7 +250,7 @@ function auth_logout(): void
     $_SESSION = [];
     $p = session_get_cookie_params();
     setcookie(session_name(), '', ['expires' => time() - 3600, 'path' => $p['path'], 'secure' => $p['secure'],
-        'httponly' => true, 'samesite' => 'Strict']);
+        'httponly' => true, 'samesite' => 'Lax']);
     session_destroy();
 }
 

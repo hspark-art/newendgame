@@ -83,6 +83,14 @@ function output_request(): array
     return [$ch, $ghost, max(1, min(8, $layer))];
 }
 
+/** 만들어지지 않은 레이어면 404 (지금은 레이어 1만 있음) */
+function output_layer_check(int $layer): void
+{
+    if (db_value('SELECT 1 FROM cg_channels WHERE layer = ? AND kind = ?', [$layer, 'program']) === null) {
+        deny(404, 'NO_LAYER', '없는 레이어입니다.');
+    }
+}
+
 /**
  * 송출 화면 접근 규칙.
  * - PROGRAM 송출(OBS/vMix): PC는 서버에 닿으면 허용(LAN 모드 포함), 웹은 비밀 출력 주소(t) 또는 로그인 사용자.
@@ -98,7 +106,7 @@ function output_access(string $ch, bool $ghost): void
         if ($t !== '' && hash_equals((string)setting_get('output_token', ''), $t)) {
             return;
         }
-        if (auth_user_optional() !== null) {
+        if ((auth_user_optional()['status'] ?? '') === 'active') {
             return;
         }
         deny(404, 'NOT_FOUND', '없는 주소입니다.');

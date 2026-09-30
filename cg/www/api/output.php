@@ -8,6 +8,7 @@ require dirname(__DIR__) . '/app/bootstrap.php';
 app_start('api');
 [$ch, $ghost, $layer] = output_request();
 output_access($ch, $ghost);
+output_layer_check($layer);
 $hb = (string)($_GET['hb'] ?? '');
 if ($hb !== '' && $ch === 'program' && !$ghost) {
     output_heartbeat($hb, $layer);

@@ -17,7 +17,7 @@ set "PHP=%ROOT%runtime\php\php.exe"
 set "CG_CONFIG=%ROOT%config.desktop.php"
 set "CG_DATA_DIR=%LOCALAPPDATA%\EndgameCG"
 
-echo %ROOT%| findstr /i "OneDrive" >nul
+echo "%ROOT%"| findstr /i "OneDrive" >nul
 if not errorlevel 1 (
   echo [주의] OneDrive 폴더에서는 동기화 때문에 오류가 날 수 있습니다.
   echo        C:\EndgameCG 처럼 OneDrive 밖의 폴더로 옮기는 것을 권장합니다.
@@ -32,19 +32,27 @@ if not exist "%PHP%" (
   exit /b 1
 )
 
-"%PHP%" -v >nul 2>&1
-if errorlevel 1 (
-  echo [오류] PHP를 실행할 수 없습니다.
-  echo        Microsoft Visual C++ 재배포 가능 패키지 2015-2022 x64 설치가 필요할 수 있습니다.
-  echo        https://aka.ms/vs/17/release/vc_redist.x64.exe
-  echo.
-  pause
-  exit /b 1
-)
+rem VC++ 런타임이 없으면 음수 오류 코드(0xC0000135)가 나오므로 "if errorlevel 1" 대신 || 로 확인한다
+"%PHP%" -v >nul 2>&1 || goto nophp
 
 rem 이미 실행 중이면 조작 패널만 다시 연다
-curl -s -m 2 "http://127.0.0.1:%PORT%/api/ping.php" 2>nul | findstr /c:"EndgameCG" >nul
-if not errorlevel 1 goto open
+set "PING=%TEMP%\endgame-cg-ping.txt"
+curl -s -m 2 "http://127.0.0.1:%PORT%/api/ping.php" > "%PING%" 2>nul
+findstr /c:"EndgameCG" "%PING%" >nul
+if errorlevel 1 goto startserver
+if "%CG_LAN%"=="1" (
+  rem ping 응답 끝이 lan true 인지 본다. 괄호 블록 안이므로 이 줄에 괄호를 쓰지 않는다
+  findstr /c:"true}" "%PING%" >nul
+  if errorlevel 1 (
+    echo [주의] 이미 "이 PC 전용"으로 실행 중이라 다른 PC에서 송출 화면에 접속할 수 없습니다.
+    echo        종료.bat 으로 끈 뒤 시작-LAN.bat 을 다시 실행하세요.
+    echo.
+    pause
+  )
+)
+goto open
+
+:startserver
 
 if not exist "%CG_DATA_DIR%" mkdir "%CG_DATA_DIR%"
 start "끝장전 CG 서버 - 이 창을 닫으면 송출이 멈춥니다" /min "%PHP%" -c "%ROOT%runtime\php.ini" -d extension_dir="%ROOT%runtime\php\ext" -S %BIND%:%PORT% -t "%ROOT%www" "%ROOT%router.php"
@@ -78,3 +86,11 @@ if "%CG_LAN%"=="1" (
   pause
 )
 exit /b 0
+
+:nophp
+echo [오류] PHP를 실행할 수 없습니다.
+echo        Microsoft Visual C++ 재배포 가능 패키지 2015-2022 x64 설치가 필요할 수 있습니다.
+echo        https://aka.ms/vs/17/release/vc_redist.x64.exe
+echo.
+pause
+exit /b 1

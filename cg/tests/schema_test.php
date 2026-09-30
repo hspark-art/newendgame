@@ -53,3 +53,35 @@ test('db: 0·null·문자열 값 구분 저장', function () {
     assert_same(0, (int)$row['session_id']);
     assert_same(null, $row['auto_json']);
 });
+
+test('db: 변경 트랜잭션은 한 줄로 처리 (다른 연결은 끝날 때까지 대기)', function () {
+    fresh_db();
+    $cfg = $GLOBALS['CG_CONFIG']['db'];
+    $other = $cfg['driver'] === 'sqlite'
+        ? new PDO('sqlite:' . $cfg['path'], null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION])
+        : new PDO(sprintf('mysql:host=%s;port=%d;dbname=%s', $cfg['host'], $cfg['port'], $cfg['name']), $cfg['user'], $cfg['pass'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $cfg['driver'] === 'sqlite' ? $other->exec('PRAGMA busy_timeout = 100') : $other->exec('SET innodb_lock_wait_timeout = 1');
+    $result = db_tx(function () use ($other, $cfg) {
+        channel_get('program'); // 읽기만 해도(잠그지 않는 SELECT) 트랜잭션 시작 시 잠금으로 다른 연결이 기다려야 한다
+        try {
+            if ($cfg['driver'] === 'sqlite') {
+                $other->exec('BEGIN IMMEDIATE');
+            } else {
+                $other->beginTransaction();
+                $other->query("SELECT v FROM cg_settings WHERE k = 'state_rev' FOR UPDATE")->fetchAll();
+            }
+            $other->exec($cfg['driver'] === 'sqlite' ? 'ROLLBACK' : 'DO 0');
+            if ($cfg['driver'] !== 'sqlite') {
+                $other->rollBack();
+            }
+            return 'not blocked';
+        } catch (PDOException) {
+            if ($cfg['driver'] !== 'sqlite' && $other->inTransaction()) {
+                $other->rollBack();
+            }
+            return 'blocked';
+        }
+    });
+    assert_same('blocked', $result);
+});

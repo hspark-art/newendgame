@@ -9,7 +9,7 @@ test('router: 허용 주소만 통과', function () {
     foreach (['/app/storage/cg.sqlite', '/app/config.php', '/APP/x', '/app./config.php', '/%61pp/config.php',
         '/assets/../app/config.php', '/assets/..%2fapp', '/Index.php', '/api/State.php', '/api/admin.php',
         '/login.php', '/install.php', '/assets/x.php', '/assets/.htaccess', '/app/version.json',
-        '/index.php/extra', '/assets/a..css', '/output.php.bak'] as $bad) {
+        '/index.php/extra', '/assets/a..css', '/output.php.bak', '//api/state.php', '/api//state.php', '//app/config.php'] as $bad) {
         assert_true(!router_allowed($bad), "차단되어야 함: $bad");
     }
 });

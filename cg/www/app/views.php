@@ -100,6 +100,9 @@ function panel_state(array $op): array
         'same_target' => $snap !== null && $pv['instance_id'] === $snap['instance_id'],
         'pending_live' => $snap !== null && $liveFinal !== $snap['final'],
     ];
+    // UPDATE LIVE로 보낼 수 있는 저장된 수정값이 있는지 (자동값 변경은 TAKE로만)
+    $program['live_manual'] = $program['same_target']
+        && (bool)array_filter($preview['fields'], static fn($f) => $f['live_differs'] && $f['has_manual']);
 
     $session = db_one('SELECT id, name, started_at FROM cg_sessions WHERE id = ?', [$sid]);
     $session['id'] = (int)$session['id'];

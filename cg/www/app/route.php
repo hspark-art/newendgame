@@ -9,6 +9,9 @@ declare(strict_types=1);
 function router_allowed(string $uriPath): bool
 {
     static $pages = ['/', '/index.php', '/output.php'];
+    if (str_contains($uriPath, '//')) {
+        return false;
+    }
     if (in_array($uriPath, $pages, true)) {
         return true;
     }
