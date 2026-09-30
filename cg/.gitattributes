@@ -1,0 +1,4 @@
+# Windows 배치 파일은 CRLF 그대로 보관합니다 (LF면 goto/라벨이 깨집니다).
+*.bat -text
+*.cmd -text
+*.ps1 -text

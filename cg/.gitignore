@@ -1,0 +1,6 @@
+# 설정·데이터·실행 파일은 저장소에 올리지 않습니다.
+www/app/config.php
+www/app/storage/
+desktop/runtime/php/
+desktop/data/
+dist/
