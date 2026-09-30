@@ -77,6 +77,7 @@ page_header('수집 · ' . $b['title'], ['bare' => true, 'wide' => true, 'body_c
     로그인이 만료되어 서버 저장이 잠시 멈췄습니다. 받은 채팅은 이 브라우저에 보관 중입니다.
     <a href="login.php" target="endgame-main">메인 창에서 다시 로그인</a>하면 자동으로 이어서 저장합니다. (이 창은 닫지 마세요)
   </div>
+  <div id="toast" class="toast hidden"></div>
   <div id="c-noidb" class="alert alert-warn hidden">
     이 브라우저에서는 백업 저장을 쓸 수 없습니다. (시크릿 창이거나 저장 공간이 막혀 있음) 일반 창에서 여는 것을 권장합니다.
   </div>
@@ -111,6 +112,24 @@ page_header('수집 · ' . $b['title'], ['bare' => true, 'wide' => true, 'body_c
     </section>
 
     <aside class="cw-side">
+      <section class="card nominate" id="nominate">
+        <div class="card-head"><h2>당첨 지명</h2><span class="muted small">채팅 줄을 누르면 선택됩니다</span></div>
+        <p id="nm-empty" class="muted small">채팅창에서 시청자 줄을 누르면 여기서 바로 당첨 등록할 수 있습니다. 이름 옆 ✉ 는 아이디 복사 + 쪽지 창 열기입니다.</p>
+        <div id="nm-body" class="hidden">
+          <div class="nm-user"><span id="nm-badges"></span><b id="nm-nick" class="nk"></b> <span id="nm-id" class="muted small"></span>
+            <button type="button" id="nm-dm" class="btn small">✉ 쪽지</button></div>
+          <div id="nm-wins" class="nm-wins"></div>
+          <div id="nm-warn" class="nm-warn"></div>
+          <div class="nm-form">
+            <label>상품 <select id="nm-item"><option value="">(직접 입력)</option></select></label>
+            <label>직접 입력 <input id="nm-prize" maxlength="200" placeholder="목록에 없을 때만"></label>
+            <label>선정 사유 <input id="nm-reason" maxlength="200" value="채팅 지명"></label>
+            <button type="button" id="nm-save" class="btn primary">당첨 등록</button>
+          </div>
+          <div id="nm-result" class="small"></div>
+        </div>
+      </section>
+
       <section class="card">
         <div class="card-head"><h2>후원</h2><span class="muted small">최근 300건</span></div>
         <div class="chatwrap">

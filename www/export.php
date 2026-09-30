@@ -1,7 +1,7 @@
 <?php
 /**
  * CSV 내려받기 (엑셀에서 바로 열 수 있게 UTF-8 BOM 포함)
- * type = chats | donations | donation_log | activity | prizes
+ * type = chats | donations | donation_log | activity | prizes | cumulative
  */
 require __DIR__ . '/app/bootstrap.php';
 require APP_DIR . '/stats.php';
@@ -108,14 +108,10 @@ switch ($type) {
 
     case 'prizes': {
         $isAdmin = $admin['role'] === 'admin';
-        $where = '1';
-        $params = [];
-        if ($bid = input_int('broadcast_id')) { $where .= ' AND p.broadcast_id = ?'; $params[] = $bid; }
-        if (isset(PRIZE_STATUSES[$s = input_str('status', '', 20)])) { $where .= ' AND p.status = ?'; $params[] = $s; }
-        if (($q = input_str('q', '', 100)) !== '') { $where .= ' AND (p.user_id LIKE ? OR p.nickname LIKE ? OR p.prize_name LIKE ?)'; array_push($params, "%$q%", "%$q%", "%$q%"); }
+        [$where, $params] = prize_list_where(input_int('broadcast_id'), input_str('status', '', 20), input_str('prize', '', 200), input_str('note', '', 10), input_str('q', '', 100));
         audit('export', 'prizes', $isAdmin ? '상품 지급 CSV (수령자 정보 포함)' : '상품 지급 CSV (정보 가림)');
         csv_start("상품지급_{$stamp}.csv");
-        csv_row(['방송일', '회차', '아이디', '닉네임', '선정 사유', '상품', '유형', '상태', '수령자 이름', '연락처', '주소', '정보 제출 기한', '지급일', '메모', '등록일']);
+        csv_row(['방송일', '회차', '아이디', '닉네임', '선정 사유', '상품', '유형', '상태', '쪽지', '수령자 이름', '연락처', '주소', '정보 제출 기한', '지급일', '메모', '등록일']);
         foreach (db_all("SELECT p.*, b.title, b.broadcast_date FROM prizes p LEFT JOIN broadcasts b ON b.id = p.broadcast_id WHERE $where ORDER BY p.created_at, p.id", $params) as $p) {
             $name = pii_decrypt($p['recipient_name']);
             $phone = pii_decrypt($p['recipient_phone']);
@@ -124,7 +120,18 @@ switch ($type) {
                 [$name, $phone, $addr] = [mask_name($name), mask_phone($phone), mask_address($addr)];
             }
             csv_row([$p['broadcast_date'], $p['title'], $p['user_id'], $p['nickname'], $p['reason'], $p['prize_name'], PRIZE_TYPES[$p['prize_type']] ?? '',
-                PRIZE_STATUSES[$p['status']] ?? $p['status'], $name, $phone, $addr, $p['due_date'], $p['paid_at'], $p['memo'], $p['created_at']]);
+                PRIZE_STATUSES[$p['status']] ?? $p['status'], $p['note_sent_at'] ? '보냄 ' . substr($p['note_sent_at'], 0, 16) : ($p['note_result'] ? '실패: ' . $p['note_result'] : ''), $name, $phone, $addr, $p['due_date'], $p['paid_at'], $p['memo'], $p['created_at']]);
+        }
+        break;
+    }
+
+    case 'cumulative': {
+        $data = cumulative_ranking(input_int('weeks', 8), !isset($_GET['submitted']) || isset($_GET['exclude']), input_str('q', '', 100), input_str('sort', 'streak', 20));
+        audit('export', 'cumulative', "누적 순위 CSV ({$data['weeks']}주)");
+        csv_start("누적순위_{$data['weeks']}주_{$stamp}.csv");
+        csv_row(['순위', '아이디', '닉네임', '연속 출석', '참여 회차', '기간 채팅', '기간 별풍선', '기간 애드벌룬']);
+        foreach ($data['rows'] as $i => $r) {
+            csv_row([$i + 1, $r['user_id'], $r['nickname'], $r['streak'], $r['attend'], $r['chats'], $r['balloons'], $r['adballoons']]);
         }
         break;
     }

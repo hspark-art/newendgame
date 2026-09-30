@@ -321,6 +321,38 @@ function mask_address(?string $address): string
     return implode(' ', array_slice($parts, 0, 2)) . ' ***';
 }
 
+// ── 화면에서 바꾸는 설정 (settings 테이블) ──────────────────
+function setting_get(string $key, string $default = ''): string
+{
+    static $cache = [];
+    if (!array_key_exists($key, $cache)) {
+        $cache[$key] = db_value('SELECT v FROM settings WHERE k = ?', [$key]);
+    }
+    return $cache[$key] === null ? $default : (string) $cache[$key];
+}
+
+function setting_set(string $key, string $value): void
+{
+    db_upsert('settings', ['k' => $key, 'v' => $value], ['k'], ['v' => '{new.v}']);
+}
+
+/**
+ * 업로드 파일 저장 폴더
+ * PC 버전: 프로그램 폴더의 data/ 아래 (새 버전으로 바꿔도 유지) / 웹: www/app/storage/ 아래 (주소로 직접 열 수 없음)
+ */
+function storage_dir(string $sub): string
+{
+    $base = (string) config('storage_dir', '');
+    if ($base === '') {
+        $base = is_desktop() ? dirname(APP_ROOT) . '/data' : APP_DIR . '/storage';
+    }
+    $dir = rtrim($base, '/\\') . '/' . $sub;
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0700, true);
+    }
+    return $dir;
+}
+
 // ── 작업 기록 ──────────────────────────────────────────────
 function audit(string $action, string $target = '', string $detail = ''): void
 {

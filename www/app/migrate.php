@@ -164,6 +164,43 @@ function migrations(): array
                 KEY idx_status (status)
             ) $table",
         ],
+
+        // v1.3: 상품 목록, 당첨 기록에 상품 연결·쪽지 발송 기록·기존 시스템 가져오기 번호
+        2 => [
+            "CREATE TABLE IF NOT EXISTS prize_items (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(200) NOT NULL,
+                icon VARCHAR(16) NOT NULL DEFAULT '',
+                color VARCHAR(7) NOT NULL DEFAULT '#8a93a6',
+                note_type VARCHAR(10) NOT NULL DEFAULT 'tax',
+                photo VARCHAR(100) NOT NULL DEFAULT '',
+                memo VARCHAR(500) NOT NULL DEFAULT '',
+                sort_order INT NOT NULL DEFAULT 0,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            ) $table",
+            'ALTER TABLE prizes ADD COLUMN item_id INT NULL',
+            'ALTER TABLE prizes ADD COLUMN note_sent_at DATETIME NULL',
+            'ALTER TABLE prizes ADD COLUMN note_result VARCHAR(255) NULL',
+            'ALTER TABLE prizes ADD COLUMN ext_id VARCHAR(64) NULL',
+            'CREATE INDEX prizes_ext_id ON prizes (ext_id)',
+            'CREATE INDEX prizes_item_id ON prizes (item_id)',
+            // 누적 순위용 회차별 시청자 요약 (채팅을 정리한 회차도 누적 순위에 남습니다)
+            "CREATE TABLE IF NOT EXISTS broadcast_users (
+                broadcast_id INT UNSIGNED NOT NULL,
+                user_id VARCHAR(64) NOT NULL,
+                nickname VARCHAR(100) NOT NULL DEFAULT '',
+                badges INT UNSIGNED NOT NULL DEFAULT 0,
+                chats INT UNSIGNED NOT NULL DEFAULT 0,
+                balloons INT UNSIGNED NOT NULL DEFAULT 0,
+                adballoons INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (broadcast_id, user_id),
+                KEY idx_user (user_id)
+            ) $table",
+            'ALTER TABLE broadcasts ADD COLUMN users_sig VARCHAR(40) NULL',
+            'ALTER TABLE broadcasts ADD COLUMN users_at DATETIME NULL',
+        ],
     ];
 }
 

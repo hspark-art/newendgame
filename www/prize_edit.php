@@ -16,7 +16,7 @@ if (is_post() && $action === 'bulk') {
     load_broadcast($broadcastId);
     $picks = array_values(array_unique(array_filter((array) ($_POST['pick'] ?? []), fn($v) => is_string($v) && $v !== '')));
     $nicks = (array) ($_POST['nick'] ?? []);
-    $prizeName = input_str('prize_name', '', 200);
+    [$itemId, $prizeName] = resolve_prize_input();
     $prizeType = input_str('prize_type', 'coupon', 20);
     $reason = input_str('reason', '', 200);
     $due = input_str('due_date', '', 10);
@@ -25,7 +25,7 @@ if (is_post() && $action === 'bulk') {
         redirect(safe_back("donations.php?id=$broadcastId"));
     }
     if ($prizeName === '') {
-        flash('error', '상품명을 입력해 주세요.');
+        flash('error', '상품을 고르거나 상품명을 입력해 주세요.');
         redirect(safe_back("donations.php?id=$broadcastId"));
     }
     $prizeType = isset(PRIZE_TYPES[$prizeType]) ? $prizeType : 'other';
@@ -34,8 +34,8 @@ if (is_post() && $action === 'bulk') {
     foreach ($picks as $userId) {
         $userId = mb_substr($userId, 0, 64);
         db_exec(
-            'INSERT INTO prizes (broadcast_id, user_id, nickname, reason, prize_name, prize_type, status, due_date, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, \'pending\', ?, ?, ?, ?)',
-            [$broadcastId, $userId, mb_substr((string) ($nicks[$userId] ?? ''), 0, 100), $reason, $prizeName, $prizeType, $due, $admin['id'], now(), now()]
+            'INSERT INTO prizes (broadcast_id, user_id, nickname, reason, item_id, prize_name, prize_type, status, due_date, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, \'pending\', ?, ?, ?, ?)',
+            [$broadcastId, $userId, mb_substr((string) ($nicks[$userId] ?? ''), 0, 100), $reason, $itemId, $prizeName, $prizeType, $due, $admin['id'], now(), now()]
         );
     }
     audit('prize_bulk_create', "broadcast:$broadcastId", count($picks) . "명 · $prizeName");
@@ -75,14 +75,16 @@ if (is_post() && $action === 'save') {
         'user_id'      => input_str('user_id', '', 64),
         'nickname'     => input_str('nickname', '', 100),
         'reason'       => input_str('reason', '', 200),
-        'prize_name'   => input_str('prize_name', '', 200),
+        'item_id'      => null,
+        'prize_name'   => '',
         'prize_type'   => input_str('prize_type', 'coupon', 20),
         'status'       => input_str('status', 'pending', 20),
         'due_date'     => input_str('due_date', '', 10),
         'memo'         => input_str('memo', '', 5000),
     ];
+    [$data['item_id'], $data['prize_name']] = resolve_prize_input();
     if ($data['user_id'] === '') $errors[] = 'SOOP 아이디를 입력해 주세요.';
-    if ($data['prize_name'] === '') $errors[] = '상품명을 입력해 주세요.';
+    if ($data['prize_name'] === '') $errors[] = '상품을 고르거나 상품명을 입력해 주세요.';
     if (!isset(PRIZE_TYPES[$data['prize_type']])) $data['prize_type'] = 'other';
     if (!isset(PRIZE_STATUSES[$data['status']])) $data['status'] = 'pending';
     $data['due_date'] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $data['due_date']) ? $data['due_date'] : null;
@@ -133,6 +135,7 @@ if (!$prize) {
         'user_id'      => input_str('user_id', '', 64),
         'nickname'     => input_str('nickname', '', 100),
         'reason'       => input_str('reason', '', 200),
+        'item_id'      => input_int('item_id') ?: null,
         'prize_name'   => '', 'prize_type' => 'coupon', 'status' => 'pending', 'due_date' => null, 'memo' => '',
         'recipient_name' => null, 'recipient_phone' => null, 'recipient_address' => null, 'paid_at' => null, 'purged_at' => null,
     ];
@@ -152,6 +155,8 @@ $masked = [
 ];
 $broadcasts = db_all('SELECT id, title, broadcast_date FROM broadcasts ORDER BY broadcast_date DESC, id DESC LIMIT 200');
 $dupes = $prize['user_id'] !== '' ? existing_winners($prize['broadcast_id'] ? (int) $prize['broadcast_id'] : null, [$prize['user_id']], $id) : [];
+$warnings = winner_warnings((string) $prize['user_id'], $prize['item_id'] !== null ? (int) $prize['item_id'] : null, (string) $prize['prize_name'], $id);
+$history = $prize['user_id'] !== '' ? (winners_by_user([$prize['user_id']])[$prize['user_id']] ?? []) : [];
 
 page_header($id ? '지급 정보 수정' : '당첨 등록', ['menu' => 'prizes']);
 ?>
@@ -159,6 +164,11 @@ page_header($id ? '지급 정보 수정' : '당첨 등록', ['menu' => 'prizes']
   <h1><?= $id ? '지급 정보 수정' : '당첨 등록' ?></h1>
   <?php foreach ($errors as $e): ?><div class="alert alert-error"><?= h($e) ?></div><?php endforeach; ?>
   <?php if ($dupes): ?><div class="alert alert-warn">이 시청자는 같은 회차에 이미 당첨 기록이 있습니다: <?= h(implode(', ', $dupes[$prize['user_id']])) ?></div><?php endif; ?>
+  <?php if ($history): ?>
+    <div class="alert <?= array_filter($warnings, fn($w) => str_starts_with($w, '🚫')) ? 'alert-error' : 'alert-info' ?>">
+      <?= render_wins($history) ?> <?= h(implode(' · ', $warnings)) ?>
+    </div>
+  <?php endif; ?>
 
   <form method="post" class="form card">
     <?= csrf_field() ?>
@@ -180,15 +190,18 @@ page_header($id ? '지급 정보 수정' : '당첨 등록', ['menu' => 'prizes']
     </div>
     <label>선정 사유 <input name="reason" maxlength="200" value="<?= h($prize['reason']) ?>" placeholder="예: 후원 순위 1위, 채팅 활동 추첨"></label>
     <div class="row2">
-      <label>상품명 <input name="prize_name" required maxlength="200" value="<?= h($prize['prize_name']) ?>" placeholder="예: 기프티콘 1만원"></label>
+      <?= prize_item_select($prize['item_id'] !== null ? (int) $prize['item_id'] : null, '상품 (상품 목록)') ?>
+      <label>상품명 <input name="prize_name" maxlength="200" value="<?= h($prize['item_id'] ? '' : $prize['prize_name']) ?>" placeholder="목록에 없을 때 직접 입력"></label>
+    </div>
+    <div class="row2">
       <label>상품 유형
         <select name="prize_type"><?php foreach (PRIZE_TYPES as $k => $v): ?><option value="<?= h($k) ?>" <?= $prize['prize_type'] === $k ? 'selected' : '' ?>><?= h($v) ?></option><?php endforeach; ?></select>
       </label>
-    </div>
-    <div class="row2">
       <label>진행 상태
         <select name="status"><?php foreach (PRIZE_STATUSES as $k => $v): ?><option value="<?= h($k) ?>" <?= $prize['status'] === $k ? 'selected' : '' ?>><?= h($v) ?></option><?php endforeach; ?></select>
       </label>
+    </div>
+    <div class="row2">
       <label>정보 제출 기한 <input type="date" name="due_date" value="<?= h($prize['due_date'] ?? '') ?>"></label>
     </div>
     <?php if (!empty($prize['paid_at'])): ?><p class="muted small">지급 완료 처리: <?= h($prize['paid_at']) ?></p><?php endif; ?>

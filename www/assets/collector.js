@@ -375,10 +375,11 @@
    * 새 줄을 모아 두었다가 한 번에 아래에 붙입니다.
    * 맨 아래를 보고 있을 때만 따라 내려가고, 위로 올려 읽는 중이면 자리를 유지한 채 "새 채팅 N개" 버튼을 띄웁니다.
    */
-  function Feed(el, button, max) {
+  function Feed(el, button, max, prepare) {
     this.el = el;
     this.button = button;
     this.max = max;
+    this.prepare = prepare;
     this.queue = [];
     this.unseen = 0;
     var self = this;
@@ -405,7 +406,10 @@
     var stick = this.atBottom();
     var frag = document.createDocumentFragment();
     var added = this.queue.length;
-    for (var i = 0; i < this.queue.length; i++) frag.appendChild(this.queue[i]);
+    for (var i = 0; i < this.queue.length; i++) {
+      if (this.prepare) this.prepare(this.queue[i]);
+      frag.appendChild(this.queue[i]);
+    }
     this.queue = [];
     el.appendChild(frag);
     var extra = el.children.length - this.max;
@@ -426,8 +430,16 @@
     this.setUnseen(0);
   };
 
-  var chatFeed = new Feed($('feed-chat'), $('chat-new'), 2000);
-  var donFeed = new Feed($('feed-don'), $('don-new'), 300);
+  // 대기열에 있던 줄은 화면에 붙일 때 당첨 표시·지명 강조를 최신으로 맞춥니다.
+  function syncLine(line) {
+    var key = line.dataset.key;
+    if (!key) return;
+    var wins = line.querySelector('.wins');
+    if (wins) fillWins(wins, winners[key] || []);
+    line.classList.toggle('picked', !!picked && picked.key === key);
+  }
+  var chatFeed = new Feed($('feed-chat'), $('chat-new'), 2000, syncLine);
+  var donFeed = new Feed($('feed-don'), $('don-new'), 300, syncLine);
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
@@ -456,10 +468,18 @@
     var nick = el('b', nickClass(ev.b), ev.n);
     nick.title = ev.u;
     line.appendChild(nick);
+    line.appendChild(winsNode(ev.u));
+    line.appendChild(dmNode(ev.u));
     line.appendChild(el('span', 'sep', ' : '));
     line.appendChild(el('span', 'msg', ev.m));
-    line.dataset.u = ev.u;
+    markLine(line, ev);
     return line;
+  }
+
+  function markLine(line, ev) {
+    line.dataset.u = ev.u;
+    line.dataset.key = SoopChat.normId(ev.u);
+    line.dataset.n = ev.n || '';
   }
 
   function donationLine(ev, inChat) {
@@ -471,13 +491,152 @@
     var nick = el('b', nickClass(b), ev.n || '(알 수 없음)');
     nick.title = ev.u;
     line.appendChild(nick);
+    if (ev.u) {
+      line.appendChild(winsNode(ev.u));
+      line.appendChild(dmNode(ev.u));
+    }
     var amount = donAmount(ev);
     line.appendChild(el('span', 'amt', ' ' + (DON_LABEL[ev.ty + '/' + ev.st] || ev.ty) + (amount ? ' ' + amount : '')));
     if (ev.tn) line.appendChild(el('span', 'msg', ' → ' + ev.tn));
     if (ev.x && ev.ty === 'balloon') line.appendChild(el('span', 'msg muted', ' ' + ev.x));
     if (inChat) line.appendChild(el('span', 'pill t', hms(ev.t)));
-    line.dataset.u = ev.u;
+    markLine(line, ev);
     return line;
+  }
+
+  // ── 당첨 표시·지명·쪽지 (기존 끝장전 관제 화면 방식) ────────
+  var winners = {};   // 기본 아이디 → [[아이콘, 색, 상품, 날짜, 상품번호], ...]
+  var items = [];
+  var noteUrl = '';
+  var picked = null;  // 지명한 시청자 {u, key, n, b}
+
+  function winsNode(userId) {
+    var span = el('span', 'wins');
+    fillWins(span, winners[SoopChat.normId(userId)] || []);
+    return span;
+  }
+  function fillWins(span, list) {
+    span.textContent = '';
+    span.title = list.map(function (w) { return w[3] + ' ' + w[2]; }).join('\n');
+    if (!list.length) return;
+    span.appendChild(el('span', 'wcount', '당첨 ' + list.length));
+    list.forEach(function (w) {
+      var i = el('span', 'wi', w[0]);
+      i.style.setProperty('--c', w[1]);
+      span.appendChild(i);
+    });
+  }
+  function refreshWins(key) {
+    var list = winners[key] || [];
+    document.querySelectorAll('.cl[data-key="' + CSS.escape(key) + '"] .wins').forEach(function (span) { fillWins(span, list); });
+  }
+  function dmNode(userId) {
+    var b = el('span', 'dm', '✉');
+    b.title = '쪽지: 아이디 복사 + 쪽지 창 열기';
+    b.dataset.dm = userId;
+    return b;
+  }
+  function toast(msg) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.classList.remove('hidden');
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(function () { t.classList.add('hidden'); }, 2800);
+  }
+  function openNote(userId) {
+    var id = SoopChat.normId(userId);
+    try { if (navigator.clipboard) navigator.clipboard.writeText(id); } catch (e) { /* 무시 */ }
+    var url = noteUrl ? noteUrl.replace(/\{id\}/g, encodeURIComponent(id)) : 'https://www.sooplive.com/station/' + encodeURIComponent(id);
+    window.open(url, '_blank', 'noopener');
+    toast('✉ ' + id + ' 아이디를 복사했습니다. 쪽지 받는 사람에 붙여넣기(Ctrl+V) 하세요.');
+  }
+
+  function loadWinners() {
+    fetch('api/winners.php', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.ok) return;
+        winners = j.winners || {};
+        noteUrl = j.note_url || '';
+        var before = $('nm-item').value;
+        items = j.items || [];
+        var sel = $('nm-item');
+        sel.length = 1;
+        items.forEach(function (it) {
+          var o = document.createElement('option');
+          o.value = it.id;
+          o.textContent = it.icon + ' ' + it.name;
+          sel.appendChild(o);
+        });
+        sel.value = before;
+        document.querySelectorAll('#feed-chat .cl .wins, #feed-don .cl .wins').forEach(function (span) {
+          fillWins(span, winners[span.parentNode.dataset.key] || []);
+        });
+        if (picked) showPicked();
+      })
+      .catch(function () { /* 다음에 다시 */ });
+  }
+
+  function pick(line) {
+    picked = { u: line.dataset.u, key: line.dataset.key, n: line.dataset.n, b: gradeOf[line.dataset.key] || 0 };
+    document.querySelectorAll('.cl.picked').forEach(function (l) { l.classList.remove('picked'); });
+    document.querySelectorAll('.cl[data-key="' + CSS.escape(picked.key) + '"]').forEach(function (l) { l.classList.add('picked'); });
+    $('nm-result').textContent = '';
+    showPicked();
+  }
+  function showPicked() {
+    $('nm-empty').classList.add('hidden');
+    $('nm-body').classList.remove('hidden');
+    var badges = $('nm-badges');
+    badges.textContent = '';
+    badgeNodes(badges, picked.b);
+    $('nm-nick').textContent = picked.n || '(닉네임 없음)';
+    $('nm-nick').className = nickClass(picked.b);
+    $('nm-id').textContent = picked.key;
+    var list = winners[picked.key] || [];
+    fillWins($('nm-wins'), list);
+    if (list.length) {
+      $('nm-wins').appendChild(el('div', 'muted small', list.map(function (w) { return w[3] + ' ' + w[2]; }).join(' · ')));
+    }
+    updateWarn();
+  }
+  function updateWarn() {
+    if (!picked) return;
+    var list = winners[picked.key] || [];
+    var itemId = Number($('nm-item').value) || null;
+    var name = $('nm-prize').value.trim() || (items.filter(function (i) { return i.id === itemId; })[0] || {}).name || '';
+    var warn = [];
+    var same = list.filter(function (w) { return (itemId && w[4] === itemId) || (name && w[2] === name); });
+    if (same.length) warn.push('🚫 같은 상품을 이미 받았습니다 (' + same.map(function (w) { return w[3]; }).join(', ') + ')');
+    var since = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+    var recent = list.filter(function (w) { return w[3] >= since; }).length;
+    if (recent) warn.push('최근 3개월 안에 ' + recent + '회 당첨');
+    if (list.length) warn.push('누적 당첨 ' + list.length + '회');
+    $('nm-warn').textContent = warn.join(' · ');
+    $('nm-warn').className = 'nm-warn' + (same.length ? ' bad' : '');
+  }
+
+  function savePick() {
+    if (!picked) return;
+    var itemId = Number($('nm-item').value) || null;
+    var prizeName = $('nm-prize').value.trim();
+    if (!itemId && !prizeName) { alert('상품을 고르거나 상품명을 입력해 주세요.'); return; }
+    if ($('nm-warn').classList.contains('bad') && !confirm('같은 상품을 이미 받은 시청자입니다. 그래도 등록할까요?')) return;
+    $('nm-save').disabled = true;
+    postJson('api/prize_quick.php', {
+      broadcast_id: BID, user_id: picked.key, nickname: picked.n, item_id: itemId, prize_name: prizeName, reason: $('nm-reason').value.trim()
+    }).then(function (res) {
+      if (!res.json || !res.json.ok) throw new Error((res.json && res.json.error) || '등록하지 못했습니다.');
+      (winners[picked.key] = winners[picked.key] || []).push(res.json.win);
+      refreshWins(picked.key);
+      showPicked();
+      $('nm-result').textContent = '✅ ' + (picked.n || picked.key) + ' 님 당첨 등록 완료 — [상품 지급]에서 확인하세요.';
+      $('nm-result').className = 'small ok';
+      $('nm-prize').value = '';
+    }).catch(function (e) {
+      $('nm-result').textContent = e.message;
+      $('nm-result').className = 'small bad';
+    }).then(function () { $('nm-save').disabled = false; });
   }
 
   // ── 채팅창 설정 (글자 크기·시각 표시·높이) ─────────────────
@@ -510,6 +669,22 @@
     }
   });
   $('chat-clear').addEventListener('click', function () { chatFeed.clear(); });
+
+  // 채팅 줄 누르면 지명, ✉ 누르면 쪽지
+  ['feed-chat', 'feed-don'].forEach(function (id) {
+    $(id).addEventListener('click', function (e) {
+      var dm = e.target.closest('[data-dm]');
+      if (dm) { openNote(dm.dataset.dm); return; }
+      var line = e.target.closest('.cl');
+      if (line && line.dataset.key) pick(line);
+    });
+  });
+  $('nm-dm').addEventListener('click', function () { if (picked) openNote(picked.key); });
+  $('nm-item').addEventListener('change', updateWarn);
+  $('nm-prize').addEventListener('input', updateWarn);
+  $('nm-save').addEventListener('click', savePick);
+  loadWinners();
+  setInterval(loadWinners, 60000);
 
   // ── 화면 갱신 ─────────────────────────────────────────────
   function render() {

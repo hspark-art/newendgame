@@ -27,7 +27,7 @@ if ($view === 'rank'):
     $sort = isset(DONATION_SORTS[$sort]) ? $sort : 'balloon';
     $min = max(0, input_int('min', 0));
     $data = donation_ranking($id, $f, $sort, $min, $perPage, ($page - 1) * $perPage);
-    $winners = existing_winners($id, array_column($data['rows'], 'user_id'));
+    $winners = winners_by_user(array_column($data['rows'], 'user_id'));
     $badgeMap = user_badges($id, array_column($data['rows'], 'user_id'));
     $maxVal = $data['rows'] ? max(array_map(fn($r) => (int) $r[DONATION_SORTS[$sort][0] === 'last_at' ? 'balloons' : DONATION_SORTS[$sort][0]], $data['rows'])) : 0;
     $exportQuery = http_build_query(array_filter(['type' => 'donations', 'id' => $id, 'sort' => $sort, 'min' => $min ?: null, 'from' => input_str('from'), 'to' => input_str('to'), 'q' => $f['q'], 'submitted' => 1, 'exclude' => $f['exclude'] ? 1 : null]));
@@ -68,7 +68,7 @@ if ($view === 'rank'):
       <td class="chk"><input type="checkbox" name="pick[]" value="<?= h($r['user_id']) ?>"><input type="hidden" name="nick[<?= h($r['user_id']) ?>]" value="<?= h($r['nickname']) ?>"></td>
       <td class="num rank"><?= rank_label($rank) ?></td>
       <td class="actcell"<?= actbar_attr((int) $r[DONATION_SORTS[$sort][0] === 'last_at' ? 'balloons' : DONATION_SORTS[$sort][0]], $maxVal) ?>><?= render_nick($r['nickname'], $badgeMap[$r['user_id']] ?? 0, 'viewer.php?id=' . $id . '&user=' . urlencode($r['user_id'])) ?> <span class="muted small"><?= h($r['user_id']) ?></span>
-        <?php if (isset($winners[$r['user_id']])): ?><span class="badge badge-won" title="<?= h(implode(', ', $winners[$r['user_id']])) ?>">당첨 등록됨</span><?php endif; ?></td>
+        <?= render_wins($winners[$r['user_id']] ?? []) ?></td>
       <td class="num strong"><?= fmt_num($r['balloons']) ?></td>
       <td class="num"><?= fmt_num($r['adballoons']) ?></td>
       <td class="num"><?= fmt_num($r['subs']) ?></td>

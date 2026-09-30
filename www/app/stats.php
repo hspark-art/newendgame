@@ -273,3 +273,197 @@ function donation_amount_label(array $d): string
         },
     };
 }
+
+// ── 누적 순위 (여러 방송 모아 보기) ─────────────────────────
+const CUMULATIVE_WEEKS = [2, 4, 8, 12, 26];
+const CUMULATIVE_SORTS = [
+    'streak'     => ['🔥 연속 출석', 2],   // [이름, 목록에 보일 최솟값]
+    'attend'     => ['참여 회차', 1],
+    'chats'      => ['기간 채팅', 1],
+    'balloons'   => ['기간 별풍선', 1],
+    'adballoons' => ['기간 애드벌룬', 1],
+];
+
+/**
+ * 회차별 시청자 요약(broadcast_users)을 최신으로 맞춥니다.
+ * 채팅·후원 수가 마지막 계산 때와 달라진 회차만 다시 계산합니다.
+ * @param int $minAgeSec 마지막 계산 후 이 시간이 지나지 않았으면 건너뜀 (수집 중인 회차를 목록 화면에서 매번 다시 세지 않도록)
+ * @param int $budgetSec 이 시간을 넘기면 나머지는 다음에 계산 (첫 사용 때 오래된 회차가 많아도 화면이 멈추지 않도록)
+ * @return int[] 아직 계산하지 못한 회차 번호
+ */
+function refresh_broadcast_users(array $broadcastIds, int $minAgeSec = 0, int $budgetSec = 60): array
+{
+    $broadcastIds = array_values(array_unique(array_map('intval', $broadcastIds)));
+    if (!$broadcastIds) {
+        return [];
+    }
+    $started = microtime(true);
+    $pending = [];
+    $rows = db_all('SELECT id, chat_count, donation_count, users_sig, users_at FROM broadcasts WHERE id IN (' . db_placeholders($broadcastIds) . ')', $broadcastIds);
+    foreach ($rows as $b) {
+        $sig = $b['chat_count'] . ':' . $b['donation_count'];
+        if ($b['users_sig'] === $sig) {
+            continue;
+        }
+        $fresh = $b['users_sig'] !== null && $b['users_at'] && strtotime((string) $b['users_at']) > time() - $minAgeSec;
+        if ($fresh) {
+            continue;
+        }
+        if (microtime(true) - $started > $budgetSec) {
+            $pending[] = (int) $b['id'];
+            continue;
+        }
+        rebuild_broadcast_users((int) $b['id'], $sig);
+    }
+    return $pending;
+}
+
+function rebuild_broadcast_users(int $bid, string $sig): void
+{
+    // 배지는 회차 안에서 한 번이라도 붙은 것을 모두 모읍니다. (비트마다 MAX 를 더하면 OR 와 같음 — 두 DB 공통 문법)
+    $bits = implode(' + ', array_map(fn($b) => "MAX(badges & $b)", [BADGE_BJ, BADGE_MANAGER, BADGE_TOPFAN, BADGE_FAN, BADGE_SUBSCRIBER, BADGE_ADMIN]));
+    // 그 회차에서 마지막으로 쓴 닉네임: "시각|닉네임" 중 가장 늦은 것에서 닉네임 부분만 (사람마다 따로 찾는 것보다 훨씬 빠름)
+    $cat = db_driver() === 'sqlite' ? "sent_at || '|' || nickname" : "CONCAT(sent_at, '|', nickname)";
+    $lastNick = "SUBSTR(MAX($cat), INSTR(MAX($cat), '|') + 1)";
+    $same = 'broadcast_id = broadcast_users.broadcast_id AND user_id = broadcast_users.user_id';
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        db_exec('DELETE FROM broadcast_users WHERE broadcast_id = ?', [$bid]);
+        db_exec(
+            "INSERT INTO broadcast_users (broadcast_id, user_id, nickname, badges, chats)
+             SELECT broadcast_id, user_id, $lastNick, $bits, COUNT(*) FROM chat_messages WHERE broadcast_id = ? AND user_id <> '' GROUP BY broadcast_id, user_id",
+            [$bid]
+        );
+        // 채팅 없이 후원만 한 사람도 넣습니다. (채팅한 사람은 이미 있어서 건너뜀)
+        db_exec(
+            db_insert_ignore() . " INTO broadcast_users (broadcast_id, user_id, nickname)
+             SELECT broadcast_id, user_id, $lastNick FROM donations WHERE broadcast_id = ? AND user_id <> '' GROUP BY broadcast_id, user_id",
+            [$bid]
+        );
+        db_exec(
+            "UPDATE broadcast_users SET
+                balloons = (SELECT COALESCE(SUM(amount), 0) FROM donations WHERE $same AND type = 'balloon'),
+                adballoons = (SELECT COALESCE(SUM(amount), 0) FROM donations WHERE $same AND type = 'adballoon')
+             WHERE broadcast_id = ? AND user_id IN (SELECT user_id FROM donations WHERE broadcast_id = ?)",
+            [$bid, $bid]
+        );
+        db_exec('UPDATE broadcasts SET users_sig = ?, users_at = ? WHERE id = ?', [$sig, now(), $bid]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/**
+ * 누적 순위 — 최근 N주 방송을 모아 연속 출석·참여 회차·기간 채팅·기간 후원 (기존 끝장전 누적 순위와 같은 기준)
+ *  - 참여: 그 방송일에 채팅 또는 후원이 1건 이상
+ *  - 연속 출석: 가장 최근 방송일부터 거꾸로 빠짐없이 온 방송일 수 (기간과 상관없이 전체 기록 기준)
+ *  - 닉네임·배지: 가장 최근에 온 방송 기준
+ */
+function cumulative_ranking(int $weeks, bool $exclude, string $q, string $sort): array
+{
+    @set_time_limit(300);
+    $weeks = in_array($weeks, CUMULATIVE_WEEKS, true) ? $weeks : 8;
+    $sort = isset(CUMULATIVE_SORTS[$sort]) ? $sort : 'streak';
+    $cutoff = date('Y-m-d', strtotime("-$weeks weeks"));
+    $staffBits = BADGE_BJ | BADGE_MANAGER | BADGE_ADMIN;
+
+    $byDate = [];
+    foreach (db_all('SELECT id, broadcast_date FROM broadcasts ORDER BY broadcast_date DESC, id DESC') as $b) {
+        $byDate[(string) $b['broadcast_date']][] = (int) $b['id'];
+    }
+    $periodIds = [];
+    foreach ($byDate as $date => $ids) {
+        if ($date >= $cutoff) {
+            array_push($periodIds, ...$ids);
+        }
+    }
+    $pending = refresh_broadcast_users($periodIds);
+
+    $blank = ['nickname' => '', 'badges' => 0, 'staff' => false, 'attend' => 0, 'last' => '', 'chats' => 0, 'balloons' => 0, 'adballoons' => 0, 'streak' => 0];
+    $users = [];
+    if ($periodIds) {
+        db_stream(
+            'SELECT bu.user_id, bu.nickname, bu.badges, bu.chats, bu.balloons, bu.adballoons, b.broadcast_date
+             FROM broadcast_users bu JOIN broadcasts b ON b.id = bu.broadcast_id
+             WHERE bu.broadcast_id IN (' . db_placeholders($periodIds) . ') ORDER BY b.broadcast_date, b.id',
+            $periodIds,
+            function (array $r) use (&$users, $blank, $staffBits) {
+                $u = &$users[$r['user_id']];
+                $u ??= $blank;
+                if ($u['last'] !== $r['broadcast_date']) {
+                    $u['attend']++;
+                    $u['last'] = (string) $r['broadcast_date'];
+                }
+                $u['chats'] += (int) $r['chats'];
+                $u['balloons'] += (int) $r['balloons'];
+                $u['adballoons'] += (int) $r['adballoons'];
+                if ($r['nickname'] !== '') {
+                    $u['nickname'] = $r['nickname'];
+                }
+                $u['badges'] = (int) $r['badges'];
+                $u['staff'] = $u['staff'] || ((int) $r['badges'] & $staffBits);
+            }
+        );
+    }
+
+    // 연속 출석: 최근 방송일부터 거꾸로, 모든 방송일에 온 사람만 남기며 셉니다.
+    $alive = null;
+    $step = 0;
+    foreach ($byDate as $ids) {
+        if (refresh_broadcast_users($ids)) {
+            break; // 아직 계산하지 못한 회차가 있으면 거기서 멈춤
+        }
+        $step++;
+        $present = [];
+        foreach (db_all('SELECT user_id, nickname, badges FROM broadcast_users WHERE broadcast_id IN (' . db_placeholders($ids) . ')', $ids) as $r) {
+            if ($alive === null || isset($alive[$r['user_id']])) {
+                $present[$r['user_id']] = $r;
+            }
+        }
+        if (!$present) {
+            break;
+        }
+        foreach ($present as $uid => $r) {
+            if (!isset($users[$uid])) { // 기간 밖(최근 방송이 기간보다 오래됨)의 연속 출석자
+                $users[$uid] = ['nickname' => $r['nickname'], 'badges' => (int) $r['badges'], 'staff' => (bool) ((int) $r['badges'] & $staffBits)] + $blank;
+            }
+            $users[$uid]['streak'] = $step;
+        }
+        $alive = $present;
+    }
+
+    $excluded = $exclude ? array_flip(array_column(db_all('SELECT user_id FROM excluded_users'), 'user_id')) : [];
+    $min = CUMULATIVE_SORTS[$sort][1];
+    $rows = [];
+    foreach ($users as $uid => $u) {
+        $uid = (string) $uid;
+        if ($exclude && ($u['staff'] || isset($excluded[$uid]))) {
+            continue;
+        }
+        if ($u[$sort] < $min) {
+            continue;
+        }
+        if ($q !== '' && mb_stripos($uid, $q) === false && mb_stripos($u['nickname'], $q) === false) {
+            continue;
+        }
+        unset($u['last'], $u['staff']);
+        $rows[] = ['user_id' => $uid] + $u;
+    }
+    $tie = ['streak' => ['attend', 'chats'], 'attend' => ['streak', 'chats'], 'chats' => ['attend', 'balloons'],
+        'balloons' => ['adballoons', 'chats'], 'adballoons' => ['balloons', 'chats']][$sort];
+    usort($rows, fn($a, $b) => [$b[$sort], $b[$tie[0]], $b[$tie[1]], $a['user_id']] <=> [$a[$sort], $a[$tie[0]], $a[$tie[1]], $b['user_id']]);
+
+    $dates = array_keys($byDate);
+    return [
+        'rows'       => $rows,
+        'weeks'      => $weeks,
+        'sort'       => $sort,
+        'from'       => $cutoff,
+        'broadcasts' => count($periodIds),
+        'last_date'  => $dates ? (string) $dates[0] : '',
+        'pending'    => $pending,
+    ];
+}

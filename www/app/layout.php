@@ -30,9 +30,12 @@ function page_header(string $title, array $opt = []): void
   <a id="live-ind" class="live-ind hidden" href="#" title="수집 창으로 이동"></a>
   <nav class="mainnav">
     <a href="index.php" class="<?= $menu === 'broadcasts' ? 'active' : '' ?>">방송 회차</a>
+    <a href="cumulative.php" class="<?= $menu === 'cumulative' ? 'active' : '' ?>">누적 순위</a>
     <a href="prizes.php" class="<?= $menu === 'prizes' ? 'active' : '' ?>">상품 지급</a>
+    <a href="items.php" class="<?= $menu === 'items' ? 'active' : '' ?>">상품 목록</a>
     <a href="excluded.php" class="<?= $menu === 'excluded' ? 'active' : '' ?>">제외 명단</a>
     <?php if ($admin['role'] === 'admin'): ?>
+      <a href="settings.php" class="<?= $menu === 'settings' ? 'active' : '' ?>">설정</a>
       <a href="admins.php" class="<?= $menu === 'admins' ? 'active' : '' ?>">관리자</a>
       <a href="logs.php" class="<?= $menu === 'logs' ? 'active' : '' ?>">작업 기록</a>
     <?php endif; ?>

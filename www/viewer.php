@@ -63,7 +63,7 @@ page_header($nickname . ' · 시청자 상세', ['menu' => 'broadcasts', 'broadc
 ?>
 <div class="page-head">
   <div>
-    <h1><?= render_nick($nickname !== '' ? $nickname : $user, (int) ($chatInfo['badges'] ?? 0)) ?> <span class="muted"><?= h($user) ?></span></h1>
+    <h1><?= render_nick($nickname !== '' ? $nickname : $user, (int) ($chatInfo['badges'] ?? 0)) ?> <span class="muted"><?= h($user) ?></span> <?= render_wins(winners_by_user([$user])[$user] ?? []) ?></h1>
     <?php if (count($nicknames) > 1): ?><p class="muted small">사용한 닉네임: <?= h(implode(', ', $nicknames)) ?></p><?php endif; ?>
     <?php if (count($rawIds) > 1): ?><p class="muted small">접속 아이디: <?= h(implode(', ', $rawIds)) ?> (하나로 합산)</p><?php endif; ?>
     <?php if ($excluded): ?><p><span class="badge badge-excluded">제외 명단</span> <span class="muted small"><?= h($excluded['reason']) ?></span></p><?php endif; ?>

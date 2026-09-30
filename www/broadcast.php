@@ -55,8 +55,11 @@ if (is_post() && $action === 'purge_chats') {
     if (input_str('confirm', '', 50) !== $b['streamer_id']) {
         flash('error', '확인 문구가 일치하지 않아 삭제하지 않았습니다.');
     } else {
+        // 누적 순위용 요약을 먼저 최신으로 만들어 두고, 채팅을 지운 뒤에도 그 요약을 그대로 씁니다.
+        require_once APP_DIR . '/stats.php';
+        refresh_broadcast_users([$id]);
         $deleted = db_exec('DELETE FROM chat_messages WHERE broadcast_id = ?', [$id]);
-        db_exec('UPDATE broadcasts SET chat_count = 0, updated_at = ? WHERE id = ?', [now(), $id]);
+        db_exec("UPDATE broadcasts SET chat_count = 0, users_sig = CASE WHEN users_sig IS NULL THEN NULL ELSE " . (db_driver() === 'sqlite' ? "'0:' || donation_count" : "CONCAT('0:', donation_count)") . " END, updated_at = ? WHERE id = ?", [now(), $id]);
         audit('chat_purge', "broadcast:$id", "채팅 {$deleted}건 삭제");
         flash('success', "채팅 {$deleted}건을 삭제했습니다. (후원 기록과 상품 지급 기록은 그대로 남아 있습니다)");
     }
