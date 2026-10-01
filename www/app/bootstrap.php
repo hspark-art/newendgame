@@ -5,7 +5,7 @@
  */
 declare(strict_types=1);
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.3.1';
 define('APP_ROOT', dirname(__DIR__));   // www 폴더
 const APP_DIR = __DIR__;                // www/app 폴더
 
@@ -58,5 +58,7 @@ if (app_configured()) {
     }
 }
 
-start_session();
-send_security_headers();
+if (!defined('CHECK_CLI')) {   // 서버 점검 도구(app/check.php)는 세션·화면 헤더 없이 씀
+    start_session();
+    send_security_headers();
+}
