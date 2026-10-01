@@ -64,6 +64,22 @@ function verify_matches(array $ds, string $pid, array $fields): array
     return [];
 }
 
+/** 더블 찬스 성공·시도 (선수별 통계 탭) */
+function verify_double(array $ds, string $pid, array $fields): array
+{
+    $v = $ds['verify'] ?? null;
+    if ($v === null) {
+        return [];
+    }
+    if (!($v['double']['available'] ?? false)) {
+        return [verify_issue($fields, '더블 찬스를 시트 집계(선수별 통계 탭)와 대조할 수 없습니다')];
+    }
+    if (($v['double']['players'][$pid] ?? false) !== true) {
+        return [verify_issue($fields, pname($ds['players'], $pid) . ' 더블 찬스 기록이 시트 집계와 다릅니다')];
+    }
+    return [];
+}
+
 function verify_predictor(array $ds, string $id, array $fields): array
 {
     $v = $ds['verify'] ?? null;

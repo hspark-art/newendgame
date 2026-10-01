@@ -67,6 +67,9 @@ function action_dispatch(string $action, array $in, array $op): mixed
         'match_exclude' => match_exclude($in, $op),
         'player_info' => player_info_view(),
         'player_info_save' => player_info_save($in, $op),
+        // 관리자 알림
+        'alerts' => alerts_view($op),
+        'alert_ack' => alert_ack($in, $op),
         default => throw new ActionError('UNKNOWN_ACTION', '알 수 없는 동작입니다.', 400),
     };
 }

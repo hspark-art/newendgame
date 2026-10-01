@@ -67,7 +67,9 @@ function xlsx_tables(string $bytes, array $tabs): array
         foreach ($tabs as $k => $title) {
             $file = $sheetFile[$title] ?? null;
             $sx = $file === null ? null : $xml($file);
-            $out[$k] = $sx === null ? null : xlsx_rows($sx, $strings, $dateStyles);
+            // Google API와 같은 열만 남긴다 (상금 열 등은 버림)
+            $keep = array_map(static fn($c) => [col_index($c), col_index((string)substr($c, strpos($c, ':') + 1))], SHEET_RANGES[$k] ?? []);
+            $out[$k] = $sx === null ? null : xlsx_rows($sx, $strings, $dateStyles, $keep);
         }
         $zip->close();
         return $out;
@@ -120,8 +122,16 @@ function xlsx_date_styles(?SimpleXMLElement $x): array
 }
 
 /** 시트 XML → 행 목록 (빈 칸은 ''). 숫자는 int/float, 날짜 서식 숫자는 "YYYY-MM-DD" */
-function xlsx_rows(SimpleXMLElement $sheet, array $strings, array $dateStyles): array
+function xlsx_rows(SimpleXMLElement $sheet, array $strings, array $dateStyles, array $keep = []): array
 {
+    $inKeep = static function (int $i) use ($keep): bool {
+        foreach ($keep as [$a, $b]) {
+            if ($i >= $a && $i <= $b) {
+                return true;
+            }
+        }
+        return !$keep;
+    };
     $rows = [];
     foreach ($sheet->sheetData->row ?? [] as $row) {
         $r = (int)$row['r'] - 1;
@@ -136,6 +146,9 @@ function xlsx_rows(SimpleXMLElement $sheet, array $strings, array $dateStyles): 
             $col = 0;
             foreach (str_split($m[1]) as $ch) {
                 $col = $col * 26 + (ord($ch) - 64);
+            }
+            if (!$inKeep($col - 1)) {
+                continue;
             }
             $t = (string)$c['t'];
             $v = (string)$c->v;

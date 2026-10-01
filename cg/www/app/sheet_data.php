@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Google 시트(끝장전 데이터) 표 → 내부 데이터. 순수 함수이며 네트워크·DB에 의존하지 않는다.
  * 입력 표는 행 목록(행 = 셀 값 목록)이다. Sheets API와 xlsx 가져오기가 같은 모양으로 넘긴다.
  *
- * 원본: Results 탭 (1행 = 1세트: Winner, Race, Loser, Race, Map, Date). 상금 열은 읽지 않는다.
+ * 원본: Results 탭 (1행 = 1세트: Winner, Race, Loser, Race, Map, Date, Double Chance). 상금(Prize) 열은 읽지 않는다.
  * 끝장전(매치) = 같은 날 같은 두 선수의 세트 묶음. 9세트를 모두 치르는 방식이며, 9세트가 아닌 묶음·동점·
  * 경기 중 종족 변경은 "이상 사례"로 표시하고 매치 통계에서 뺀다 (세트 통계에는 그대로 센다).
  *
@@ -13,6 +13,7 @@ declare(strict_types=1);
  *   Players 탭        → 선수별 세트 승·패 (전체, vs Z/T/P)
  *   상대전적조회NEW 탭 → 선수별 끝장전 목록 (날짜·상대·세트 승·패)
  *   예측 탭 순위표     → 중계진별 전체·적중 수
+ *   선수별 통계 탭     → 더블 찬스 성공·시도 (상금 보정 탭의 보정값을 반영해 계산한 값과 비교)
  * 검증 탭을 찾지 못하거나 값이 다르면 해당 수치를 쓰는 CG 필드를 송출 차단 대상으로 표시한다.
  */
 
@@ -21,6 +22,8 @@ const SHEET_TABS_DEFAULT = [
     'players' => 'Players',
     'matches' => '상대전적조회NEW',
     'predictions' => '중계진 예측 현황입력용',
+    'adjust' => '상금 보정',      // 더블 찬스 횟수 보정 (날짜·선수명·더블 찬스 횟수만 읽음)
+    'stats' => '선수별 통계',     // 더블 찬스 검증 (선수명·더블 성공 횟수·더블 시도만 읽음)
 ];
 
 /** 예측 탭의 중계진 표기 "박상현 캐스터"에서 떼어 낼 직책 */
@@ -123,13 +126,14 @@ function row_blank(array $row): bool
  */
 function sheet_dataset(array $tables, string $method, bool $serialDates = false): array
 {
-    $games = sheet_games($tables['results'] ?? [], $serialDates);
+    $lint = $dcErrors = [];
+    $games = sheet_games($tables['results'] ?? [], $serialDates, $lint, $dcErrors);
     [$matches, $anomalies] = sheet_matches($games);
     $setRecords = sheet_set_records($games);
 
-    $check = ['method' => $method, 'anomalies' => $anomalies, 'mismatches' => [], 'unavailable' => [], 'notes' => []];
+    $check = ['method' => $method, 'anomalies' => $anomalies, 'mismatches' => [], 'unavailable' => [], 'lint' => $lint];
     $verify = ['sets' => ['available' => false, 'players' => []], 'matches' => ['available' => false, 'players' => []],
-        'predictions' => ['available' => false, 'predictors' => []]];
+        'predictions' => ['available' => false, 'predictors' => []], 'double' => ['available' => false, 'players' => []]];
 
     // 선수: Results에 나온 이름. 주 종족은 Players 탭의 Race, 없으면 가장 많이 쓴 종족(동률이면 정하지 않음)
     $sheetPlayers = isset($tables['players']) ? sheet_players_table($tables['players']) : null;
@@ -257,6 +261,36 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         }
     }
 
+    // 더블 찬스: 승 = 더블 찬스 세트(H열 금액 > 0)의 A열 승자 수 + 상금 보정 탭의 보정값, 패 = 경기당 2회 − 승
+    // (2026-10-01 실제 시트로 확인: 시트 공식 집계 "선수별 통계"의 더블 성공 횟수·시도와 31명 모두 일치)
+    $double = [];
+    if ($dcErrors) {
+        $check['unavailable'][] = '더블 찬스 사용 불가: ' . implode(', ', array_slice($dcErrors, 0, 3));
+    } else {
+        $adjust = isset($tables['adjust']) ? sheet_adjust_table($tables['adjust'], $serialDates) : null;
+        if ($adjust === null || $adjust['error'] !== null) {
+            $check['unavailable'][] = '더블 찬스 보정 없이 계산: ' . ($adjust['error'] ?? '상금 보정 탭 없음');
+        }
+        $double = sheet_double_chance($games, $matches, $adjust['rows'] ?? []);
+        $stats = isset($tables['stats']) ? sheet_stats_table($tables['stats']) : null;
+        if ($stats === null || $stats['error'] !== null) {
+            $check['unavailable'][] = '더블 찬스 검증 불가: ' . ($stats['error'] ?? '선수별 통계 탭 없음');
+        } else {
+            $verify['double']['available'] = true;
+            foreach ($double as $pid => $d) {
+                $pid = (string)$pid;
+                $s = $stats['rows'][$pid] ?? null;
+                $ok = $s !== null && $s === [$d['wins'], $d['wins'] + $d['losses']] && !$d['bad'];
+                $verify['double']['players'][$pid] = $ok;
+                if (!$ok) {
+                    $check['mismatches'][] = ['kind' => 'double', 'who' => $pid, 'item' => '더블 찬스 성공·시도',
+                        'sheet' => $s === null ? '선수별 통계에 없음' : "{$s[1]}회 중 {$s[0]}회 성공",
+                        'calc' => ($d['wins'] + $d['losses']) . "회 중 {$d['wins']}회 성공"];
+                }
+            }
+        }
+    }
+
     $check['anomalies_all'] = $check['anomalies'];
     $check['counts'] = ['games' => count($games), 'matches' => count($matches), 'players' => count($players),
         'predictions' => count($predictions),
@@ -273,7 +307,7 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         'predictors' => $predictors,
         'online' => [],
         'online_available' => false,  // 온라인 기록은 시트에 없음 (eloboard 연동 전까지 수동 입력)
-        'double_chance' => [],        // 정의 확인 전까지 자동값 없음
+        'double_chance' => $double,   // 선수 => {wins, losses}
         'verify' => $verify,
         'check' => $check,
     ], []);
@@ -323,8 +357,102 @@ function dataset_finalize(array $ds, array $excluded): array
     return $ds;
 }
 
-/** Results 탭 → 세트 목록. 형식 오류가 있으면 ProviderError */
-function sheet_games(array $rows, bool $serialDates): array
+/**
+ * 더블 찬스 계산. 경기마다 선수당 시도 2회, 성공 = 그 경기에서 더블 찬스 세트를 이긴 수(보정값이 있으면 보정값).
+ * 경기 수는 이상·제외 경기까지 모두 센다 (시트 집계와 같은 기준).
+ * @param array<string,int> $adjust "선수|날짜" => 보정한 더블 찬스 횟수
+ * @return array<string, array{wins:int, losses:int, bad:bool}>
+ */
+function sheet_double_chance(array $games, array $matches, array $adjust): array
+{
+    $won = [];
+    foreach ($games as $g) {
+        if ($g['dc']) {
+            $won[$g['winner'] . '|' . $g['date']] = ($won[$g['winner'] . '|' . $g['date']] ?? 0) + 1;
+        }
+    }
+    $out = [];
+    foreach ($matches as $m) {
+        foreach ([$m['playerA'], $m['playerB']] as $p) {
+            $k = $p . '|' . $m['date'];
+            $succ = $adjust[$k] ?? $won[$k] ?? 0;
+            $out[$p] ??= ['wins' => 0, 'losses' => 0, 'bad' => false];
+            if ($succ > 2) {
+                $out[$p]['bad'] = true; // 한 경기에 더블 찬스 성공이 2회를 넘음 → 입력 확인 필요 (검증 실패로 처리)
+                $succ = 2;
+            }
+            $out[$p]['wins'] += $succ;
+            $out[$p]['losses'] += 2 - $succ;
+        }
+    }
+    ksort($out, SORT_STRING);
+    return $out;
+}
+
+/**
+ * 상금 보정 탭: 날짜, 선수명, (기본 상금), (더블 찬스 상금), 더블 찬스 횟수, 메모 — 상금 열은 읽지 않는다.
+ * @return array{error:?string, rows:array<string,int>} "선수|날짜" => 더블 찬스 횟수
+ */
+function sheet_adjust_table(array $rows, bool $serialDates): array
+{
+    $h = table_header_row($rows, [0 => '날짜', 1 => '선수명', 4 => '더블 찬스 횟수']);
+    if ($h === null) {
+        return ['error' => '상금 보정 탭의 머리글(날짜, 선수명, 더블 찬스 횟수)을 찾을 수 없음', 'rows' => []];
+    }
+    $out = [];
+    foreach ($rows as $i => $r) {
+        if ($i <= $h || row_blank($r)) {
+            continue;
+        }
+        $d = date_norm($r[0] ?? null, true);
+        $p = name_norm($r[1] ?? '');
+        $c = int_norm($r[4] ?? null);
+        if ($d === null || $p === null || $c === null || $c > 2) {
+            return ['error' => '상금 보정 ' . ($i + 1) . '행을 읽을 수 없음', 'rows' => []];
+        }
+        $out["$p|$d"] = $c;
+    }
+    return ['error' => null, 'rows' => $out];
+}
+
+/**
+ * 선수별 통계 탭: 선수명, 더블 성공 횟수, 더블 시도(총매치) — 더블 찬스 검증용 (상금 열은 읽지 않음).
+ * @return array{error:?string, rows:array<string, array{0:int,1:int}>} 선수 => [성공, 시도]
+ */
+function sheet_stats_table(array $rows): array
+{
+    foreach (array_slice($rows, 0, 15, true) as $i => $row) {
+        $keys = array_map('cell_key', $row);
+        $name = array_search('선수명', $keys, true);
+        $succ = array_search('더블성공횟수', $keys, true);
+        $att = array_search('더블시도(총매치)', $keys, true);
+        if ($name === false || $succ === false || $att === false) {
+            continue;
+        }
+        $out = [];
+        foreach (array_slice($rows, $i + 1) as $r) {
+            $p = name_norm($r[$name] ?? '');
+            if ($p === null) {
+                continue;
+            }
+            $s = int_norm($r[$succ] ?? null);
+            $a = int_norm($r[$att] ?? null);
+            if ($s === null || $a === null || isset($out[$p])) {
+                return ['error' => "선수별 통계의 $p 행을 읽을 수 없음", 'rows' => []];
+            }
+            $out[$p] = [$s, $a];
+        }
+        return ['error' => $out ? null : '선수별 통계에 선수가 없음', 'rows' => $out];
+    }
+    return ['error' => '선수별 통계 탭의 머리글(선수명, 더블 성공 횟수, 더블 시도)을 찾을 수 없음', 'rows' => []];
+}
+
+/**
+ * Results 탭 → 세트 목록. 형식 오류가 있으면 ProviderError
+ * @param array $lint     (출력) 고쳐 읽었지만 시트 집계가 다르게 셀 수 있는 입력 — 이름·종족 칸의 공백 등
+ * @param array $dcErrors (출력) Double Chance(H열) 값을 읽을 수 없는 행
+ */
+function sheet_games(array $rows, bool $serialDates, array &$lint = [], array &$dcErrors = []): array
 {
     $h = table_header_row($rows, [0 => 'Winner', 1 => 'Race', 2 => 'Loser', 3 => 'Race', 4 => 'Map', 5 => 'Date']);
     if ($h === null) {
@@ -358,8 +486,33 @@ function sheet_games(array $rows, bool $serialDates): array
             $problems[] = "Results {$n}행: " . implode(', ', $err) . ' 오류';
             continue;
         }
+        foreach ([0 => '승자 이름', 2 => '패자 이름'] as $c => $label) {
+            if (is_string($row[$c] ?? null) && $row[$c] !== ($c === 0 ? $w : $l)) {
+                $lint[] = ['row' => $n, 'text' => "Results {$n}행 {$label} 칸에 공백·보이지 않는 문자가 있습니다 ('{$row[$c]}'). "
+                    . '시트 집계에서 다른 선수로 셀 수 있으니 지워 주세요.'];
+            }
+        }
+        foreach ([1 => '승자 종족', 3 => '패자 종족'] as $c => $label) {
+            if (is_string($row[$c] ?? null) && $row[$c] !== strtoupper(trim($row[$c]))) {
+                $lint[] = ['row' => $n, 'text' => "Results {$n}행 {$label} 칸 '{$row[$c]}'에 공백·소문자가 있습니다. "
+                    . '시트 집계(Players 탭)가 이 세트를 세지 못하니 지워 주세요.'];
+            }
+        }
+        // H열 Double Chance: 금액이 0보다 크면 그 세트의 승자(A열)가 더블 찬스에 성공한 것 (금액 자체는 쓰지 않음)
+        $hv = $row[7] ?? '';
+        $dc = false;
+        if (is_int($hv) || is_float($hv)) {
+            $dc = $hv > 0;
+        } elseif (is_string($hv) && trim($hv) !== '') {
+            $digits = preg_replace('/[\s,₩￦원]/u', '', $hv);
+            if (preg_match('/^\d+$/D', (string)$digits)) {
+                $dc = (int)$digits > 0;
+            } else {
+                $dcErrors[] = "Results {$n}행 Double Chance 값을 읽을 수 없음";
+            }
+        }
         $games[] = ['row' => $n, 'date' => $date, 'winner' => $w, 'wrace' => $wr, 'loser' => $l, 'lrace' => $lr,
-            'map' => mb_substr(cell_str($row[4] ?? ''), 0, 60)];
+            'map' => mb_substr(cell_str($row[4] ?? ''), 0, 60), 'dc' => $dc];
     }
     if ($problems) {
         throw new ProviderError('Results 탭 형식 오류 ' . count($problems) . '건 — 시트를 고친 뒤 다시 불러오세요', array_slice($problems, 0, 30));
@@ -401,7 +554,23 @@ function sheet_matches(array $games): array
         } elseif ($score[$a] === $score[$b]) {
             [$anomaly, $kind] = ['승자 없음 (동점)', 'tie'];
         } elseif (count($races[$a]) > 1 || count($races[$b]) > 1) {
-            [$anomaly, $kind] = ['경기 중 종족 변경', 'race'];
+            // 어느 행이 다른 종족인지 알려 준다 (대부분 입력 실수)
+            $odd = [];
+            foreach ([$a, $b] as $p) {
+                $cnt = [];
+                foreach ($sets as $s) {
+                    $r = $s['winner'] === $p ? $s['wrace'] : $s['lrace'];
+                    $cnt[$r][] = $s['row'];
+                }
+                if (count($cnt) > 1) {
+                    uasort($cnt, static fn($x, $y) => count($y) <=> count($x));
+                    $main = array_key_first($cnt);
+                    foreach (array_slice($cnt, 1, null, true) as $r => $rows) {
+                        $odd[] = "Results " . implode('·', $rows) . "행에서 $p {$r} (나머지 세트는 $main)";
+                    }
+                }
+            }
+            [$anomaly, $kind] = ['경기 중 종족 변경 — ' . implode(', ', $odd), 'race'];
         }
         $m = [
             'id' => $key, 'date' => $sets[0]['date'], 'playerA' => $a, 'playerB' => $b,

@@ -115,6 +115,7 @@ function panel_state(array $op): array
         'mode' => config('mode'),
         'version' => APP_VERSION,
         'operator' => ['name' => $op['name'], 'role' => $op['role']],
+        'alerts_new' => $op['role'] === 'admin' ? alerts_new_count() : null, // 관리자 알림 (확인하지 않은 것)
         'session' => $session,
         'keep_count' => (int)db_value('SELECT COUNT(*) FROM cg_overrides WHERE session_id = ? AND keep_next = 1', [$sid]),
         'source' => source_status(),

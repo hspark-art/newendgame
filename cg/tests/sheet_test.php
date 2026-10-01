@@ -18,10 +18,12 @@ function fx_match_list(): array
 /** 시트 탭 모양의 합성 표. $tamper로 검증 탭 값을 일부러 틀리게 만들 수 있다 */
 function fx_tables(?callable $tamper = null): array
 {
-    $results = [['Winner', 'Race', 'Loser', 'Race', 'Map', 'Date']];
+    $results = [['Winner', 'Race', 'Loser', 'Race', 'Map', 'Date', 'Prize', 'Double Chance']];
     $sets = [];      // 선수 => [all, P, T, Z] 각 [W, L]
     $lists = [];     // 선수 => 끝장전 목록
     $race = [];
+    $dcWon = [];     // "선수|날짜" => 더블 찬스 세트 승리 수
+    $dcMatches = []; // 선수 => 경기 수 (시도 = 경기 × 2)
     foreach (fx_match_list() as [$d, $a, $ar, $b, $br, $aw, $bw]) {
         $race[$a] = $ar;
         $race[$b] = $br;
@@ -34,7 +36,12 @@ function fx_tables(?callable $tamper = null): array
             $w = $turn;
             $l = $w === $a ? $b : $a;
             $left[$w]--;
-            $results[] = [$w, $race[$w], $l, $race[$l], 'Map ' . ($i + 1), $d];
+            // 2·4세트를 더블 찬스 세트로 (H열 금액 > 0). 상금 열(G) 값은 프로그램이 읽지 않는다
+            $dc = in_array($i, [1, 3], true);
+            $results[] = [$w, $race[$w], $l, $race[$l], 'Map ' . ($i + 1), $d, 100000, $dc ? 100000 : 0];
+            if ($dc) {
+                $dcWon["$w|$d"] = ($dcWon["$w|$d"] ?? 0) + 1;
+            }
             foreach ([[$w, 0, $race[$l]], [$l, 1, $race[$w]]] as [$p, $k, $vs]) {
                 $sets[$p]['all'][$k] = ($sets[$p]['all'][$k] ?? 0) + 1;
                 $sets[$p][$vs][$k] = ($sets[$p][$vs][$k] ?? 0) + 1;
@@ -43,6 +50,23 @@ function fx_tables(?callable $tamper = null): array
         }
         $lists[$a][] = [$d, $a, $ar, $b, $br, $aw, $bw];
         $lists[$b][] = [$d, $b, $br, $a, $ar, $bw, $aw];
+        $dcMatches[$a] = ($dcMatches[$a] ?? 0) + 1;
+        $dcMatches[$b] = ($dcMatches[$b] ?? 0) + 1;
+    }
+    // 상금 보정: 나선수 2024-01-06 경기의 더블 찬스 횟수를 1로 보정 (Results로 세면 2회. 시트 집계는 보정값을 쓴다)
+    $adjust = [['날짜', '선수명', '기본 상금', '더블 찬스 상금', '더블 찬스 횟수', '메모'],
+        ['2024-01-06', '나선수', 500000, 0, 1, '기존 시트 값 유지']];
+    $dcWon['나선수|2024-01-06'] = 1;
+    $stats = [['', '', '', '⚡ 끝장전 선수별 누적 통계'], [], ['선수 정보', '', '', '📊 매치 성적'],
+        ['#', '선수명', '종족', '매치 승', '매치 패', '매치 승률', '세트 승', '세트 패', '세트 승률', '기본 상금', "더블 찬스\n상금",
+            '합계 상금', "더블 성공\n횟수", "더블 시도\n(총매치)", "더블\n성공률"]];
+    $n = 0;
+    foreach ($dcMatches as $p => $cnt) {
+        $succ = 0;
+        foreach ($lists[$p] as [$d]) {
+            $succ += $dcWon["$p|$d"] ?? 0;
+        }
+        $stats[] = [++$n, $p, $race[$p], 0, 0, 0, 0, 0, 0, 999, 999, 999, $succ, $cnt * 2, $succ / ($cnt * 2)];
     }
     $players = [['Player', '', '', 'vs All', '', '', 'vs Zerg', '', '', 'vs Terran', '', '', 'vs Protoss', '', ''],
         ['#', 'ID', 'Race', 'W', 'L', '%', 'W', 'L', '%', 'W', 'L', '%', 'W', 'L', '%']];
@@ -73,7 +97,8 @@ function fx_tables(?callable $tamper = null): array
     // 실제 시트처럼 순위표 아래 빈 행 뒤에 다른 표("SET별 성공률")가 이어진다 — 순위표로 읽으면 안 됨
     $pred[] = array_merge(array_fill(0, 11, ''), ['SET별 성공률']);
     $pred[] = array_merge(array_fill(0, 11, ''), [1, 19, 0.4211]);
-    $t = ['results' => $results, 'players' => $players, 'matches' => $matchList, 'predictions' => $pred];
+    $t = ['results' => $results, 'players' => $players, 'matches' => $matchList, 'predictions' => $pred,
+        'adjust' => $adjust, 'stats' => $stats];
     if ($tamper) {
         $tamper($t);
     }
@@ -253,7 +278,7 @@ test('sheet: 예측 순위·연승·다승이 시트 데이터로 계산됨, 닉
     assert_same([], type_state('win-streak', ['race' => '', 'count' => '3'])['problems']);
 });
 
-test('sheet: 온라인·더블 찬스는 자동값 없음 → 직접 입력 전 송출 불가, MOCK 선수 페이지는 막힘', function () {
+test('sheet: 온라인은 자동값 없음 → 직접 입력 전 송출 불가, MOCK 선수 페이지는 막힘', function () {
     fresh_db();
     data_refresh(op());
     page_add(['template' => 'race-win-rate', 'params' => ['a' => ['player' => 'jo-iljang', 'vs' => 'P'], 'b' => ['player' => 'jang-yunchul', 'vs' => 'Z']]], op());
@@ -264,9 +289,67 @@ test('sheet: 온라인·더블 찬스는 자동값 없음 → 직접 입력 전 
     $st = type_state('online-h2h', ['a' => ['player' => '가선수', 'vs' => 'P'], 'b' => ['player' => '나선수', 'vs' => 'Z']]);
     assert_true(count($st['problems']) >= 4, '온라인 수치 없음');
     assert_same('가선수', $st['final']['a.name']);
-    $st = type_state('double-chance', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수']]);
-    assert_true((bool)$st['problems']);
     assert_same(false, panel_state(op())['source']['id'] === 'mock');
+});
+
+test('더블 찬스: A열 승자 + 상금 보정, 패 = 경기당 2회 − 승, 선수별 통계와 대조', function () {
+    $ds = sheet_dataset(fx_tables(), 'api');
+    // 가: 3경기 중 2024-04-06에 2회 / 나: 2024-01-06 Results로는 2회지만 상금 보정 1회 + 2024-03-02 2회 / 라: 이상 경기(4세트)도 시트처럼 센다
+    assert_same(['가선수' => [2, 4], '나선수' => [3, 3], '다선수' => [3, 3], '라선수' => [1, 1]],
+        array_map(static fn($d) => [$d['wins'], $d['losses']], $ds['double_chance']));
+    assert_same(['가선수' => true, '나선수' => true, '다선수' => true, '라선수' => true], $ds['verify']['double']['players']);
+    setup_sheet();
+    $st = type_state('double-chance', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수']]);
+    assert_same([], $st['problems']);
+    assert_same([['가선수', '2승 4패', '(33.3%)'], ['나선수', '3승 3패', '(50.0%)']],
+        array_map(static fn($c) => [$c['name'], $c['record'], $c['rate']], $st['view']['cols']));
+    // 상금 보정 탭이 없으면 나선수는 Results대로 4회 → 선수별 통계(3회)와 달라 나선수 칸만 막힘
+    $ds = setup_sheet(static function (array &$t) {
+        unset($t['adjust']);
+    });
+    assert_true(str_contains(implode(' ', $ds['check']['unavailable']), '상금 보정 탭 없음'));
+    assert_same(['double', '나선수', '6회 중 3회 성공', '6회 중 4회 성공'],
+        array_values(array_intersect_key($ds['check']['mismatches'][0], array_flip(['kind', 'who', 'sheet', 'calc']))));
+    $st = type_state('double-chance', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수']]);
+    assert_same(1, count($st['problems']));
+    assert_true(str_contains($st['problems'][0], '나선수 더블 찬스 기록이 시트 집계와 다릅니다'), $st['problems'][0]);
+    $iid = channel_get('preview')['instance_id'];
+    preview_save($iid, ['b.wins' => '3', 'b.losses' => '3'], op());
+    take_now();
+    // 선수별 통계 탭이 없으면 대조 불가 → 두 선수 모두 막힘
+    setup_sheet(static function (array &$t) {
+        unset($t['stats']);
+    });
+    $st = type_state('double-chance', ['a' => ['player' => '가선수'], 'b' => ['player' => '다선수']]);
+    assert_same(2, count($st['problems']));
+    assert_true(str_contains($st['problems'][0], '대조할 수 없습니다'));
+    // H열 값을 읽을 수 없으면 더블 찬스 전체를 쓰지 않음 (다른 CG는 영향 없음)
+    $ds = setup_sheet(static function (array &$t) {
+        $t['results'][5][7] = '확인 중';
+    });
+    assert_same([], $ds['double_chance']);
+    assert_true(str_contains(implode(' ', $ds['check']['unavailable']), 'Results 6행 Double Chance 값을 읽을 수 없음'));
+    assert_true((bool)type_state('double-chance', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수']])['problems']);
+    assert_same([], type_state('head-to-head', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수']])['problems']);
+    // 금액 문자열("100,000원")도 읽는다. 상금 보정 횟수가 2를 넘으면 보정 탭 오류
+    $ds = sheet_dataset(fx_tables(static function (array &$t) {
+        foreach ($t['results'] as $i => $r) {
+            if ($i > 0 && $r[7] > 0) {
+                $t['results'][$i][7] = number_format($r[7]) . '원';
+            }
+        }
+    }), 'api');
+    assert_same(true, $ds['verify']['double']['players']['나선수']);
+    $ds = sheet_dataset(fx_tables(static function (array &$t) {
+        $t['adjust'][1][4] = 3;
+    }), 'api');
+    assert_true(str_contains(implode(' ', $ds['check']['unavailable']), '상금 보정 2행을 읽을 수 없음'));
+    // 한 경기에서 더블 찬스 성공이 2회를 넘으면 그 선수는 확인 필요 (검증 실패)
+    $g = static fn(string $w, string $l, bool $dc) => ['date' => '2024-05-05', 'winner' => $w, 'loser' => $l, 'dc' => $dc];
+    $dcs = sheet_double_chance([$g('가', '나', true), $g('가', '나', true), $g('가', '나', true), $g('나', '가', false)],
+        [['date' => '2024-05-05', 'playerA' => '가', 'playerB' => '나']], []);
+    assert_same(['wins' => 2, 'losses' => 0, 'bad' => true], $dcs['가']);
+    assert_same(['wins' => 0, 'losses' => 2, 'bad' => false], $dcs['나']);
 });
 
 test('검토 반영: 표시되는 칸(제목·이름)까지 막음, 예측 탭 오류 시 자리 순서 행 차단', function () {

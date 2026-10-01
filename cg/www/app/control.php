@@ -454,6 +454,7 @@ function data_refresh(array $op, ?array $dataset = null): array
         db_tx(function () use ($now, $detail, $op, $source) {
             db_exec("UPDATE cg_sources SET status = 'ERROR', last_attempt_at = ?, last_error = ? WHERE id = ?", [$now, $detail, $source]);
             cg_log('error', 'REFRESH_FAIL', $op, ['detail' => $detail]);
+            alert_refresh_failed($source, $detail, $now);
             state_bump();
         });
         throw new ActionError('SOURCE_ERROR', '데이터를 불러오지 못했습니다. 마지막 정상 데이터를 유지합니다. (' . $detail . ')', 502);
@@ -479,6 +480,10 @@ function data_apply(array $ds, array $op, bool $fetched): array
             dataset_cache_put($raw, $now);
         }
         setting_set('data_check', json_enc(data_check_summary($ds, $now)));
+        alerts_sync($ds, $now);
+        if ($fetched) {
+            alert_refresh_ok($now);
+        }
         $players = [];
         foreach ($ds['players'] as $id => $p) {
             $players[$id] = ['id' => (string)$id, 'name' => $p['name'], 'race' => $p['race']];

@@ -100,6 +100,12 @@ function migrations(): array
                 }
             },
         ],
+        // v0.4.0: 관리자 알림 (데이터 오류·새로고침 실패). akey = sha1(종류|같은 문제를 알아보는 값)
+        3 => [
+            'CREATE TABLE IF NOT EXISTS cg_alerts (id {pk}, akey CHAR(40) NOT NULL UNIQUE, kind VARCHAR(20) NOT NULL,
+                title VARCHAR(255) NOT NULL, detail TEXT NOT NULL, first_at VARCHAR(19) NOT NULL, last_at VARCHAR(19) NOT NULL,
+                resolved_at VARCHAR(19) NULL, acked_at VARCHAR(19) NULL, acked_by VARCHAR(50) NULL) {opts}',
+        ],
     ];
 }
 

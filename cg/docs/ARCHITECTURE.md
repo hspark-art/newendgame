@@ -33,6 +33,7 @@ cg/
 │     ├─ sheets.php         Sheets API (서비스 계정 JWT, 읽기 전용) · xlsx.php 파일 가져오기(예비)
 │     ├─ verify.php         교차 검증 결과 → CG 필드별 송출 차단 사유
 │     ├─ data.php           데이터 소스 설정·키 보관·마지막 정상 데이터 캐시·선수 닉네임
+│     ├─ alerts.php         관리자 알림 (데이터 오류·새로고침 실패 → 새 알림/확인함/해결됨)
 │     ├─ stats.php          통계 엔진 (순수 함수)
 │     ├─ templates.php      CG 템플릿 목록·파라미터 검사·공용 도우미
 │     ├─ override.php       수동 수정 검증·병합 (순수 함수)

@@ -145,7 +145,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     ['prediction-ranking', [['seats', ['park-sanghyun', 'lim-sungchun', 'lee-seungwon']]], '100.0%'],
     ['online-h2h', [['a.player', 'jo-iljang'], ['b.player', 'jang-yunchul']], '12 : 8'],
     ['double-chance', [['a.player', 'yoo-youngjin'], ['b.player', 'jo-iljang']], '(70.0%)'],
-    ['win-streak', [], '진행 중'],
+    ['win-streak', [], '2024-09-28 ~ 2026-02-20'],
     ['full-set', [['a.player', 'jo-iljang'], ['b.player', 'jang-yunchul']], '40.6%'],
   ];
   await panel.selectOption('#fx', 'cut');
@@ -220,6 +220,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert(errors.length === 0, '9종 확인 중 브라우저 오류 없음' + (errors.length ? ': ' + errors.join(' | ') : ''));
 
   // ---- 데이터 점검·설정 창 (XLSX_PATH: 합성 시트 xlsx가 있으면 가져오기까지 확인)
+  assert(await panel.isVisible('#btnAlerts') && !(await panel.isVisible('#alertBadge')), '알림 버튼(PC = 관리자), MOCK은 알림 없음');
   await panel.click('#btnData');
   await panel.waitForSelector('#dlgData[open]');
   await panel.waitForFunction(() => document.getElementById('dcSummary').textContent.includes('MOCK'));
@@ -237,7 +238,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await panel.waitForFunction(() => document.getElementById('dcSummary').textContent.includes('xlsx 파일'), null, { timeout: 10000 });
     const sum = await panel.textContent('#dcSummary');
     assert(sum.includes('세트 40') && sum.includes('끝장전 5') && sum.includes('세트 전적 대조됨'), 'xlsx 가져오기 → 점검: 세트 40 · 끝장전 5 · 대조됨');
+    assert(sum.includes('더블 찬스 대조됨'), '더블 찬스: 선수별 통계 탭과 대조됨');
     assert((await panel.textContent('#dcAnomaly')).includes('세트 수 4개'), '이상 경기 목록 표시');
+    assert((await panel.textContent('#dcLint')).includes('없음'), '시트 입력 점검 목록 (합성 시트는 없음)');
+    // 관리자 알림: 새 알림 배지 → 알림 창 → 확인 → 확인함 → 데이터 점검 열기
+    await panel.click('#dlgData button[value="close"]');
+    await panel.waitForFunction(() => document.getElementById('alertBadge').textContent === '새 1' && !document.getElementById('alertBadge').hidden);
+    await panel.click('#btnAlerts');
+    await panel.waitForSelector('#dlgAlerts[open] #alList [data-ack]');
+    assert((await panel.textContent('#alList')).includes('세트 수 4개'), '알림 창: 새 알림에 이상 경기');
+    await panel.waitForTimeout(400);
+    await panel.screenshot({ path: path.join(OUT, 'panel-alerts.png') });
+    await panel.click('#alList [data-ack]');
+    await panel.waitForFunction(() => document.getElementById('alList').textContent.includes('새 알림이 없습니다'));
+    await panel.click('#dlgAlerts .tab[data-atab="acked"]');
+    assert((await panel.textContent('#alList')).includes('확인 '), '확인 → 확인함으로 이동');
+    await panel.waitForFunction(() => document.getElementById('alertBadge').hidden);
+    await panel.click('#alOpenData');
+    await panel.waitForSelector('#dlgData[open]');
+    await panel.waitForSelector('#dcAnomaly [data-exclude][data-on="1"]');
     await panel.click('#dcAnomaly [data-exclude][data-on="1"]');
     await panel.waitForSelector('#dlgConfirm[open]');
     await panel.click('#cfOk');
@@ -248,6 +267,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await panel.click('#dlgData button[value="close"]');
     await panel.waitForFunction(() => document.getElementById('srcStatus').textContent.includes('Google 시트(파일)'));
     assert(true, '상단 상태: Google 시트(파일) · 정상');
+    await panel.click('#btnAlerts');
+    await panel.click('#dlgAlerts .tab[data-atab="resolved"]');
+    await panel.waitForFunction(() => document.getElementById('alList').textContent.includes('세트 수 4개'));
+    assert(true, '경기 제외 확정 → 알림이 해결됨으로 이동');
+    await panel.click('#dlgAlerts button[value="close"]');
+    await panel.waitForFunction(() => !document.querySelector('dialog[open]') && document.activeElement === document.body);
     // MOCK 선수로 만든 페이지는 송출 차단 안내
     await panel.keyboard.press('1');
     await panel.keyboard.press('Enter');

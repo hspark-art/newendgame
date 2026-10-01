@@ -28,6 +28,7 @@ require_once APP_DIR . '/data.php';
 require_once APP_DIR . '/templates.php';
 require_once APP_DIR . '/override.php';
 require_once APP_DIR . '/log.php';
+require_once APP_DIR . '/alerts.php';
 require_once APP_DIR . '/control.php';
 require_once APP_DIR . '/views.php';
 require_once APP_DIR . '/actions.php';

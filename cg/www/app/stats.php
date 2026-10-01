@@ -190,8 +190,8 @@ function stats_win_ranking(array $matches, array $players, ?string $race, int $l
 
 /**
  * 연승 순위 (끝장전 경기 단위 — 세트 순서 기록이 없어 세트 연승은 계산할 수 없음).
- * 선수마다 가장 긴 연승 1개. 마지막 경기까지 이어지면 진행 중.
- * @return list<array{player:string, streak:int, start:string, end:string, ongoing:bool, rank:int}>
+ * 선수마다 가장 긴 연승 1개. end = 연승의 마지막 경기 날짜 (지금도 이어지는 연승이면 그 선수의 마지막 출전일).
+ * @return list<array{player:string, streak:int, start:string, end:string, rank:int}>
  */
 function stats_win_streaks(array $matches, array $players, ?string $race, int $limit): array
 {
@@ -209,13 +209,12 @@ function stats_win_streaks(array $matches, array $players, ?string $race, int $l
         $best = null;
         $cur = 0;
         $start = null;
-        foreach ($list as $i => $x) {
+        foreach ($list as $x) {
             if ($x['my'] > $x['their']) {
                 $start = $cur === 0 ? $x['date'] : $start;
                 $cur++;
                 if ($best === null || $cur >= $best['streak']) {
-                    $best = ['player' => $p, 'streak' => $cur, 'start' => $start, 'end' => $x['date'],
-                        'ongoing' => $i === count($list) - 1];
+                    $best = ['player' => $p, 'streak' => $cur, 'start' => $start, 'end' => $x['date']];
                 }
             } else {
                 $cur = 0;

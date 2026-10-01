@@ -45,7 +45,11 @@ if (preg_match('#^/v4/spreadsheets/([A-Za-z0-9_-]+)/values:batchGet$#', $path)) 
         if ($k === 'ranges') {
             $r = rawurldecode($v);
             $title = str_replace("''", "'", substr($r, 1, strrpos($r, "'!") - 1));
-            $out[] = ['range' => $r, 'majorDimension' => 'ROWS', 'values' => $tables[$title] ?? []];
+            [$from, $to] = explode(':', substr($r, strrpos($r, '!') + 1));
+            $ci = static fn(string $c) => ord($c) - 65; // 한 글자 열만 쓴다 (A~Z)
+            $vals = array_map(static fn($row) => array_slice(array_pad(array_values($row), $ci($to) + 1, ''), $ci($from), $ci($to) - $ci($from) + 1),
+                $tables[$title] ?? []);
+            $out[] = ['range' => $r, 'majorDimension' => 'ROWS', 'values' => $vals];
         }
     }
     echo json_encode(['spreadsheetId' => 'x', 'valueRanges' => $out]);

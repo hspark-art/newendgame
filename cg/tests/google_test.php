@@ -18,8 +18,29 @@ function fx_key(string $tokenUri = GOOGLE_TOKEN_URI): array
 function fx_tabs(?callable $tamper = null): array
 {
     $t = fx_tables($tamper);
-    return [SHEET_TABS_DEFAULT['results'] => $t['results'], SHEET_TABS_DEFAULT['players'] => $t['players'],
-        SHEET_TABS_DEFAULT['matches'] => $t['matches'], SHEET_TABS_DEFAULT['predictions'] => $t['predictions'], '상금 보정' => [['x']]];
+    $out = [];
+    foreach (SHEET_TABS_DEFAULT as $k => $title) {
+        $out[$title] = $t[$k];
+    }
+    return $out + ['Global Stats' => [['읽지 않는 탭']]];
+}
+
+/** Google처럼 요청한 열 범위("H:H", "M:N")만 잘라서 돌려준다 */
+function fx_slice(array $rows, string $cols): array
+{
+    [$from, $to] = explode(':', $cols);
+    $a = col_index($from);
+    $b = col_index($to);
+    return array_map(static fn($r) => array_slice(array_pad(array_values($r), $b + 1, ''), $a, $b - $a + 1), $rows);
+}
+
+/** 읽은 표에 상금 값(Results G, 상금 보정 C·D, 선수별 통계 J~L)이 없는지 */
+function fx_assert_no_prize(array $tables): void
+{
+    assert_same([''], array_values(array_unique(array_map(static fn($r) => $r[6] ?? '', $tables['results']))), 'Results G(상금) 비어 있음');
+    assert_same(['Winner', 'Race', 'Loser', 'Race', 'Map', 'Date', '', 'Double Chance'], $tables['results'][0]);
+    $flat = json_encode([$tables['adjust'], $tables['stats']], JSON_UNESCAPED_UNICODE);
+    assert_true(!str_contains($flat, '500000') && !str_contains($flat, '999') && !str_contains($flat, '상금'), '상금 보정·선수별 통계의 상금 열 없음');
 }
 
 /** 메모리 안의 가짜 Google (HTTP 함수를 바꿔 끼움) */
@@ -51,7 +72,7 @@ function fx_transport(array $tabs, string $pub, array &$log, array $fail = []): 
             foreach ($m[1] as $r) {
                 $r = rawurldecode($r);
                 $title = str_replace("''", "'", substr($r, 1, strrpos($r, "'!") - 1));
-                $out[] = ['range' => $r, 'values' => $tabs[$title] ?? []];
+                $out[] = ['range' => $r, 'values' => fx_slice($tabs[$title] ?? [], substr($r, strrpos($r, '!') + 1))];
             }
             return ['status' => 200, 'body' => json_encode(['valueRanges' => $out])];
         }
@@ -156,15 +177,19 @@ test('google: 서명한 JWT로 토큰 → 탭 목록 → 필요한 열만 batchG
         $r = data_refresh(op());
         assert_same(0, $r['changed']);
         assert_same(3, count($log), '토큰·탭 목록·batchGet 3번');
+        assert_same(['sets' => true, 'matches' => true, 'predictions' => true, 'double' => true],
+            panel_state(op())['data']['check']['verified'], '가져온 표로 4가지 대조 모두 가능');
         $batch = rawurldecode($log[2][1]);
-        foreach (["'Results'!A:F", "'Players'!A:O", "'상대전적조회NEW'!A:I", "'중계진 예측 현황입력용'!A:Q"] as $range) {
+        foreach (["'Results'!A:F", "'Results'!H:H", "'Players'!A:O", "'상대전적조회NEW'!A:I", "'중계진 예측 현황입력용'!A:Q",
+            "'상금 보정'!A:B", "'상금 보정'!E:E", "'선수별 통계'!B:B", "'선수별 통계'!M:N"] as $range) {
             assert_true(str_contains($batch, $range), "요청 범위 $range");
         }
-        assert_true(!str_contains($batch, '상금'), '필요 없는 탭(상금)은 읽지 않음');
+        assert_true(!str_contains($batch, "'Results'!G") && !str_contains($batch, '!C:') && !str_contains($batch, 'Global'),
+            '상금 열·필요 없는 탭은 읽지 않음');
         assert_true(str_contains($batch, 'TESTsheetID_0123456789abc/values:batchGet'));
         $sum = panel_state(op())['data']['check'];
         assert_same(['games' => 40, 'matches' => 5], array_intersect_key($sum['counts'], ['games' => 1, 'matches' => 1]));
-        assert_same(['sets' => true, 'matches' => true, 'predictions' => true], $sum['verified']);
+        assert_same(['sets' => true, 'matches' => true, 'predictions' => true, 'double' => true], $sum['verified']);
         assert_same('OK', source_status()['status']);
         assert_same('Google 시트', source_status()['label']);
         // 연결 테스트는 반영하지 않고 결과만
@@ -222,7 +247,7 @@ test('google: 설정 변경은 관리자만, 운영자는 새로고침·점검�
 test('xlsx: 시트 파일 가져오기 → 날짜 서식·공유 문자열 읽기 → API와 같은 결과', function () {
     $bytes = fx_xlsx(fx_tabs());
     $tables = xlsx_tables($bytes, SHEET_TABS_DEFAULT);
-    assert_same(['Winner', 'Race', 'Loser', 'Race', 'Map', 'Date'], $tables['results'][0]);
+    fx_assert_no_prize($tables);
     assert_same('2024-01-06', $tables['results'][1][5], '날짜 서식 일련번호 → 날짜');
     $fromXlsx = sheet_dataset($tables, 'xlsx', true);
     $fromApi = sheet_dataset(fx_tables(), 'api');
@@ -259,7 +284,10 @@ test('google: 실제 HTTP 스트림으로 가짜 Google 서버와 통신 (토큰
         fresh_db(['google' => ['token_uri' => "$base/token", 'sheets_base' => "$base/v4/spreadsheets/"]]);
         $key = google_key_parse($k['json']);
         $tables = sheets_fetch_tables(['id' => 'TESTsheetID_0123456789abc', 'tabs' => SHEET_TABS_DEFAULT], $key);
-        assert_same(fx_tables()['results'], $tables['results']);
+        $expect = array_map(static fn($r) => array_replace($r, [6 => '']), fx_tables()['results']);
+        assert_same($expect, $tables['results'], 'Results A:F + H를 원래 열 위치에 합침');
+        fx_assert_no_prize($tables);
+        assert_same(sheet_dataset(fx_tables(), 'api')['double_chance'], sheet_dataset($tables, 'api')['double_chance']);
         $claims = json_decode((string)file_get_contents("$dir/token_claims.json"), true);
         assert_same('cg-reader@test-project.iam.gserviceaccount.com', $claims['iss']);
         assert_true(str_contains(rawurldecode((string)file_get_contents("$dir/batch_query.txt")), "'Results'!A:F"));

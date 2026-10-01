@@ -6,15 +6,33 @@ declare(strict_types=1);
  * - 시트는 공개하지 않는다. 시트 소유자가 서비스 계정 이메일에 "뷰어" 권한만 준다.
  * - 권한 범위는 읽기 전용(spreadsheets.readonly). 액세스 토큰은 새로고침할 때마다 새로 받고 저장하지 않는다.
  * - 서비스 계정 키는 비밀 폴더(data.php의 secrets_dir)에만 두고 화면·로그·오류 메시지에 내보내지 않는다.
- * - 필요한 탭·열만 읽는다 (Results는 A:F — 상금 열은 읽지 않음).
+ * - 필요한 탭·열만 읽는다. 상금 열(Results G, 상금 보정 C·D, 선수별 통계 J~L)은 읽지 않는다.
  */
 
 const GOOGLE_TOKEN_URI = 'https://oauth2.googleapis.com/token';
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets/';
 const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly';
 
-/** 탭별로 읽을 열 */
-const SHEET_RANGES = ['results' => 'A:F', 'players' => 'A:O', 'matches' => 'A:I', 'predictions' => 'A:Q'];
+/** 탭별로 읽을 열 (한 탭에서 떨어진 열은 범위를 나눠 읽고, 원래 열 위치에 맞춰 합친다) */
+const SHEET_RANGES = [
+    'results' => ['A:F', 'H:H'],      // Winner·Race·Loser·Race·Map·Date + Double Chance (G: Prize는 읽지 않음)
+    'players' => ['A:O'],             // ID·Race·W/L (P열 이후 상금은 읽지 않음)
+    'matches' => ['A:I'],
+    'predictions' => ['A:Q'],
+    'adjust' => ['A:B', 'E:E'],       // 날짜·선수명·더블 찬스 횟수
+    'stats' => ['B:B', 'M:N'],        // 선수명·더블 성공 횟수·더블 시도
+];
+
+/** "H:H" → 7 (A=0) */
+function col_index(string $range): int
+{
+    $letters = (string)preg_replace('/[^A-Z].*$/', '', strtoupper($range));
+    $n = 0;
+    foreach (str_split($letters) as $ch) {
+        $n = $n * 26 + (ord($ch) - 64);
+    }
+    return $n - 1;
+}
 
 /** 접속 주소. config의 google.token_uri / google.sheets_base 는 테스트(가짜 서버)에서만 바꾼다 */
 function google_endpoints(): array
@@ -154,26 +172,53 @@ function sheets_fetch_tables(?array $cfg = null, ?array $key = null): array
     $token = google_access_token($key);
     $meta = sheets_get(rawurlencode($cfg['id']) . '?fields=' . rawurlencode('sheets.properties.title'), $token);
     $titles = array_map(static fn($s) => (string)($s['properties']['title'] ?? ''), (array)($meta['sheets'] ?? []));
-    $want = [];
+    $want = []; // [키, 시작 열, 범위]
     foreach (SHEET_RANGES as $k => $cols) {
         $title = $cfg['tabs'][$k] ?? SHEET_TABS_DEFAULT[$k];
         if (in_array($title, $titles, true)) {
-            $want[$k] = "'" . str_replace("'", "''", $title) . "'!" . $cols;
+            foreach ($cols as $c) {
+                $want[] = [$k, col_index($c), "'" . str_replace("'", "''", $title) . "'!" . $c];
+            }
         }
     }
-    if (!isset($want['results'])) {
+    if (!in_array('results', array_column($want, 0), true)) {
         throw new ProviderError("시트에 '" . ($cfg['tabs']['results'] ?? 'Results') . "' 탭이 없습니다. 탭 이름을 확인하세요.");
     }
-    $q = implode('&', array_map(static fn($r) => 'ranges=' . rawurlencode($r), $want))
+    $q = implode('&', array_map(static fn($w) => 'ranges=' . rawurlencode($w[2]), $want))
         . '&majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING';
     $batch = sheets_get(rawurlencode($cfg['id']) . '/values:batchGet?' . $q, $token);
     $ranges = (array)($batch['valueRanges'] ?? []);
     if (count($ranges) !== count($want)) {
         throw new ProviderError('Google 시트 응답의 탭 수가 요청과 다릅니다.');
     }
-    $tables = ['results' => [], 'players' => null, 'matches' => null, 'predictions' => null];
-    foreach (array_keys($want) as $i => $k) {
-        $tables[$k] = array_map(static fn($row) => is_array($row) ? array_values($row) : [], (array)($ranges[$i]['values'] ?? []));
+    $tables = array_fill_keys(array_keys(SHEET_RANGES), null);
+    foreach ($want as $i => [$k, $offset]) {
+        $tables[$k] ??= [];
+        foreach ((array)($ranges[$i]['values'] ?? []) as $r => $row) {
+            foreach (is_array($row) ? array_values($row) : [] as $j => $v) {
+                $tables[$k][$r][$offset + $j] = $v;
+            }
+            $tables[$k][$r] ??= [];
+        }
     }
+    // 빈 칸을 ''로 채운 순서 있는 행 목록으로
+    foreach ($tables as $k => $rows) {
+        if ($rows === null) {
+            continue;
+        }
+        ksort($rows);
+        $list = [];
+        $max = $rows ? max(array_keys($rows)) : -1;
+        for ($r = 0; $r <= $max; $r++) {
+            $row = $rows[$r] ?? [];
+            $line = $row ? array_fill(0, max(array_keys($row)) + 1, '') : [];
+            foreach ($row as $j => $v) {
+                $line[$j] = $v;
+            }
+            $list[] = $line;
+        }
+        $tables[$k] = $list;
+    }
+    $tables['results'] ??= [];
     return $tables;
 }

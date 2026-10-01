@@ -44,12 +44,12 @@ CLAUDE.md → 아래 진행 기록 → 현재 단계 관련 문서·코드만 �
 
 | 항목 | 현재 기록 |
 |---|---|
-| 현재 단계 | v0.3.1 — 실제 시트 대조 반영 (다승 끝장전 기준, 이상 경기 제외 확정, 예측 순위표 읽기). PHASE 9 eloboard는 조건부 대기 |
+| 현재 단계 | v0.4.0 — 더블 찬스 자동값(시트 집계 대조), 연승 종료일 = 마지막 출전일, 관리자 알림, 시트 입력 점검. PHASE 9 eloboard는 조건부 대기 |
 | 완료 단계 | 0~6 첫 MVP, W 웹 계정·관리자·비밀 송출 주소, R 배포·패치·무결성 검사, 7 CG 9종, 8 Google 시트(세트 단위 원천·끝장전 묶기·이상 경기 분리·시트 집계 교차 검증·마지막 정상 데이터 캐시·데이터 점검 창·선수 닉네임) |
-| 변경 파일 | PHASE 8: www/app/{sheet_data,sheets,xlsx,verify,data}.php(신규), provider·stats·control·templates·views·migrate(2)·actions, templates/*.def.php(verify), www/index.php·assets/panel.*, desktop/runtime/php.ini(openssl·zip), web/GOOGLE_SHEET_KR.md, tests/{sheet,google}_test.php·fake_google.php |
-| 검증 결과 / 미검증 | 자동 테스트 79건 통과(SQLite·MySQL, v0.3.0): 합성 시트 데이터 묶기·이상 경기·형식 오류·교차 검증 차단·수동 해제, 서비스 계정 JWT 서명, 가짜 Google 서버(실제 HTTP), xlsx, 키 보관·노출 없음, 관리자 전용. 브라우저 39항목 통과(배포 zip 기준, 데이터 창·xlsx 가져오기 포함). 코드 검토 9건+보강 반영. **미검증**: 실제 시트 전체 대조(xlsx 필요), 실제 Google 연결, Windows openssl·zip, eloboard(접속 차단), OBS/vMix, 실제 호스팅 |
-| 미확정·장애 | 실제 시트 전체 대조(이 환경에서 docs.google.com 차단 → xlsx 파일 필요), 더블 찬스 정의, eloboard 약관·접속(이 환경에서 차단), 예측 순위 표시 순서, 방송 폰트, 웹 도메인·호스팅 |
-| 다음 작업 | 사용자 xlsx로 실데이터 대조 → 불일치·이상 사례 보고 → (허용 시) eloboard 약관 확인 → PHASE 9 또는 수동 입력 유지 |
+| 변경 파일 | v0.4.0: www/app/alerts.php(신규), sheet_data·sheets·xlsx·verify·data·control·views·actions·stats·migrate(3), templates/{double-chance,win-streak}.*, www/index.php·admin.php·assets/panel.*, tests/alerts_test.php(신규)·sheet·google·cg_types·http_test, browser_check.cjs |
+| 검증 결과 / 미검증 | 자동 테스트 85건 통과(SQLite·MySQL, v0.4.0). 실제 시트 xlsx로 더블 찬스 31명 모두 선수별 통계와 일치, 알림 15건(행 번호 포함) 확인. 브라우저 확인은 VALIDATION 8절. **미검증**: 실제 Google 연결(키 없음), Windows openssl·zip, eloboard(접속 차단), OBS/vMix, 실제 호스팅 |
+| 미확정·장애 | eloboard 약관·접속(이 환경에서 차단 — 사용자가 네트워크 허용 필요), 예측 순위 표시 순서, 방송 폰트, 웹 도메인·호스팅. 실제 시트 수정 필요: Results 236·281·454·497행 종족 칸 공백, 2110행 변현제 종족 |
+| 다음 작업 | 시트 수정 후 새로고침 → 알림 해결 확인 → (eloboard 접속 허용 시) 약관·robots 확인 → PHASE 9 또는 수동 입력 유지 |
 
 **MVP 검수표 (PHASE 0~6)**
 - [x] 조작 패널과 더블클릭 시작 수단 (Electron 대신 PHP 로컬 서버 + Edge 앱 창; Windows 실행은 미검증)
@@ -77,3 +77,10 @@ CLAUDE.md → 아래 진행 기록 → 현재 단계 관련 문서·코드만 �
 - 2026-10-01 실제 시트 대조 후 결정
   - 다승 순위는 끝장전 승패로 센다(레퍼런스 04와 일치).
   - 2023-12-11 5세트 경기 2건은 끝장전 통계에서 제외한다. 관리자 "제외 확정" 기능으로 처리하며, 자동 제외 규칙은 두지 않는다.
+
+### v0.4.0 결정 (2026-10-01)
+- 연승 CG: "진행 중" 대신 날짜를 표시한다. 종료일 = 연승의 마지막 경기 날짜이고, 지금도 이어지는 연승이면 마지막 출전일이다. 노랑 강조는 없앴다.
+- 더블 찬스: 사용자 정의(Results A열 = 승, C열 = 패)와 실제 시트를 대조한 뒤 "어떤 게 정확한지 확인하고 진행" 지시에 따라 시트 공식 집계와 일치하는 규칙을 쓴다.
+  - 승 = A열 승자인 더블 찬스 세트 수(상금 보정 탭 우선), 패 = 2 × 경기 수 − 승. 선수별 통계 탭과 31명 모두 일치.
+  - C열 기준 패는 89건이 시트 집계와 달라 쓰지 않는다. 선수별 통계 탭과 다르면 송출 차단.
+- 데이터 오류 알림: 관리자 메뉴의 알림 목록으로만 알린다(브라우저·메일 알림 없음, 사용자 선택). PC는 상단 [알림], 웹은 [알림]과 관리자 화면 "데이터 알림".

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * 웹 버전 관리자: 계정 승인·정지·역할, 초대 링크, 재설정 링크, 비밀 송출 주소, 시스템 정보·무결성 검사.
+ * 웹 버전 관리자: 데이터 알림, 계정 승인·정지·역할, 초대 링크, 재설정 링크, 비밀 송출 주소, 시스템 정보·무결성 검사.
  * 다른 사람의 비밀번호를 볼 수 있는 기능은 없다.
  */
 require __DIR__ . '/app/bootstrap.php';
@@ -39,6 +39,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             case 'verify':
                 $_SESSION['verify'] = release_verify();
                 break;
+            case 'alert_ack':
+                alert_ack(post_str('all', 1) === '1' ? ['all' => true] : ['id' => $id], $admin);
+                flash('ok', '알림을 확인했습니다.');
+                break;
         }
     } catch (ActionError $e) {
         flash('err', $e->getMessage());
@@ -56,6 +60,7 @@ $info = release_info();
 $authLogs = db_all("SELECT * FROM cg_logs WHERE type = 'auth' ORDER BY id DESC LIMIT 30");
 $statusName = ['pending' => '승인 대기', 'active' => '사용 중', 'suspended' => '정지', 'rejected' => '거절'];
 $outputUrl = base_url() . '/output.php?t=' . rawurlencode((string)setting_get('output_token')) . '&layer=1';
+$alerts = alerts_view($admin);
 
 /** 계정 작업 버튼 하나 */
 $btn = static function (int $id, string $action, string $label, string $confirm = '') {
@@ -74,6 +79,35 @@ if ($newLink !== null): ?>
     <code class="copy" tabindex="0"><?= h($newLink[1]) ?></code>
   </div>
 <?php endif ?>
+
+<section>
+  <h2>데이터 알림 <?= $alerts['new'] ? '<span class="tag">새 ' . count($alerts['new']) . '</span>' : '' ?></h2>
+  <p class="hint">시트 데이터 오류와 새로고침 실패입니다. 문제가 사라지면 자동으로 해결됨으로 옮겨집니다.
+    자세한 점검·경기 제외 확정은 <a href="index.php">조작 패널</a>의 [데이터 점검·설정]·[알림]에서 합니다.</p>
+<?php if (!$alerts['new'] && !$alerts['acked']): ?>
+  <p class="muted">처리할 알림이 없습니다.</p>
+<?php else: ?>
+  <?php if ($alerts['new']): ?>
+  <form method="post" class="row"><?= csrf_field() ?><input type="hidden" name="do" value="alert_ack"><input type="hidden" name="all" value="1">
+    <button class="sm">새 알림 모두 확인</button></form>
+  <?php endif ?>
+  <table>
+    <thead><tr><th>상태</th><th>종류</th><th>내용</th><th>발생</th><th></th></tr></thead>
+    <tbody>
+<?php foreach (array_merge($alerts['new'], $alerts['acked']) as $a): ?>
+      <tr>
+        <td><?= $a['acked_at'] === null ? '<b>새 알림</b>' : '확인함 (' . h((string)$a['acked_by']) . ')' ?></td>
+        <td><?= h($a['kind_label']) ?></td>
+        <td><b><?= h($a['title']) ?></b><br><span class="hint"><?= h($a['detail']) ?></span></td>
+        <td><?= h(substr($a['first_at'], 0, 16)) ?></td>
+        <td><?php if ($a['acked_at'] === null): ?><form method="post" class="inline"><?= csrf_field() ?>
+          <input type="hidden" name="do" value="alert_ack"><input type="hidden" name="id" value="<?= (int)$a['id'] ?>"><button class="sm">확인</button></form><?php endif ?></td>
+      </tr>
+<?php endforeach ?>
+    </tbody>
+  </table>
+<?php endif ?>
+</section>
 
 <section>
   <h2>계정</h2>

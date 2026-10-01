@@ -89,6 +89,19 @@ test('http(web): 설치 → 초대 → 가입 → 승인 → 조작 → 비밀 �
         assert_true(str_contains($url, 'output.php?t='), '송출 주소에 비밀 토큰');
         $path = substr($url, strlen($b));
 
+        // 데이터 알림: 관리자 화면에 새 알림 → 확인. 운영자는 알림을 볼 수 없음
+        db_web($srv, static fn() => alert_upsert('mismatch', 'sets|가선수|세트 전적', '가선수 세트 전적: 시트 99승 9패 / 계산 9승 9패',
+            '이 수치를 쓰는 CG는 송출이 막힙니다.', now()));
+        assert_same(1, $admin->get('/api/state.php')['json']['alerts_new']);
+        assert_same(null, $op->get('/api/state.php')['json']['alerts_new']);
+        assert_same(403, $op->action('alerts')['status'], '운영자는 알림 목록 불가');
+        $page = $admin->get('/admin.php')['body'];
+        assert_true(str_contains($page, '가선수 세트 전적: 시트 99승 9패') && str_contains($page, '새 1'), '관리자 화면에 새 알림');
+        $admin->form('/admin.php', ['do' => 'alert_ack', 'id' => (string)db_value_web($srv, 'SELECT id FROM cg_alerts')]);
+        assert_same('관리자', db_value_web($srv, 'SELECT acked_by FROM cg_alerts'));
+        assert_same(0, $admin->get('/api/state.php')['json']['alerts_new']);
+        assert_true(str_contains($admin->get('/admin.php')['body'], '확인함 (관리자)'));
+
         // 비밀 송출 주소 (로그인 없이)
         $obs = new Client($b);
         $out = $obs->get($path);
@@ -161,19 +174,25 @@ test('http(web): 설치 → 초대 → 가입 → 승인 → 조작 → 비밀 �
     }
 });
 
-/** 테스트 서버가 쓰는 DB를 직접 조회 */
-function db_value_web(TestServer $srv, string $sql): mixed
+/** 테스트 서버가 쓰는 DB로 $fn 실행 */
+function db_web(TestServer $srv, callable $fn): mixed
 {
     $cfg = require $srv->dir . '/config.php';
     $saved = $GLOBALS['CG_CONFIG'] ?? null;
     $GLOBALS['CG_CONFIG'] = $cfg;
     db_reset();
     try {
-        return db_value($sql);
+        return $fn();
     } finally {
         $GLOBALS['CG_CONFIG'] = $saved;
         db_reset();
     }
+}
+
+/** 테스트 서버가 쓰는 DB를 직접 조회 */
+function db_value_web(TestServer $srv, string $sql): mixed
+{
+    return db_web($srv, static fn() => db_value($sql));
 }
 
 test('http(pc): 조작은 로컬 Host만, 웹 전용 화면·내부 파일 차단, 송출 화면 프레임 허용', function () {

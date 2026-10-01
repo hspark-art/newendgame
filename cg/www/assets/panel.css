@@ -182,6 +182,12 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .dc-summary p { margin: 4px 0; }
 .dc-list { max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 4px; }
 .dc-list.plain { margin: 0; padding: 6px 10px 6px 26px; }
+.al-list { list-style: none; margin: 8px 0 0; padding: 0; max-height: 56vh; overflow: auto; }
+.al-list li { padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; margin-bottom: 6px; }
+.al-list li.k-mismatch, .al-list li.k-refresh { border-left: 4px solid #b91c1c; }
+.al-list li.k-anomaly, .al-list li.k-unavailable { border-left: 4px solid var(--warn); }
+.al-detail { margin: 4px 0; color: var(--muted); }
+.al-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .grid-table { width: 100%; border-collapse: collapse; }
 .grid-table th, .grid-table td { padding: 4px 8px; border-bottom: 1px solid var(--line); text-align: left; }
 .grid-table th { position: sticky; top: 0; background: var(--panel2); color: var(--muted); font-weight: 600; }

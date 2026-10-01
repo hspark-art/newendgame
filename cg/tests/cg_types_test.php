@@ -26,7 +26,7 @@ test('stats: 서수·공동 순위', function () {
     assert_same([1, 2, 2, 4], array_column($rows, 'rank'));
 });
 
-test('stats: 풀세트는 9전만, 연승은 경기 순서대로·진행 중 표시', function () {
+test('stats: 풀세트는 9전만, 연승은 경기 순서대로·종료일은 마지막 경기 날짜', function () {
     $m = fn($id, $d, $a, $b, $sa, $sb, $bo = 9) => ['id' => $id, 'date' => $d, 'playerA' => $a, 'playerB' => $b,
         'raceA' => 'Z', 'raceB' => 'T', 'scoreA' => $sa, 'scoreB' => $sb, 'bestOf' => $bo];
     $matches = [
@@ -37,8 +37,8 @@ test('stats: 풀세트는 9전만, 연승은 경기 순서대로·진행 중 표
     $players = ['x' => ['name' => 'X', 'race' => 'Z'], 'y' => ['name' => 'Y', 'race' => 'T']];
     $s = stats_win_streaks($matches, $players, null, 5);
     assert_same('x', $s[0]['player']);
-    assert_same([3, '2024-03-01', '2024-05-01', true], [$s[0]['streak'], $s[0]['start'], $s[0]['end'], $s[0]['ongoing']]);
-    assert_same(['y', 1, false], [$s[1]['player'], $s[1]['streak'], $s[1]['ongoing']]);
+    assert_same([3, '2024-03-01', '2024-05-01'], [$s[0]['streak'], $s[0]['start'], $s[0]['end']], '이어지는 연승 = 마지막 출전일');
+    assert_same(['y', 1, '2024-02-01'], [$s[1]['player'], $s[1]['streak'], $s[1]['end']]);
 });
 
 test('CG#1 상대 종족 승률: 세트 기준 33승 21패 (61.1%)', function () {
@@ -127,14 +127,15 @@ test('CG#7 더블 찬스: 집계표 값, 집계표에 없으면 수동 입력 �
     take_now();
 });
 
-test('CG#8 연승 순위: 기본 테란, 진행 중 연승, 전체 종족 공동 순위', function () {
+test('CG#8 연승 순위: 기본 테란, 이어지는 연승은 마지막 출전일까지, 전체 종족 공동 순위', function () {
     setup_types();
     $st = type_state('win-streak', []);
     assert_same('끝장전 테란 연승 순위', $st['view']['title'], '종족을 보내지 않으면 기본 테란');
-    assert_same(['name' => '이재호', 'streak' => '6연승', 'period' => '2024-09-28 ~ 진행 중', 'ongoing' => true],
-        array_intersect_key($st['view']['rows'][0], array_flip(['name', 'streak', 'period', 'ongoing'])));
-    assert_same(['2nd', '김지성', '2022-08-04 ~ 2025-10-23', false],
-        [$st['view']['rows'][1]['rank'], $st['view']['rows'][1]['name'], $st['view']['rows'][1]['period'], $st['view']['rows'][1]['ongoing']]);
+    assert_same(['name' => '이재호', 'streak' => '6연승', 'period' => '2024-09-28 ~ 2026-02-20'],
+        array_intersect_key($st['view']['rows'][0], array_flip(['name', 'streak', 'period'])), '"진행 중" 대신 마지막 출전일');
+    assert_same('2026-02-20', max(array_column(array_filter(provider_load('mock')['matches'], fn($m) => in_array('lee-jaeho', [$m['playerA'], $m['playerB']], true)), 'date')));
+    assert_same(['2nd', '김지성', '2022-08-04 ~ 2025-10-23'],
+        [$st['view']['rows'][1]['rank'], $st['view']['rows'][1]['name'], $st['view']['rows'][1]['period']]);
     $st = type_state('win-streak', ['race' => '', 'count' => '5']);
     assert_same('끝장전 연승 순위', $st['view']['title']);
     assert_same(['1st', '2nd', '3rd', '3rd', '5th'], array_column($st['view']['rows'], 'rank'));

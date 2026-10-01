@@ -145,9 +145,14 @@
     var st = $('srcStatus');
     var src = S.source;
     var chk = S.data.check;
-    var bad = chk && !chk.mock ? chk.mismatches + chk.anomalies + chk.unavailable.length : 0;
+    var bad = chk && !chk.mock ? chk.mismatches + chk.anomalies + chk.unavailable.length + (chk.lint || 0) : 0;
     $('dataBadge').hidden = bad === 0;
     $('dataBadge').textContent = '확인 ' + bad;
+    // 관리자 알림: 관리자에게만 버튼이 보이고, 확인하지 않은 새 알림 수를 표시
+    var an = S.alerts_new;
+    $('btnAlerts').hidden = an === null || an === undefined;
+    $('alertBadge').hidden = !an;
+    $('alertBadge').textContent = '새 ' + an;
     if (src.status === 'OK') {
       st.className = 'status ok';
       st.textContent = src.label + (chk && chk.method === 'xlsx' ? '(파일)' : '') + ' · 정상 · ' + (src.last_success_at || '').slice(5, 16);
@@ -576,13 +581,14 @@
         html = '<p><b>Google 시트' + (s.method === 'xlsx' ? ' (xlsx 파일)' : '') + '</b> · ' + esc(s.at) + '</p>'
           + '<p>세트 ' + c.games + ' · 끝장전 ' + c.matches + ' (통계 사용 ' + c.valid_matches + ') · 선수 ' + c.players
           + ' · 예측 ' + c.predictions + ' · 기간 ' + esc(c.first_date) + ' ~ ' + esc(c.last_date) + '</p>'
-          + '<p>' + v(s.verified.sets, '세트 전적') + v(s.verified.matches, '끝장전 목록') + v(s.verified.predictions, '승자 예측') + '</p>'
+          + '<p>' + v(s.verified.sets, '세트 전적') + v(s.verified.matches, '끝장전 목록') + v(s.verified.predictions, '승자 예측')
+          + v(s.verified.double, '더블 찬스') + '</p>'
           + s.unavailable.map(function (u) { return '<p class="notice err">' + esc(u) + '</p>'; }).join('');
       }
       $('dcSummary').innerHTML = html;
       $('dcMisCount').textContent = r.mismatches.length + '건';
       $('dcAnoCount').textContent = r.anomalies.length + '건';
-      var kinds = { sets: '세트 전적', matches: '끝장전', predictions: '승자 예측' };
+      var kinds = { sets: '세트 전적', matches: '끝장전', predictions: '승자 예측', double: '더블 찬스' };
       $('dcMismatch').innerHTML = r.mismatches.map(function (m) {
         return '<tr><td>' + esc(kinds[m.kind] || m.kind) + '</td><td>' + esc(m.who) + '</td><td>' + esc(m.item) + '</td><td>'
           + esc(m.sheet) + '</td><td>' + esc(m.calc) + '</td></tr>';
@@ -593,6 +599,9 @@
           ? ' <button type="button" class="btn sm" data-exclude="' + esc(a.match) + '" data-on="1">끝장전 통계 제외 확정</button>' : '';
         return '<li>' + esc(a.text) + btn + '</li>';
       }).join('') || '<li class="muted">없음</li>';
+      var lint = r.lint || [];
+      $('dcLintCount').textContent = lint.length + '건';
+      $('dcLint').innerHTML = lint.map(function (l) { return '<li>' + esc(l.text) + '</li>'; }).join('') || '<li class="muted">없음</li>';
       $('dcExcCount').textContent = r.excluded.length + '건';
       $('dcExcluded').innerHTML = r.excluded.map(function (a) {
         var btn = admin ? ' <button type="button" class="btn sm" data-exclude="' + esc(a.match) + '" data-on="0">제외 취소</button>' : '';
@@ -610,6 +619,9 @@
     }).join('') || '<tr><td colspan="4" class="muted">선수 목록이 없습니다. 데이터를 먼저 불러오세요.</td></tr>';
   }
 
+  var TAB_INPUTS = [['dsTabResults', 'results'], ['dsTabPlayers', 'players'], ['dsTabMatches', 'matches'],
+    ['dsTabPredictions', 'predictions'], ['dsTabAdjust', 'adjust'], ['dsTabStats', 'stats']];
+
   function renderSettings(r) {
     $('dsNotAdmin').hidden = r.admin;
     Array.prototype.forEach.call(document.querySelectorAll('#dsForm input, #dsForm select, #dsForm button'), function (el) {
@@ -619,8 +631,7 @@
       return '<option value="' + esc(k) + '"' + (k === r.source ? ' selected' : '') + '>' + esc(r.sources[k]) + '</option>';
     }).join('');
     $('dsSheet').value = r.sheet_id ? (r.admin ? 'https://docs.google.com/spreadsheets/d/' + r.sheet_id + '/edit' : r.sheet_id) : '';
-    [['dsTabResults', 'results'], ['dsTabPlayers', 'players'], ['dsTabMatches', 'matches'], ['dsTabPredictions', 'predictions']]
-      .forEach(function (x) { $(x[0]).value = (r.tabs || {})[x[1]] || ''; });
+    TAB_INPUTS.forEach(function (x) { $(x[0]).value = (r.tabs || {})[x[1]] || ''; });
     $('dsKeyEmail').textContent = r.key_email || '없음';
     $('dsOpenssl').hidden = r.openssl;
     $('dsZip').hidden = r.zip;
@@ -628,11 +639,10 @@
   }
 
   function saveSettings() {
-    return api('data_settings_save', {
-      source: $('dsSource').value, sheet: $('dsSheet').value,
-      tabs: { results: $('dsTabResults').value, players: $('dsTabPlayers').value, matches: $('dsTabMatches').value,
-        predictions: $('dsTabPredictions').value }
-    }).then(function (r) { renderSettings(r); toast('데이터 설정을 저장했습니다. [데이터 새로고침]으로 반영하세요.', 'ok'); });
+    var tabs = {};
+    TAB_INPUTS.forEach(function (x) { tabs[x[1]] = $(x[0]).value; });
+    return api('data_settings_save', { source: $('dsSource').value, sheet: $('dsSheet').value, tabs: tabs })
+      .then(function (r) { renderSettings(r); toast('데이터 설정을 저장했습니다. [데이터 새로고침]으로 반영하세요.', 'ok'); });
   }
 
   /** 파일 읽기. 파일이 없거나 너무 크거나 읽지 못하면 안내하고 끝낸다 (이어지는 동작은 실행되지 않음) */
@@ -650,6 +660,39 @@
       reader.onerror = function () { toast('파일을 읽지 못했습니다.', 'err'); };
       if (asDataUrl) { reader.readAsDataURL(f); } else { reader.readAsText(f); }
     });
+  }
+
+  // ------------------------------------------------------------ 관리자 알림
+
+  var alTab = 'new';
+  var alData = null;
+  var AL_EMPTY = { new: '새 알림이 없습니다.', acked: '확인한 알림이 없습니다.', resolved: '해결된 알림이 없습니다.' };
+
+  function openAlerts() {
+    alTab = 'new';
+    $('dlgAlerts').returnValue = '';
+    $('dlgAlerts').showModal();
+    api('alerts').then(renderAlerts);
+  }
+
+  function renderAlerts(r) {
+    alData = r;
+    $('alNewCount').textContent = r.new.length;
+    $('alAckCount').textContent = r.acked.length;
+    $('alResCount').textContent = r.resolved.length;
+    Array.prototype.forEach.call(document.querySelectorAll('#dlgAlerts .tab'), function (b) {
+      b.classList.toggle('on', b.getAttribute('data-atab') === alTab);
+    });
+    $('alAckAll').hidden = alTab !== 'new' || r.new.length === 0;
+    $('alList').innerHTML = r[alTab].map(function (a) {
+      var when = alTab === 'resolved' ? '해결 ' + a.resolved_at
+        : (alTab === 'acked' ? '확인 ' + a.acked_at + ' · ' + a.acked_by + ' · ' : '') + '발생 ' + a.first_at
+          + (a.last_at !== a.first_at ? ' · 최근 감지 ' + a.last_at : '');
+      return '<li class="k-' + esc(a.kind) + '"><div><span class="tag ' + (alTab === 'resolved' ? 'auto' : 'err') + '">'
+        + esc(a.kind_label) + '</span> <b>' + esc(a.title) + '</b></div>'
+        + '<div class="al-detail">' + esc(a.detail) + '</div><div class="al-meta muted">' + esc(when)
+        + (alTab === 'new' ? ' <button type="button" class="btn sm" data-ack="' + a.id + '">확인</button>' : '') + '</div></li>';
+    }).join('') || '<li class="muted">' + AL_EMPTY[alTab] + (alTab === 'resolved' ? ' (최근 ' + r.keep_days + '일)' : '') + '</li>';
   }
 
   // ------------------------------------------------------------ 가져오기·내보내기
@@ -703,6 +746,16 @@
       b.onclick = function () { dataTab(b.getAttribute('data-tab')); };
     });
     // 데이터 창의 입력칸에서 Enter: 창이 닫히지 않게 막고, 닉네임 칸이면 그 줄을 저장한다
+    $('btnAlerts').onclick = openAlerts;
+    Array.prototype.forEach.call(document.querySelectorAll('#dlgAlerts .tab'), function (b) {
+      b.onclick = function () { alTab = b.getAttribute('data-atab'); if (alData) { renderAlerts(alData); } };
+    });
+    $('alList').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-ack]');
+      if (b) { api('alert_ack', { id: Number(b.getAttribute('data-ack')) }).then(renderAlerts); }
+    });
+    $('alAckAll').onclick = function () { api('alert_ack', { all: true }).then(renderAlerts); };
+    $('alOpenData').onclick = function () { $('dlgAlerts').close(); openData(); };
     $('dlgData').addEventListener('keydown', function (e) {
       if (e.key !== 'Enter' || e.target.tagName !== 'INPUT' || e.isComposing) { return; }
       e.preventDefault();

@@ -206,10 +206,11 @@ function data_check_summary(array $ds, string $now): array
         'source' => $ds['source'], 'mock' => false, 'at' => $ds['fetched_at'] ?? $now, 'method' => $c['method'], 'counts' => $c['counts'],
         'verified' => array_map(static fn($v) => $v['available'], $ds['verify']),
         'anomalies' => count($c['anomalies']), 'mismatches' => count($c['mismatches']), 'unavailable' => $c['unavailable'],
+        'lint' => count($c['lint'] ?? []),
     ];
 }
 
-/** 데이터 점검 창: 요약 + 이상 사례·불일치 목록 (최대 200건씩) */
+/** 데이터 점검 창: 요약 + 이상 사례·불일치·입력 점검 목록 (최대 200건씩) */
 function data_check_view(): array
 {
     $ds = dataset_cache_get(data_source());
@@ -220,6 +221,7 @@ function data_check_view(): array
         'excluded' => $c['excluded'] ?? [],
         'mismatches' => array_slice($c['mismatches'] ?? [], 0, 200),
         'unavailable' => $c['unavailable'] ?? [],
+        'lint' => array_slice($c['lint'] ?? [], 0, 200),
     ];
 }
 

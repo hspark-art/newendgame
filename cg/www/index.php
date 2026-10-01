@@ -35,6 +35,7 @@ $op = guard_control();
     <label class="check"><input type="checkbox" id="autoRefresh" checked> 자동 새로고침</label>
     <button type="button" id="btnRefresh" class="btn sm">데이터 새로고침 <kbd>F5</kbd></button>
     <button type="button" id="btnData" class="btn sm">데이터 점검·설정 <span class="tag err" id="dataBadge" hidden></span></button>
+    <button type="button" id="btnAlerts" class="btn sm" title="데이터 오류·새로고침 실패 알림 (관리자)" hidden>알림 <span class="tag err" id="alertBadge" hidden></span></button>
   </div>
   <div class="top-right">
     <span class="outputs" id="outSeen"><i class="dot"></i> 출력 연결 확인 중</span>
@@ -178,6 +179,9 @@ $op = guard_control();
       <h4>이상 경기·확인 필요 <span class="muted" id="dcAnoCount"></span></h4>
       <p class="hint">9세트가 아닌 경기·동점·경기 중 종족 변경 등은 끝장전 통계(맞대결·연승·풀세트·최근 전적)에서 빼고, 관련 선수의 CG는 확인 전까지 막습니다.</p>
       <ul id="dcAnomaly" class="dc-list plain"></ul>
+      <h4>시트 입력 점검 <span class="muted" id="dcLintCount"></span></h4>
+      <p class="hint">프로그램은 공백을 지우고 읽었지만, 시트 자체 집계(Players 탭 등)는 다르게 셀 수 있는 칸입니다. 안내된 행을 시트에서 고쳐 주세요.</p>
+      <ul id="dcLint" class="dc-list plain"></ul>
       <h4>끝장전 통계에서 제외한 경기 (확정) <span class="muted" id="dcExcCount"></span></h4>
       <p class="hint">세트 수가 9가 아닌 특별 경기 등을 관리자가 제외로 확정한 목록입니다. 세트 전적(종족 승률)에는 그대로 들어갑니다.</p>
       <ul id="dcExcluded" class="dc-list plain"></ul>
@@ -196,6 +200,8 @@ $op = guard_control();
         <label class="prm"><span>세트 집계 탭 (검증)</span><input type="text" id="dsTabPlayers"></label>
         <label class="prm"><span>끝장전 목록 탭 (검증)</span><input type="text" id="dsTabMatches"></label>
         <label class="prm"><span>승자 예측 탭</span><input type="text" id="dsTabPredictions"></label>
+        <label class="prm"><span>더블 찬스 보정 탭</span><input type="text" id="dsTabAdjust"></label>
+        <label class="prm"><span>선수별 통계 탭 (더블 찬스 검증)</span><input type="text" id="dsTabStats"></label>
         <div class="dlg-btns left"><button type="button" id="dsSave" class="btn primary">설정 저장</button>
           <button type="button" id="dsTest" class="btn">연결 테스트</button></div>
         <h4>서비스 계정 키</h4>
@@ -211,6 +217,25 @@ $op = guard_control();
         <p class="hint" id="dsZip" hidden>이 PHP에 zip 확장이 없어 xlsx 파일을 읽을 수 없습니다.</p>
       </div>
     </section>
+    <div class="dlg-btns"><button value="close" class="btn">닫기</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgAlerts" class="dlg wide">
+  <form method="dialog">
+    <h3>알림 <small class="muted">관리자</small></h3>
+    <p class="hint">데이터 오류(시트 집계와 다름·이상 경기·대조 불가·시트 입력 점검)와 새로고침 실패를 모아 보여 줍니다.
+      문제가 사라지면 자동으로 '해결됨'으로 옮겨지고, 다시 생기거나 값이 바뀌면 새 알림이 됩니다.</p>
+    <div class="tabs">
+      <button type="button" class="tab on" data-atab="new">새 알림 <span id="alNewCount"></span></button>
+      <button type="button" class="tab" data-atab="acked">확인함 <span id="alAckCount"></span></button>
+      <button type="button" class="tab" data-atab="resolved">해결됨 <span id="alResCount"></span></button>
+    </div>
+    <div class="dlg-btns left">
+      <button type="button" id="alAckAll" class="btn sm">새 알림 모두 확인</button>
+      <button type="button" id="alOpenData" class="btn sm">데이터 점검 열기</button>
+    </div>
+    <ul id="alList" class="al-list"></ul>
     <div class="dlg-btns"><button value="close" class="btn">닫기</button></div>
   </form>
 </dialog>

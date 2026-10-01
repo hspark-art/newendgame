@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /*
  * #8 연승 순위 — 끝장전(경기) 연승. 세트 순서 기록이 없어 세트 연승은 계산할 수 없다.
- * 선수마다 가장 긴 연승 1개, 마지막 경기까지 이어지면 "진행 중". (레퍼런스 없음)
+ * 선수마다 가장 긴 연승 1개. 종료일 = 연승의 마지막 경기 날짜 — 지금도 이어지는 연승이면 마지막 출전일. (레퍼런스 없음)
  */
 return [
     'slug' => 'win-streak',
@@ -29,7 +29,7 @@ return [
             $n = $i + 1;
             $auto += ["r$n.rank" => $r['rank'], "r$n.name" => pname($ds['players'], $r['player']),
                 "r$n.nick" => $ds['players'][$r['player']]['nickname'] ?? null, "r$n.streak" => $r['streak'],
-                "r$n.start" => $r['start'], "r$n.end" => $r['ongoing'] ? '진행 중' : $r['end']];
+                "r$n.start" => $r['start'], "r$n.end" => $r['end']];
         }
         return $auto;
     },
@@ -54,7 +54,7 @@ return [
             if ($r !== null && $r['name'] !== null) {
                 $rows[] = ['rank' => $r['rank'] === null ? '' : english_ordinal($r['rank']), 'name' => $r['name'],
                     'nick' => (string)$r['nick'], 'streak' => ($r['streak'] ?? '-') . '연승',
-                    'period' => trim(($r['start'] ?? '') . ' ~ ' . ($r['end'] ?? ''), ' ~'), 'ongoing' => $r['end'] === '진행 중'];
+                    'period' => trim(($r['start'] ?? '') . ' ~ ' . ($r['end'] ?? ''), ' ~')];
             }
         }
         return ['title' => (string)$f['title'], 'rows' => $rows];
