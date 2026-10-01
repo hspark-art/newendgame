@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 function router_allowed(string $uriPath): bool
 {
-    static $pages = ['/', '/index.php', '/output.php'];
+    static $pages = ['/', '/index.php', '/output.php', '/design.php'];
     if (str_contains($uriPath, '//')) {
         return false;
     }
@@ -18,5 +18,7 @@ function router_allowed(string $uriPath): bool
     if (preg_match('#^/api/(ping|state|output|action)\.php$#D', $uriPath)) {
         return true;
     }
-    return (bool)preg_match('#^/assets/[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(css|js|png|svg|woff2)$#D', $uriPath);
+    // CG 폰트: assets/fonts/ (파일 이름에 대문자 있음, OFL 원본 ttf 포함)
+    return (bool)preg_match('#^/assets/[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(css|js|png|svg|woff2)$#D', $uriPath)
+        || (bool)preg_match('#^/assets/fonts/[A-Za-z0-9_-]+\.(woff2|ttf)$#D', $uriPath);
 }

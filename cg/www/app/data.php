@@ -284,6 +284,10 @@ function dataset_with_player_info(array $ds): array
             $ds['players'][$r['player']]['nickname'] = $r['nickname'];
         }
     }
+    // 맵 한글 이름: 프로그램 입력이 시트 '맵 이름' 탭보다 우선
+    foreach (db_all('SELECT map, name_ko FROM cg_map_info') as $r) {
+        $ds['map_names'][(string)$r['map']] = $r['name_ko'];
+    }
     return $ds;
 }
 
@@ -410,6 +414,43 @@ function player_info_view(): array
     $raw = dataset_cache_get(data_source());
     return array_values(array_map(static fn($p) => ['id' => $p['id'], 'name' => $p['name'], 'race' => $p['race'],
         'nickname' => $info[$p['id']] ?? '', 'sheet_nick' => (string)($raw['players'][$p['id']]['nickname'] ?? '')], players_cache()));
+}
+
+/** 맵 목록: Results 표기(영문)·세트 수·시트 '맵 이름' 탭 한글·프로그램 입력 한글 (사용 많은 순) */
+function map_info_view(): array
+{
+    $info = [];
+    foreach (db_all('SELECT map, name_ko FROM cg_map_info') as $r) {
+        $info[(string)$r['map']] = $r['name_ko'];
+    }
+    $raw = dataset_cache_get(data_source());
+    return array_values(array_map(static fn($m) => ['id' => $m['id'], 'sets' => $m['sets'], 'name_ko' => $info[$m['id']] ?? '',
+        'sheet_name' => (string)($raw['map_names'][$m['id']] ?? '')], json_dec(setting_get('maps_cache', '{}')) ?: []));
+}
+
+/** 맵 한글 이름 저장 (빈 값이면 삭제 → 시트 값이 있으면 그 값). 저장 후 마지막 정상 데이터로 AUTO를 다시 계산한다 */
+function map_info_save(array $in, array $op): array
+{
+    $map = (string)($in['map'] ?? '');
+    $name = trim((string)($in['name_ko'] ?? ''));
+    if (!isset((json_dec(setting_get('maps_cache', '{}')) ?: [])[$map])) {
+        throw new ActionError('NO_MAP', '데이터에 없는 맵입니다.', 422);
+    }
+    if (mb_strlen($name) > 20 || preg_match('/[\x00-\x1F\x7F<>"]/u', $name)) {
+        throw new ActionError('BAD_MAP_NAME', '맵 이름은 20자 이내 글자로 입력하세요.', 422);
+    }
+    db_tx(function () use ($map, $name, $op) {
+        db_exec('DELETE FROM cg_map_info WHERE map = ?', [$map]);
+        if ($name !== '') {
+            db_exec('INSERT INTO cg_map_info (map, name_ko, updated_at) VALUES (?, ?, ?)', [$map, $name, now()]);
+        }
+        cg_log('data', 'MAP_INFO', $op, ['detail' => "$map 한글 이름: " . ($name === '' ? '(없음)' : $name)]);
+    });
+    $ds = dataset_cache_get(data_source());
+    if ($ds !== null) {
+        data_apply($ds, $op, false);
+    }
+    return ['maps' => map_info_view()];
 }
 
 /** 닉네임 저장 (빈 값이면 삭제 → 시트 '닉네임' 탭 값이 있으면 그 값을 쓴다). 저장 후 마지막 정상 데이터로 AUTO를 다시 계산한다 (네트워크 접속 없음) */

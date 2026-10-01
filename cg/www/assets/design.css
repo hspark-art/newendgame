@@ -1,0 +1,46 @@
+/* CG 디자인 화면 (design.php). 조작 패널(panel.css)의 색·버튼을 그대로 쓰고 배치만 정한다 */
+body.design-page { height: auto; min-height: 100%; }
+.dz { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 14px; padding: 14px; align-items: start; }
+@media (max-width: 1100px) { .dz { grid-template-columns: minmax(0, 1fr); } }
+.dz-monitor { display: grid; gap: 10px; min-width: 0; }
+
+/* 1920×1080 송출 화면 축소판 (오른쪽 아래 기준 배치 — 송출 화면과 같음) */
+.dz-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--line2); border-radius: var(--radius);
+  background: #1a1d24; }
+.dz-stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0;
+  background: repeating-conic-gradient(#23272f 0 25%, #1b1e25 0 50%) 0 0 / 48px 48px; }
+.dz-frame.is-light .dz-stage { background: linear-gradient(135deg, #8fa3bf, #c9d4e3 60%, #e9eef5); }
+.dz-pos { position: absolute; right: 0; bottom: 0; }
+.dz-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.dz-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+.dz-picker .btn[aria-pressed="true"] { border-color: var(--accent); background: #1e3a6e; }
+.dz-strip { display: flex; gap: 16px; overflow-x: auto; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: repeating-conic-gradient(#23272f 0 25%, #1b1e25 0 50%) 0 0 / 48px 48px; align-items: end; }
+.dz-strip figure { margin: 0; flex: none; display: grid; gap: 6px; }
+.dz-strip figcaption { color: var(--muted); font-size: 12px; }
+
+/* 조정 랙 */
+.dz-rack { display: grid; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; min-width: 0; }
+.dz-applied { font-size: 12px; line-height: 1.5; }
+.dz-sec { display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid var(--line); }
+.dz-sec h3 { margin: 0; font-size: 14px; display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.dz-sec h3 small { color: var(--muted); font-weight: 400; font-size: 12px; }
+.dz-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.dz-seg .btn { justify-content: center; text-align: center; white-space: normal; line-height: 1.25; min-height: 40px; }
+.dz-seg .btn[aria-pressed="true"] { border-color: var(--accent); background: #1e3a6e; }
+.dz-field { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 8px; align-items: center; }
+.dz-field span, .dz-slider span, .dz-color span { color: var(--muted); }
+.dz-field select, .dz-row input { min-width: 0; width: 100%; background: var(--panel2); border: 1px solid var(--line2); border-radius: var(--radius); padding: 4px 6px; }
+.dz-slider { display: grid; grid-template-columns: 90px minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
+.dz-slider input { width: 100%; accent-color: var(--accent); }
+.dz-slider output { text-align: right; font-family: var(--mono); }
+.dz-color { display: grid; grid-template-columns: minmax(0, 1fr) 34px 66px auto; gap: 6px; align-items: center; }
+.dz-color input[type="color"] { width: 34px; height: 24px; padding: 0; border: 1px solid var(--line2); border-radius: 4px; background: var(--panel2); }
+.dz-color code { font-size: 12px; }
+.dz-color code.is-theme { color: var(--dim); }
+.dz-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.dz-presets { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.dz-presets li { display: flex; gap: 6px; align-items: center; padding: 5px 8px; background: var(--panel2); border: 1px solid var(--line); border-radius: var(--radius); }
+.dz-presets li b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.dz-presets li small { color: var(--dim); }
+.dz-row { display: flex; gap: 6px; }

@@ -29,7 +29,9 @@ $shown = $state['visible'] && ($only === '' || $state['template'] === $only);
 <meta name="referrer" content="no-referrer">
 <title>끝장전 CG 출력</title>
 <link rel="icon" href="data:,">
+<link rel="stylesheet" href="<?= h(asset_url('cg-fonts.css')) ?>">
 <link rel="stylesheet" href="<?= h(asset_url('cg.css')) ?>">
+<link rel="stylesheet" href="<?= h(asset_url('cg-themes.css')) ?>">
 <link rel="stylesheet" href="<?= h(asset_url('output.css')) ?>">
 </head>
 <body class="out out-<?= h($ch) ?><?= $ghost ? ' out-ghost' : '' ?>">

@@ -1,0 +1,32 @@
+/* CG 폰트 (SIL OFL 1.1 — fonts/README.txt, fonts/licenses/). 고른 폰트만 내려받는다 (CG 디자인 설정).
+   굵기가 하나뿐인 폰트는 모든 굵기에 같은 파일을 써서 브라우저가 가짜 굵게(번짐)를 만들지 않게 한다. */
+@font-face { font-family: "Pretendard"; font-weight: 400; font-style: normal; font-display: block; src: url("fonts/Pretendard-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Pretendard"; font-weight: 500 700; font-style: normal; font-display: block; src: url("fonts/Pretendard-Bold.woff2") format("woff2"); }
+@font-face { font-family: "Pretendard"; font-weight: 800 900; font-style: normal; font-display: block; src: url("fonts/Pretendard-ExtraBold.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans KR"; font-weight: 100 900; font-style: normal; font-display: block; src: url("fonts/NotoSansKR-Variable.woff2") format("woff2"); }
+@font-face { font-family: "NanumGothic"; font-weight: 400; font-style: normal; font-display: block; src: url("fonts/NanumGothic-Regular.ttf") format("truetype"); }
+@font-face { font-family: "NanumGothic"; font-weight: 500 700; font-style: normal; font-display: block; src: url("fonts/NanumGothic-Bold.ttf") format("truetype"); }
+@font-face { font-family: "NanumGothic"; font-weight: 800 900; font-style: normal; font-display: block; src: url("fonts/NanumGothic-ExtraBold.ttf") format("truetype"); }
+@font-face { font-family: "Gothic A1"; font-weight: 400; font-style: normal; font-display: block; src: url("fonts/GothicA1-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Gothic A1"; font-weight: 500 600; font-style: normal; font-display: block; src: url("fonts/GothicA1-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "Gothic A1"; font-weight: 700; font-style: normal; font-display: block; src: url("fonts/GothicA1-Bold.woff2") format("woff2"); }
+@font-face { font-family: "Gothic A1"; font-weight: 800 900; font-style: normal; font-display: block; src: url("fonts/GothicA1-ExtraBold.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans KR"; font-weight: 400; font-style: normal; font-display: block; src: url("fonts/IBMPlexSansKR-Regular.ttf") format("truetype"); }
+@font-face { font-family: "IBM Plex Sans KR"; font-weight: 500 900; font-style: normal; font-display: block; src: url("fonts/IBMPlexSansKR-Bold.ttf") format("truetype"); }
+@font-face { font-family: "Gowun Dodum"; font-weight: 100 900; font-style: normal; font-display: block; src: url("fonts/GowunDodum-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Black Han Sans"; font-weight: 100 900; font-style: normal; font-display: block; src: url("fonts/BlackHanSans-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Do Hyeon"; font-weight: 100 900; font-style: normal; font-display: block; src: url("fonts/DoHyeon-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Jua"; font-weight: 100 900; font-style: normal; font-display: block; src: url("fonts/Jua-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Sunflower"; font-weight: 100 600; font-style: normal; font-display: block; src: url("fonts/Sunflower-Medium.woff2") format("woff2"); }
+@font-face { font-family: "Sunflower"; font-weight: 700 900; font-style: normal; font-display: block; src: url("fonts/Sunflower-Bold.woff2") format("woff2"); }
+@font-face { font-family: "Orbit"; font-weight: 100 900; font-style: normal; font-display: block; src: url("fonts/Orbit-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Dongle"; font-weight: 100 600; font-style: normal; font-display: block; src: url("fonts/Dongle-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Dongle"; font-weight: 700 900; font-style: normal; font-display: block; src: url("fonts/Dongle-Bold.woff2") format("woff2"); }
+@font-face { font-family: "Oswald"; font-weight: 200 700; font-style: normal; font-display: block; src: url("fonts/Oswald-Variable.woff2") format("woff2"); }
+@font-face { font-family: "Bebas Neue"; font-weight: 100 900; font-style: normal; font-display: block; src: url("fonts/BebasNeue-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 100 600; font-style: normal; font-display: block; src: url("fonts/BarlowCondensed-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 700; font-style: normal; font-display: block; src: url("fonts/BarlowCondensed-Bold.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 800 900; font-style: normal; font-display: block; src: url("fonts/BarlowCondensed-ExtraBold.woff2") format("woff2"); }
+@font-face { font-family: "Rajdhani"; font-weight: 100 600; font-style: normal; font-display: block; src: url("fonts/Rajdhani-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "Rajdhani"; font-weight: 700 900; font-style: normal; font-display: block; src: url("fonts/Rajdhani-Bold.woff2") format("woff2"); }
+@font-face { font-family: "Teko"; font-weight: 300 700; font-style: normal; font-display: block; src: url("fonts/Teko-Variable.woff2") format("woff2"); }

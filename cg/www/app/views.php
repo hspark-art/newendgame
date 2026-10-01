@@ -202,6 +202,7 @@ function output_payload(string $kind, int $layer = 1, ?int $since = null): array
             'template' => $snap['template'] ?? null,
             'effect' => $snap['effect'] ?? 'slide',
             'dur_ms' => $snap['dur_ms'] ?? 350,
+            'design' => design_payload(),
         ];
     }
     $html = '';
@@ -221,6 +222,7 @@ function output_payload(string $kind, int $layer = 1, ?int $since = null): array
         'template' => null,
         'effect' => 'cut',
         'dur_ms' => 0,
+        'design' => design_payload(),
     ];
 }
 

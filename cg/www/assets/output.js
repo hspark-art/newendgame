@@ -63,6 +63,32 @@
     }
   }
 
+  /* CG 디자인(관리자 설정): body에 테마 클래스, CSS 변수(폰트·크기·글자색)를 body에 직접 (테마보다 우선).
+     폰트 파일을 다 받은 뒤 글자 맞춤을 다시 한다 */
+  var designKey = '';
+  function applyDesign(d) {
+    if (!d) { return; }
+    var key = JSON.stringify(d);
+    if (key === designKey) { return; }
+    designKey = key;
+    var body = document.body;
+    body.className = body.className.replace(/(^|\s)cg-theme-\S+/g, '').trim();
+    if (d.theme) { body.classList.add('cg-theme-' + d.theme); }
+    var old = body.getAttribute('data-vars');
+    (old ? old.split(',') : []).forEach(function (k) { body.style.removeProperty(k); });
+    var keys = Object.keys(d.vars || {});
+    keys.forEach(function (k) { body.style.setProperty(k, d.vars[k]); });
+    body.setAttribute('data-vars', keys.join(','));
+    fit();
+    if (document.fonts && document.fonts.load && d.families && d.families.length) {
+      var loads = [];
+      d.families.forEach(function (f) {
+        ['400', '700', '800'].forEach(function (w) { loads.push(document.fonts.load(w + ' 30px "' + f + '"', '끝장전 0123 W')); });
+      });
+      Promise.all(loads.map(function (p) { return p.catch(function () {}); })).then(fit);
+    }
+  }
+
   function swap(s) {
     cg.innerHTML = s.html || '';
     applyDisplay(s.display);
@@ -107,12 +133,14 @@
     if (next.take_id !== prev.take_id) {
       if (showing && isProgram && prev.effect !== 'cut') {
         hideThen(prev.dur_ms | 0, function () {
+          applyDesign(next.design);
           setEffect(next);
           swap(next);
           if (wanted(cur)) { show(true, animate); }
         });
         return;
       }
+      applyDesign(next.design);
       setEffect(next);
       swap(next);
       show(vis, animate && vis);
@@ -121,6 +149,7 @@
     if (next.html !== prev.html || JSON.stringify(next.display) !== JSON.stringify(prev.display)) {
       swap(next);
     }
+    applyDesign(next.design);
     if (vis !== showing) {
       setEffect(next);
       show(vis, animate);
@@ -159,6 +188,7 @@
 
   fitStage();
   window.addEventListener('resize', fitStage);
+  applyDesign(cur.design);
   setEffect(cur);
   applyDisplay(cur.display);
   fit();

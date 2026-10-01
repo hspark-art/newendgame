@@ -67,6 +67,13 @@ function action_dispatch(string $action, array $in, array $op): mixed
         'match_exclude' => match_exclude($in, $op),
         'player_info' => player_info_view(),
         'player_info_save' => player_info_save($in, $op),
+        'map_info' => map_info_view(),
+        'map_info_save' => map_info_save($in, $op),
+        // CG 디자인 (바꾸기는 관리자만 — 함수 안에서 확인)
+        'design' => design_view($op),
+        'design_save' => design_save($in, $op),
+        'design_preset_save' => design_preset_save($in, $op),
+        'design_preset_remove' => design_preset_remove($in, $op),
         // 관리자 알림
         'alerts' => alerts_view($op),
         'alert_ack' => alert_ack($in, $op),

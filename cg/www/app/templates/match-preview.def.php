@@ -87,7 +87,8 @@ return [
     'summary' => static fn(array $p, array $ctx): string => sprintf('%s vs %s%s', pname($ctx['players'], $p['a']['player']),
         pname($ctx['players'], $p['b']['player']), $p['map'] === '' ? '' : ' · ' . ($ctx['maps'][$p['map']]['name'] ?? $p['map'])),
     'present' => static function (array $f): array {
-        $rec = static fn($w, $l) => $w === null || $l === null ? null : "{$w}승 {$l}패";
+        // 0승 0패 = 그 조건의 세트가 없음 (예: 동족전을 한 적 없음) → "기록 없음"
+        $rec = static fn($w, $l) => $w === null || $l === null ? null : ($w + $l === 0 ? '기록 없음' : "{$w}승 {$l}패");
         // 더 좋은 쪽: 승률(0.1%) 비교. 같거나 한쪽이 없으면 강조 없음
         $lead = static fn(?int $a, ?int $b) => $a === null || $b === null || $a === $b ? '' : ($a > $b ? 'a' : 'b');
         $line = static function (string $label, string $k, string $w, string $l, string $rate, string $pre = '') use ($f, $rec, $lead): ?array {
@@ -96,7 +97,8 @@ return [
             if ($a === null && $b === null) {
                 return null;
             }
-            $sub = static fn(string $s) => trim(($pre !== '' && ($f["$s.vs"] ?? null) ? "vs {$f["$s.vs"]} · " : '') . text_pct($f["$s.$rate"]), ' ·');
+            $sub = static fn(string $s) => trim(($pre !== '' && ($f["$s.vs"] ?? null) ? "vs {$f["$s.vs"]} · " : '')
+                . ($f["$s.$rate"] === null ? '' : text_pct($f["$s.$rate"])), ' ·');
             return ['kind' => 'rec', 'key' => $k, 'label' => $label, 'a' => $a ?? '—', 'a_sub' => $a === null ? '' : $sub('a'),
                 'b' => $b ?? '—', 'b_sub' => $b === null ? '' : $sub('b'), 'lead' => $lead($f["a.$rate"], $f["b.$rate"])];
         };

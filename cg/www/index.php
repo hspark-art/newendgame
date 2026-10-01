@@ -35,6 +35,7 @@ $op = guard_control();
     <label class="check"><input type="checkbox" id="autoRefresh" checked> 자동 새로고침</label>
     <button type="button" id="btnRefresh" class="btn sm">데이터 새로고침 <kbd>F5</kbd></button>
     <button type="button" id="btnData" class="btn sm">데이터 점검·설정 <span class="tag err" id="dataBadge" hidden></span></button>
+    <a class="btn sm" href="design.php" target="_blank" rel="noopener" title="테마·폰트·크기·글자색 (관리자) — 새 탭">CG 디자인</a>
     <button type="button" id="btnAlerts" class="btn sm" title="데이터 오류·새로고침 실패 알림 (관리자)" hidden>알림 <span class="tag err" id="alertBadge" hidden></span></button>
   </div>
   <div class="top-right">
@@ -169,6 +170,7 @@ $op = guard_control();
     <div class="tabs">
       <button type="button" class="tab on" data-tab="check">점검</button>
       <button type="button" class="tab" data-tab="players">선수 닉네임</button>
+      <button type="button" class="tab" data-tab="maps">맵 이름</button>
       <button type="button" class="tab" data-tab="settings">데이터 설정</button>
     </div>
     <section class="tabpane" data-pane="check">
@@ -193,6 +195,12 @@ $op = guard_control();
       <div class="dc-list"><table class="grid-table"><thead><tr><th>선수</th><th>종족</th><th>시트 닉네임</th><th>프로그램 닉네임 (우선)</th><th></th></tr></thead>
         <tbody id="piBody"></tbody></table></div>
     </section>
+    <section class="tabpane" data-pane="maps" hidden>
+      <p class="hint">맵 이름은 시트 Results의 영문 표기 그대로 나옵니다. 한글 이름은 시트의 <b>'맵 이름' 탭</b>(A열 영문, B열 한글)에서 읽고,
+        여기에 입력하면 시트보다 우선합니다. 비우고 저장하면 시트 값(없으면 영문)을 씁니다. 매치 프리뷰·맵 전적·맵 종족 상성 CG에 쓰입니다.</p>
+      <div class="dc-list"><table class="grid-table"><thead><tr><th>맵 (Results 표기)</th><th>세트</th><th>시트 한글</th><th>프로그램 한글 (우선)</th><th></th></tr></thead>
+        <tbody id="miBody"></tbody></table></div>
+    </section>
     <section class="tabpane" data-pane="settings" hidden>
       <p class="notice" id="dsNotAdmin" hidden>데이터 설정은 관리자만 바꿀 수 있습니다.</p>
       <div id="dsForm">
@@ -205,6 +213,9 @@ $op = guard_control();
         <label class="prm"><span>더블 찬스 보정 탭</span><input type="text" id="dsTabAdjust"></label>
         <label class="prm"><span>선수별 통계 탭 (더블 찬스 검증)</span><input type="text" id="dsTabStats"></label>
         <label class="prm"><span>닉네임 탭 (선택)</span><input type="text" id="dsTabNicks"></label>
+        <label class="prm"><span>맵 통계 탭 (맵 상성 검증)</span><input type="text" id="dsTabMapstats"></label>
+        <label class="prm"><span>선수 맵 전적 탭 (검증)</span><input type="text" id="dsTabMapplayers"></label>
+        <label class="prm"><span>맵 이름 탭 (선택)</span><input type="text" id="dsTabMapnames"></label>
         <div class="dlg-btns left"><button type="button" id="dsSave" class="btn primary">설정 저장</button>
           <button type="button" id="dsTest" class="btn">연결 테스트</button></div>
         <h4>서비스 계정 키</h4>

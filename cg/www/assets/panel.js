@@ -566,6 +566,7 @@
     });
     if (name === 'check') { loadCheck(); }
     if (name === 'players') { api('player_info').then(renderPlayerInfo); }
+    if (name === 'maps') { api('map_info').then(renderMapInfo); }
     if (name === 'settings') { api('data_settings').then(renderSettings); }
   }
 
@@ -632,8 +633,20 @@
     }).join('') || '<tr><td colspan="5" class="muted">선수 목록이 없습니다. 데이터를 먼저 불러오세요.</td></tr>';
   }
 
+  function renderMapInfo(r) {
+    var list = r.maps || r;
+    $('miBody').innerHTML = list.map(function (m) {
+      return '<tr data-map="' + esc(m.id) + '"><td>' + esc(m.id) + '</td><td>' + esc(m.sets) + '</td>'
+        + '<td class="muted">' + esc(m.sheet_name || '—') + '</td>'
+        + '<td><input type="text" class="mapko" maxlength="20" value="' + esc(m.name_ko) + '" placeholder="'
+        + esc(m.sheet_name ? '비우면 시트 값 (' + m.sheet_name + ')' : '예: 녹아웃') + '"></td>'
+        + '<td><button type="button" class="btn sm" data-act="mapko">저장</button></td></tr>';
+    }).join('') || '<tr><td colspan="5" class="muted">맵 목록이 없습니다. 데이터를 먼저 불러오세요.</td></tr>';
+  }
+
   var TAB_INPUTS = [['dsTabResults', 'results'], ['dsTabPlayers', 'players'], ['dsTabMatches', 'matches'],
-    ['dsTabPredictions', 'predictions'], ['dsTabAdjust', 'adjust'], ['dsTabStats', 'stats'], ['dsTabNicks', 'nicks']];
+    ['dsTabPredictions', 'predictions'], ['dsTabAdjust', 'adjust'], ['dsTabStats', 'stats'], ['dsTabNicks', 'nicks'],
+    ['dsTabMapstats', 'mapstats'], ['dsTabMapplayers', 'mapplayers'], ['dsTabMapnames', 'mapnames']];
 
   function renderSettings(r) {
     $('dsNotAdmin').hidden = r.admin;
@@ -773,6 +786,7 @@
       if (e.key !== 'Enter' || e.target.tagName !== 'INPUT' || e.isComposing) { return; }
       e.preventDefault();
       if (e.target.classList.contains('nick')) { e.target.closest('tr').querySelector('[data-act="nick"]').click(); }
+      if (e.target.classList.contains('mapko')) { e.target.closest('tr').querySelector('[data-act="mapko"]').click(); }
     });
     // 이상 경기 → 끝장전 통계 제외 확정 / 취소 (관리자)
     $('dlgData').addEventListener('click', function (e) {
@@ -792,6 +806,12 @@
       var tr = e.target.closest('tr');
       api('player_info_save', { player: tr.getAttribute('data-player'), nickname: tr.querySelector('.nick').value })
         .then(function (r) { renderPlayerInfo(r); toast('닉네임을 저장했습니다.', 'ok'); });
+    });
+    $('miBody').addEventListener('click', function (e) {
+      if (e.target.getAttribute('data-act') !== 'mapko') { return; }
+      var tr = e.target.closest('tr');
+      api('map_info_save', { map: tr.getAttribute('data-map'), name_ko: tr.querySelector('.mapko').value })
+        .then(function (r) { renderMapInfo(r); toast('맵 이름을 저장했습니다.', 'ok'); });
     });
     $('dsSave').onclick = saveSettings;
     $('dsTest').onclick = function () {

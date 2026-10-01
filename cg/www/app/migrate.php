@@ -112,6 +112,11 @@ function migrations(): array
                 mock_purge();
             },
         ],
+        // v0.5.0: 맵 한글 이름 (프로그램 입력 — 시트 '맵 이름' 탭보다 우선). CG 디자인은 cg_settings에 둔다
+        5 => [
+            'CREATE TABLE IF NOT EXISTS cg_map_info (map VARCHAR(60) NOT NULL PRIMARY KEY, name_ko VARCHAR(20) NOT NULL,
+                updated_at VARCHAR(19) NOT NULL) {opts}',
+        ],
     ];
 }
 

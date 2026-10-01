@@ -43,7 +43,7 @@ test('마이그레이션 4: 기존 DB의 MOCK 페이지·수정값·닉네임·�
     $GLOBALS['CG_CONFIG']['mock_dir'] = null;
     setting_set('schema_version', '3');
     run_migrations();
-    assert_same(4, schema_version());
+    assert_same(max(array_keys(migrations())), schema_version(), "마이그레이션 4 이후 최신까지");
     assert_same([$keep['page_no']], array_map('intval', array_column(rundown_rows(), 'page_no')), 'MOCK 선수·중계진 페이지 삭제');
     assert_same([0, 0, 0], [(int)db_value('SELECT COUNT(*) FROM cg_overrides'), (int)db_value('SELECT COUNT(*) FROM cg_player_info'),
         (int)db_value("SELECT COUNT(*) FROM cg_dataset_cache WHERE source = 'mock'")]);
