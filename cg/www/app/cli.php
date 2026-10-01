@@ -70,6 +70,9 @@ $need = ['pdo', 'mbstring', 'json', db_driver() === 'mysql' ? 'pdo_mysql' : 'pdo
 foreach ($need as $ext) {
     extension_loaded($ext) ? cli_line('정상', "PHP 확장 $ext") : cli_line('실패', "PHP 확장 $ext 이 없습니다");
 }
+extension_loaded('curl') ? cli_line('정상', 'PHP 확장 curl (Google 시트 연결)')
+    : (ini_get('allow_url_fopen') ? cli_line('주의', 'PHP 확장 curl 이 없습니다 — allow_url_fopen 으로 접속 (웹 설정에서 꺼져 있으면 시트 연결 실패)')
+        : cli_line('실패', 'curl 도 allow_url_fopen 도 없어 Google 시트에 접속할 수 없습니다'));
 foreach (['openssl' => 'Google 시트 연결', 'zip' => 'xlsx 가져오기', 'intl' => '이름 정규화(없으면 기본 처리)'] as $ext => $use) {
     extension_loaded($ext) ? cli_line('정상', "PHP 확장 $ext") : cli_line('주의', "PHP 확장 $ext 이 없습니다 — $use 에 필요");
 }

@@ -43,13 +43,37 @@ function google_endpoints(): array
 }
 
 /**
- * HTTP 요청 (PHP 스트림 + openssl, 인증서 확인). 테스트는 $GLOBALS['CG_HTTP']에 같은 모양의 함수를 넣어 바꾼다.
+ * HTTP 요청 (인증서 확인). cURL이 있으면 cURL, 없으면 PHP 스트림.
+ * 웹호스팅은 웹에서 allow_url_fopen(스트림으로 외부 주소 열기)을 꺼 두는 경우가 많아 cURL을 먼저 쓴다.
+ * 테스트는 $GLOBALS['CG_HTTP']에 같은 모양의 함수를 넣어 바꾼다.
  * @return array{status:int, body:string}
  */
 function http_request(string $method, string $url, array $headers = [], ?string $body = null, int $timeout = 10): array
 {
     if (isset($GLOBALS['CG_HTTP'])) {
         return ($GLOBALS['CG_HTTP'])($method, $url, $headers, $body);
+    }
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => $headers, CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false, CURLOPT_CONNECTTIMEOUT => $timeout, CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2, CURLOPT_USERAGENT => 'EndgameCG/' . APP_VERSION,
+        ]);
+        if ($body !== null) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        }
+        $res = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+        if ($res === false) {
+            throw new ProviderError('Google 서버에 연결하지 못했습니다. 인터넷 연결·방화벽을 확인하세요. (' . mb_substr($err, 0, 120) . ')');
+        }
+        return ['status' => $status, 'body' => (string)$res];
+    }
+    if (!ini_get('allow_url_fopen')) {
+        throw new ProviderError('이 서버의 PHP 설정상 외부 주소에 접속할 수 없습니다 (allow_url_fopen 꺼짐, cURL 없음). 호스팅 관리 화면에서 확인하거나 xlsx 가져오기를 쓰세요.');
     }
     if (str_starts_with($url, 'https:') && !extension_loaded('openssl')) {
         throw new ProviderError('PHP openssl 확장이 없어 Google 시트에 접속할 수 없습니다. (php.ini의 extension=openssl 확인)');
