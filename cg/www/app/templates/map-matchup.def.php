@@ -5,10 +5,11 @@ declare(strict_types=1);
  * #13 맵 종족 상성 — 그 맵에서 저그 vs 프로토스, 테란 vs 저그, 프로토스 vs 테란 세트 승수와 승률 막대 + 총 세트·사용 기간.
  * 2026-10-01 실제 시트로 확인: "MAP 통계" 탭 83개 맵의 세트 수·종족별 승·최초/최종 사용일과 모두 일치. 총 세트에는 동족전도 들어간다.
  */
+// 줄마다 묶음(group) — 타이틀 에디터에서 [빼기]로 그 종족전 줄이나 아래 총 세트·기간 줄을 뺄 수 있다
 $pair = static fn(string $k, string $l, string $r) => [
-    "$k.l" => ['label' => "$l vs $r — $l 승", 'type' => 'int'],
-    "$k.r" => ['label' => "$l vs $r — $r 승", 'type' => 'int'],
-    "$k.rate" => ['label' => "$l vs $r — $l 승률", 'type' => 'rate', 'derived' => ["$k.l", "$k.r"]],
+    "$k.l" => ['label' => "$l 승", 'type' => 'int', 'group' => "$l vs $r"],
+    "$k.r" => ['label' => "$r 승", 'type' => 'int', 'group' => "$l vs $r"],
+    "$k.rate" => ['label' => "$l 승률", 'type' => 'rate', 'derived' => ["$k.l", "$k.r"], 'group' => "$l vs $r"],
 ];
 $pairs = ['zp' => ['Z', 'P', 'ZP'], 'tz' => ['T', 'Z', 'TZ'], 'pt' => ['P', 'T', 'PT']];
 
@@ -22,9 +23,9 @@ return [
     ],
     'fields' => ['title' => ['label' => '제목', 'type' => 'text', 'max' => 40]] + $pair('zp', 'Z', 'P') + $pair('tz', 'T', 'Z')
         + $pair('pt', 'P', 'T') + [
-            'sets' => ['label' => '총 세트', 'type' => 'int'],
-            'first' => ['label' => '처음 사용', 'type' => 'date'],
-            'last' => ['label' => '마지막 사용', 'type' => 'date'],
+            'sets' => ['label' => '총 세트', 'type' => 'int', 'group' => '총 세트·기간'],
+            'first' => ['label' => '처음 사용', 'type' => 'date', 'group' => '총 세트·기간'],
+            'last' => ['label' => '마지막 사용', 'type' => 'date', 'group' => '총 세트·기간'],
         ],
     'auto' => static function (array $p, array $ds) use ($pairs): array {
         $m = stats_map_matchup($ds['games'], $p['map']);
@@ -40,6 +41,9 @@ return [
     'present' => static function (array $f) use ($pairs): array {
         $rows = [];
         foreach ($pairs as $k => [$l, $r]) {
+            if ($f["$k.l"] === null && $f["$k.r"] === null) {
+                continue; // 그 종족전 줄을 뺌
+            }
             $rate = $f["$k.rate"];
             $rows[] = ['l' => $l, 'r' => $r, 'lw' => (string)$f["$k.l"], 'rw' => (string)$f["$k.r"],
                 'lrate' => $rate === null ? '' : fmt_rate($rate) . '%', 'rrate' => $rate === null ? '' : fmt_rate(1000 - $rate) . '%',
@@ -48,6 +52,6 @@ return [
                 'lw_pct' => $rate === null ? 0 : $rate / 10, 'empty' => $rate === null];
         }
         return ['title' => (string)$f['title'], 'rows' => $rows,
-            'foot' => sprintf('총 %s세트 · %s ~ %s', $f['sets'], $f['first'], $f['last'])];
+            'foot' => $f['sets'] === null ? '' : sprintf('총 %s세트 · %s ~ %s', $f['sets'], $f['first'], $f['last'])];
     },
 ];

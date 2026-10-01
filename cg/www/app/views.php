@@ -83,18 +83,20 @@ function panel_state(array $op): array
         foreach ($st['merged'] as $key => $f) {
             $def = $st['tpl']['fields'][$key];
             $live = $sameLive ? ($snap['final'][$key] ?? null) : null;
+            $hidden = in_array($key, $st['hidden'], true);
             $preview['fields'][] = [
                 'key' => $key, 'label' => $def['label'], 'group' => $def['group'] ?? '', 'type' => $def['type'],
+                'hidden' => $hidden,
                 'derived' => isset($def['derived']),
                 'has_manual' => $f['has_manual'], 'origin' => $f['origin'], 'differs' => $f['differs'],
                 'auto_changed' => $f['auto_changed'], 'keep' => $f['keep'],
                 'auto_text' => fmt_field($def, $f['auto']),
                 'manual_text' => $f['has_manual'] ? fmt_input($def, $f['manual']) : '',
-                'final_text' => fmt_field($def, $f['final']),
+                'final_text' => $hidden ? '빠짐' : fmt_field($def, $f['final']),
                 'calc_text' => isset($def['derived']) ? fmt_field($def, $f['calc']) : '',
                 'auto_at_set_text' => $f['auto_changed'] ? fmt_field($def, $f['auto_at_set']) : '',
                 'live_text' => $sameLive ? fmt_field($def, $live) : null,
-                'live_differs' => $sameLive && $live !== $f['final'],
+                'live_differs' => $sameLive && $live !== $st['final'][$key],
             ];
         }
         $preview = array_merge($preview, [
@@ -118,9 +120,10 @@ function panel_state(array $op): array
         'same_target' => $snap !== null && $pv['instance_id'] === $snap['instance_id'],
         'pending_live' => $snap !== null && $liveFinal !== $snap['final'],
     ];
-    // UPDATE LIVE로 보낼 수 있는 저장된 수정값이 있는지 (자동값 변경은 TAKE로만)
+    // UPDATE LIVE로 보낼 수 있는 저장된 수정값·항목 빼기가 있는지 (자동값 변경은 TAKE로만)
     $program['live_manual'] = $program['same_target']
-        && (bool)array_filter($preview['fields'], static fn($f) => $f['live_differs'] && $f['has_manual']);
+        && (bool)array_filter($preview['fields'], static fn($f) => $f['live_differs'] && ($f['has_manual'] || $f['hidden']
+            || ($snap !== null && in_array($f['key'], $snap['hidden'] ?? [], true))));
 
     $session = db_one('SELECT id, name, started_at FROM cg_sessions WHERE id = ?', [$sid]);
     $session['id'] = (int)$session['id'];
@@ -136,7 +139,9 @@ function panel_state(array $op): array
         'keep_count' => (int)db_value('SELECT COUNT(*) FROM cg_overrides WHERE session_id = ? AND keep_next = 1', [$sid]),
         'source' => source_status(),
         // 이전 버전에서 올린 뒤 아직 새로고침하지 않아 예측자·연도 목록이 없음 → 패널이 한 번 새로고침한다
-        'caches_ready' => setting_get('years_cache') !== null && setting_get('maps_cache') !== null,
+        // v0.6: 맵 목록에 최근 사용 정보(recent)가 없으면 이전 버전 캐시 → 한 번 새로고침해 최근 맵 순서로
+        'caches_ready' => setting_get('years_cache') !== null && setting_get('maps_cache') !== null
+            && ($ctx['maps'] === [] || isset(array_values($ctx['maps'])[0]['recent'])),
         // ready: 시트 주소·키가 등록되어 자동 새로고침을 할 수 있음 (아니면 패널은 "시트 연결 필요"만 표시)
         'data' => ['source' => data_source(), 'check' => json_dec(setting_get('data_check', 'null')), 'ready' => data_ready()],
         // 페이지 추가 대화상자는 템플릿의 params 정의로 입력칸을 만든다
@@ -148,6 +153,7 @@ function panel_state(array $op): array
         'predictors' => array_values($ctx['predictors']),
         'years' => $ctx['years'],
         'maps' => array_values($ctx['maps']),
+        'match' => match_view(),
         'rundown' => $rundown,
         'preview' => $preview,
         'program' => $program,

@@ -50,6 +50,7 @@ function action_dispatch(string $action, array $in, array $op): mixed
         'refresh_data' => data_refresh($op),
         'save_preview' => preview_save(in_int($in, 'instance_id'), in_values($in), $op),
         'reset' => override_reset(in_int($in, 'instance_id'), isset($in['field']) ? (string)$in['field'] : null, $op),
+        'hide' => instance_hide(in_int($in, 'instance_id'), (string)($in['group'] ?? ''), !empty($in['hide']), $op),
         'set_keep' => override_keep(in_int($in, 'instance_id'), (string)($in['field'] ?? ''), !empty($in['keep']), $op),
         'update_live' => program_update_live(in_int($in, 'instance_id'), in_int($in, 'take_id'), in_int($in, 'preview_rev'),
             in_values($in, true), $op),
@@ -67,6 +68,10 @@ function action_dispatch(string $action, array $in, array $op): mixed
         'match_exclude' => match_exclude($in, $op),
         'player_info' => player_info_view(),
         'player_info_save' => player_info_save($in, $op),
+        // 오늘 매치: 저장 · 2인 CG 한 번에 추가 · 페이지 리스트를 이 매치로
+        'match_save' => match_today_save($in, $op),
+        'match_add' => match_pages_add($in, $op),
+        'match_apply' => match_pages_apply($in, $op),
         'map_info' => map_info_view(),
         'map_info_save' => map_info_save($in, $op),
         // CG 디자인 (바꾸기는 관리자만 — 함수 안에서 확인)

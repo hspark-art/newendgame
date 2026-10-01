@@ -152,6 +152,10 @@ if ($dbReady) {
     $sheet = sheet_config();
     cli_line('안내', 'Google 시트: 주소 ' . ($sheet['id'] !== '' ? '설정됨' : '없음') . ' · 키 ' . (is_file(google_key_path()) ? '등록됨' : '없음')
         . ' · 마지막 정상 ' . ($src['last_success_at'] ?? '없음') . ($src['status'] === 'ERROR' ? ' · 최근 새로고침 실패' : ''));
+    // 실패 원인 (화면 표시용 문구 — 키·토큰은 들어 있지 않다)
+    if ($src['status'] === 'ERROR' && (string)($src['last_error'] ?? '') !== '') {
+        cli_line('주의', '새로고침 실패 원인 (' . ($src['last_attempt_at'] ?? '-') . '): ' . mb_substr((string)$src['last_error'], 0, 300));
+    }
 }
 
 // ---------------------------------------------------------------- 선택: 외부 접속·웹 보호
@@ -172,6 +176,7 @@ foreach ($opts as $o) {
         continue;
     }
     $base = rtrim(substr($o, 6), '/');
+    echo "웹 차단 확인 중… (서버 안에서 이 주소로 접속되지 않으면 주소마다 최대 5초 기다립니다)\n";
     str_starts_with($base, 'https://') ? cli_line('정상', "주소 $base (https)")
         : cli_line('주의', "주소 $base — https가 아닙니다. 로그인 정보·송출 주소 보호를 위해 SSL 인증서를 적용하세요");
     $ctx = stream_context_create(['http' => ['ignore_errors' => true, 'timeout' => 5, 'follow_location' => 0]]);

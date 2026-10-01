@@ -142,6 +142,7 @@
 
   function renderTop() {
     $('sessName').textContent = S.session.name;
+    $('matchText').textContent = S.match && S.match.text ? S.match.text : '설정 안 함';
     $('mockBadge').hidden = S.source.id !== 'mock';
     var st = $('srcStatus');
     var src = S.source;
@@ -280,6 +281,16 @@
     notice.className = 'notice' + (pv.problems.length ? ' err' : '');
     notice.textContent = msgs.join(' · ');
     pv.fields.forEach(updateEditorRow);
+    // 묶음 빼기 상태: 묶음의 필드가 모두 빠졌으면 '다시 넣기'
+    Array.prototype.forEach.call(document.querySelectorAll('#edBody tr.grp'), function (tr) {
+      var g = tr.getAttribute('data-group');
+      var fs = pv.fields.filter(function (f) { return f.group === g; });
+      var hidden = fs.length > 0 && fs.every(function (f) { return f.hidden; });
+      tr.classList.toggle('is-hidden', hidden);
+      var b = tr.querySelector('.hide-grp');
+      b.textContent = hidden ? '다시 넣기' : 'CG에서 빼기';
+      b.setAttribute('data-hide', hidden ? '0' : '1');
+    });
   }
 
   function buildEditor() {
@@ -288,10 +299,12 @@
     var group = '';
     body.innerHTML = S.preview.fields.map(function (f) {
       // 목록형 CG는 행(1행, 2행 …)마다 구분 줄을 넣는다
-      var head = f.group && f.group !== group ? '<tr class="grp"><th colspan="8">' + esc(f.group) + '</th></tr>' : '';
+      // 묶음은 [CG에서 빼기]로 송출 화면에서 통째로 뺄 수 있다 (행·줄 단위)
+      var head = f.group && f.group !== group ? '<tr class="grp" data-group="' + esc(f.group) + '"><th colspan="8">' + esc(f.group)
+        + ' <button type="button" class="btn sm hide-grp" data-group="' + esc(f.group) + '">CG에서 빼기</button></th></tr>' : '';
       group = f.group;
-      return head + '<tr data-key="' + esc(f.key) + '">'
-        + '<td class="label">' + esc(f.label) + '</td>'
+      return head + '<tr data-key="' + esc(f.key) + '" data-group="' + esc(f.group) + '">'
+        + '<td class="label" title="' + esc((f.group ? f.group + ' ' : '') + f.label) + '">' + esc(f.label) + '</td>'
         + '<td class="num auto"></td>'
         + '<td><input type="text" class="val" data-key="' + esc(f.key) + '" autocomplete="off"></td>'
         + '<td class="num final"></td>'
@@ -306,6 +319,7 @@
   function updateEditorRow(f) {
     var tr = document.querySelector('#edBody tr[data-key="' + f.key + '"]');
     if (!tr) { return; }
+    tr.classList.toggle('is-hidden', !!f.hidden);
     var cells = tr.children;
     cells[1].innerHTML = esc(f.auto_text) + (f.auto_changed
       ? '<span class="sub warn">자동값 변경 ' + esc(f.auto_at_set_text) + ' → ' + esc(f.auto_text) + '</span>' : '');
@@ -457,6 +471,36 @@
     }).join('');
   }
 
+  /** 맵 고르기: 최근 20경기에서 쓴 맵(많이 쓴 순)을 위에, 나머지는 최근에 쓴 순 (서버 stats_map_usage 순서) */
+  function mapOptions(v, any) {
+    var maps = S.maps || [];
+    var opt = function (m, sub) {
+      return '<option value="' + esc(m.id) + '"' + (m.id === v ? ' selected' : '') + '>'
+        + esc(m.name + (m.name !== m.id ? ' (' + m.id + ')' : '') + ' · ' + sub) + '</option>';
+    };
+    var recent = maps.filter(function (m) { return m.recent > 0; });
+    var rest = maps.filter(function (m) { return !(m.recent > 0); });
+    var html = '<option value="">' + (any ? '고르지 않음' : '선택') + '</option>';
+    if (v && !maps.some(function (m) { return m.id === v; })) {
+      html += '<option value="' + esc(v) + '" selected>' + esc(v + ' (목록에 없음)') + '</option>';
+    }
+    if (recent.length) {
+      html += '<optgroup label="최근 20경기에서 쓴 맵 (많이 쓴 순)">'
+        + recent.map(function (m) { return opt(m, '최근 ' + m.recent + '세트'); }).join('') + '</optgroup>';
+    }
+    return html + '<optgroup label="그 밖의 맵 (최근에 쓴 순)">'
+      + rest.map(function (m) { return opt(m, m.last ? '마지막 ' + m.last : m.sets + '세트'); }).join('') + '</optgroup>';
+  }
+
+  /** 오늘 매치가 정해져 있으면 새 페이지의 선수 칸 기본값 (A·B, 한 선수 CG는 A) */
+  function matchDefaults() {
+    var m = S.match || {};
+    if (!m.a || !m.b) { return null; }
+    var raceB = (S.players.filter(function (x) { return x.id === m.b; })[0] || {}).race;
+    // 한 선수 CG(최근 종족전)는 A 선수 · 상대 종족 = B의 종족
+    return { a: { player: m.a }, b: { player: m.b }, player: m.a, vs: raceB || undefined };
+  }
+
   function paramControl(p, v) {
     var attr = ' data-key="' + esc(p.key) + '" data-type="' + esc(p.type) + '"';
     switch (p.type) {
@@ -476,10 +520,7 @@
           : '<input type="text"' + attr + ' maxlength="4" placeholder="예: 2026" value="' + esc(v || '') + '">';
       case 'map':
       case 'map_any':
-        var maps = (p.type === 'map_any' ? [['', '고르지 않음']] : [['', '선택']]).concat((S.maps || []).map(function (m) {
-          return [m.id, m.name + (m.name !== m.id ? ' (' + m.id + ')' : '') + ' · ' + m.sets + '세트'];
-        }));
-        return '<select' + attr + '>' + options(withValue(maps, v, v + ' (목록에 없음)'), v || '') + '</select>';
+        return '<select' + attr + '>' + mapOptions(v || '', p.type === 'map_any') + '</select>';
       case 'predictor_slots':
         var list = [['', '—']].concat(S.predictors.map(function (x) { return [x.id, x.name]; }));
         (v || []).forEach(function (id) { list = withValue(list, id, id + ' (목록에 없음)'); });
@@ -501,6 +542,29 @@
     $('pHint').textContent = linked ? '선수를 고르면 상대 종족이 서로의 종족으로 자동 선택됩니다. 필요하면 바꾸세요.' : '';
   }
 
+  // ------------------------------------------------------------ 오늘 매치
+
+  function matchInput() { return { a: $('mA').value, b: $('mB').value }; }
+
+  function openMatch() {
+    if (!S.players.length) {
+      toast('선수 목록이 없습니다. 데이터 새로고침을 먼저 하세요.', 'err');
+      return;
+    }
+    var m = S.match || {};
+    var list = [['', '선택']].concat(S.players.map(function (x) { return [x.id, x.name + ' (' + (x.race || '?') + ')', x.race]; }));
+    $('mA').innerHTML = options(list, m.a || '');
+    $('mB').innerHTML = options(list, m.b || '');
+    $('mTpls').innerHTML = (m.templates || []).map(function (t) {
+      return '<label class="check"><input type="checkbox" value="' + esc(t.slug) + '"' + (t.checked ? ' checked' : '') + '> '
+        + esc(t.name) + '</label>';
+    }).join('');
+    $('mMap').innerHTML = mapOptions('', true);
+    $('mResult').textContent = '';
+    $('dlgMatch').returnValue = '';
+    $('dlgMatch').showModal();
+  }
+
   function openPage(row) {
     if (!S.players.length) {
       toast(S.data.ready ? '선수 목록이 없습니다. 데이터 새로고침을 먼저 하세요.'
@@ -512,11 +576,17 @@
     $('pTemplate').innerHTML = S.templates.map(function (t) { return '<option value="' + esc(t.slug) + '">' + esc(t.name) + '</option>'; }).join('');
     $('pTemplate').value = row ? row.template : S.templates[0].slug;
     $('pTemplate').disabled = !!row;
-    buildParams($('pTemplate').value, row ? row.params : null);
+    buildParams($('pTemplate').value, row ? row.params : matchDefaults());
+    if (!row) { fillRaces(); }
     $('pNo').value = row ? row.page_no : '';
     $('pLabel').value = row ? row.label : '';
     $('dlgPage').returnValue = '';
     $('dlgPage').showModal();
+  }
+
+  /** 새 페이지: 미리 채운 선수에 맞춰 상대 종족 칸도 채운다 */
+  function fillRaces() {
+    Array.prototype.forEach.call($('pParams').querySelectorAll('select[data-type="player"]'), autoRace);
   }
 
   /** 선수를 바꾸면 그 선수를 auto_from으로 가리키는 종족 칸을 선수의 종족으로 맞춘다 */
@@ -767,6 +837,34 @@
         .then(function (ok) { if (ok) { api('reset', { instance_id: S.preview.instance_id }).then(function () { dirty = {}; }); } });
     };
     $('btnAdd').onclick = function () { openPage(null); };
+    // 뺀 항목 접기 (이 브라우저에 기억)
+    try { $('edFold').checked = localStorage.getItem('cg.edFold') === '1'; } catch (e) { /* 저장소를 쓸 수 없으면 기본값 */ }
+    document.querySelector('.ed').classList.toggle('fold', $('edFold').checked);
+    $('edFold').onchange = function () {
+      document.querySelector('.ed').classList.toggle('fold', this.checked);
+      try { localStorage.setItem('cg.edFold', this.checked ? '1' : '0'); } catch (e) { /* 무시 */ }
+    };
+    $('btnMatch').onclick = openMatch;
+    $('mSave').onclick = function () {
+      api('match_save', matchInput()).then(function (m) { toast('오늘 매치: ' + m.text, 'ok'); $('mResult').textContent = ''; });
+    };
+    $('mAdd').onclick = function () {
+      var tpls = Array.prototype.map.call($('mTpls').querySelectorAll('input:checked'), function (c) { return c.value; });
+      api('match_add', Object.assign(matchInput(), { templates: tpls, map: $('mMap').value })).then(function (r) {
+        toast(r.added.length ? r.added.length + '개 페이지를 추가했습니다.' : '추가한 페이지가 없습니다.', r.added.length ? 'ok' : 'info');
+        $('mResult').textContent = (r.added.length ? '추가: ' + r.added.join(', ') : '')
+          + (r.skipped.length ? (r.added.length ? ' · ' : '') + '건너뜀: ' + r.skipped.join(', ') : '');
+      });
+    };
+    $('mApply').onclick = function () {
+      var m = matchInput();
+      api('match_apply', m).then(function (r) {
+        toast(r.changed.length ? r.changed.length + '개 페이지를 ' + r.match.text + '로 바꿨습니다.' : '바꿀 페이지가 없습니다.',
+          r.changed.length ? 'ok' : 'info');
+        $('mResult').textContent = (r.changed.length ? '바꿈: ' + r.changed.join(', ') : '')
+          + (r.skipped.length ? (r.changed.length ? ' · ' : '') + '건너뜀: ' + r.skipped.join(', ') : '');
+      });
+    };
     $('btnData').onclick = openData;
     Array.prototype.forEach.call(document.querySelectorAll('#dlgData .tab'), function (b) {
       b.onclick = function () { dataTab(b.getAttribute('data-tab')); };
@@ -879,7 +977,10 @@
       });
     });
     $('dlgPage').addEventListener('close', function () { if (this.returnValue === 'ok') { submitPage(); } });
-    $('pTemplate').onchange = function () { buildParams(this.value, null); };
+    $('pTemplate').onchange = function () {
+      buildParams(this.value, editingPageId ? null : matchDefaults());
+      if (!editingPageId) { fillRaces(); }
+    };
     $('pParams').addEventListener('change', function (e) {
       if (e.target.getAttribute('data-type') === 'player') { autoRace(e.target); }
     });
@@ -918,6 +1019,14 @@
       if (e.key === 'Escape' && e.target.classList.contains('val')) { e.target.blur(); }
     });
     $('edBody').addEventListener('click', function (e) {
+      if (e.target.classList.contains('hide-grp')) {
+        var hide = e.target.getAttribute('data-hide') !== '0';
+        api('hide', { instance_id: S.preview.instance_id, group: e.target.getAttribute('data-group'), hide: hide }).then(function () {
+          toast(e.target.getAttribute('data-group') + (hide ? ' — PREVIEW에서 뺐습니다.' : ' — 다시 넣었습니다.')
+            + (S.program.same_target ? ' 송출 중이면 UPDATE LIVE 또는 TAKE로 반영하세요.' : ''), 'ok');
+        });
+        return;
+      }
       var key = e.target.getAttribute('data-key');
       if (!key) { return; }
       if (e.target.classList.contains('reset')) {

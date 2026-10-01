@@ -68,6 +68,7 @@ function instance_get(int $id): array
     $row['params'] = json_dec($row['params_json']);
     $row['auto'] = $row['auto_json'] === null ? null : json_dec($row['auto_json']);
     $row['issues'] = ($row['issues_json'] ?? null) === null ? [] : json_dec($row['issues_json']);
+    $row['hidden'] = ($row['hidden_json'] ?? null) === null ? [] : (json_dec($row['hidden_json']) ?: []);
     return $row;
 }
 
@@ -106,22 +107,69 @@ function overrides_for(int $instanceId, int $sessionId): array
     return $out;
 }
 
-/** 인스턴스의 현재 AUTO/MANUAL/FINAL과 송출 문자열 */
+/**
+ * 인스턴스의 현재 AUTO/MANUAL/FINAL과 송출 문자열.
+ * final = 송출에 나가는 값 (뺀 항목은 null), final_raw = 빼기 전 값 (UPDATE LIVE·다시 넣기용)
+ */
 function instance_state(array $inst, int $sessionId): array
 {
     $tpl = template_get($inst['template']);
     $merged = ov_merge($tpl['fields'], $inst['auto'], overrides_for($inst['id'], $sessionId));
-    $final = ov_final($merged);
-    $problems = template_problems($inst['template'], $final, $inst['params'], $inst['issues'], manual_keys($merged));
+    $raw = ov_final($merged);
+    $hidden = hidden_keys($tpl, $inst['hidden']);
+    $final = hidden_apply($raw, $hidden);
+    $problems = template_problems($inst['template'], $final, $inst['params'], $inst['issues'], manual_keys($merged), $hidden);
     $mock = $inst['auto_source'] === 'mock';
     return [
         'tpl' => $tpl,
         'merged' => $merged,
         'final' => $final,
+        'final_raw' => $raw,
+        'hidden' => $hidden,
         'problems' => $problems,
         'mock' => $mock,
         'view' => $problems ? null : template_present($inst['template'], $final, $inst['params'], $mock),
     ];
+}
+
+// ---------------------------------------------------------------- 항목 빼기 (타이틀 에디터)
+
+/** 뺄 수 있는 항목 = 묶음(group)이 있는 필드. 저장된 키 중 지금 템플릿에 있는 것만 */
+function hidden_keys(array $tpl, array $hidden): array
+{
+    return array_values(array_filter($hidden, static fn($k) => is_string($k) && isset($tpl['fields'][$k]['group'])));
+}
+
+/** 뺀 항목을 비운 값 (송출 화면에는 그 항목이 나오지 않는다) */
+function hidden_apply(array $final, array $hidden): array
+{
+    foreach ($hidden as $k) {
+        $final[$k] = null;
+    }
+    return $final;
+}
+
+/**
+ * 항목 묶음 빼기/다시 넣기 (예: 매치 프리뷰의 '최근 5경기', 순위 CG의 '3행'). PREVIEW만 바뀐다 — 송출 중이면 TAKE 또는 UPDATE LIVE.
+ * 같은 CG(같은 선수·조건)를 쓰는 페이지는 함께 바뀐다.
+ */
+function instance_hide(int $instanceId, string $group, bool $hide, array $op): array
+{
+    return db_tx(function () use ($instanceId, $group, $hide, $op) {
+        $inst = instance_get($instanceId);
+        $tpl = template_get($inst['template']);
+        $keys = array_keys(array_filter($tpl['fields'], static fn($d) => ($d['group'] ?? null) === $group));
+        if ($group === '' || !$keys) {
+            throw new ActionError('VALIDATION', '뺄 수 없는 항목입니다.', 422);
+        }
+        $hidden = hidden_keys($tpl, $inst['hidden']);
+        $hidden = $hide ? array_values(array_unique(array_merge($hidden, $keys))) : array_values(array_diff($hidden, $keys));
+        db_exec('UPDATE cg_instances SET hidden_json = ?, updated_at = ? WHERE id = ?', [json_enc($hidden), now(), $inst['id']]);
+        cg_log('override', $hide ? 'HIDE' : 'SHOW', $op, ['instance_id' => $inst['id'], 'template' => $inst['template'],
+            'detail' => "$group " . ($hide ? '빼기' : '다시 넣기')]);
+        state_bump(channel_get('preview')['instance_id'] === $inst['id'] ? ['preview'] : []);
+        return ['hidden' => $hidden];
+    });
 }
 
 // ---------------------------------------------------------------- 페이지 리스트
@@ -414,6 +462,8 @@ function program_take(int $expectedPreviewRev, array $opts, array $op): array
             'template' => $inst['template'],
             'params' => $inst['params'],
             'final' => $st['final'],
+            'final_raw' => $st['final_raw'],
+            'hidden' => $st['hidden'],
             'view' => $st['view'],
             'display' => $pv['display'],
             'effect' => $effect,
@@ -509,10 +559,10 @@ function data_apply(array $ds, array $op, bool $fetched): array
         setting_set('predictors_cache', json_enc(array_map(static fn($p) => ['id' => (string)$p['id'], 'name' => $p['name']],
             $ds['predictors'] ?? [])));
         setting_set('years_cache', json_enc(stats_prediction_years($ds['predictions'] ?? [])));
-        // 맵 목록 (사용 세트 많은 순): 맵 => {id, name(표시 이름), sets}
+        // 맵 목록 (최근 20경기에서 쓴 맵 먼저 — stats_map_usage): 맵 => {id, name(표시 이름), sets, recent, last}
         $maps = [];
-        foreach (stats_maps($ds['games'] ?? []) as $map => $n) {
-            $maps[(string)$map] = ['id' => (string)$map, 'name' => map_label($ds, (string)$map), 'sets' => $n];
+        foreach (stats_map_usage($ds['games'] ?? []) as $map => $u) {
+            $maps[(string)$map] = ['id' => (string)$map, 'name' => map_label($ds, (string)$map)] + $u;
         }
         setting_set('maps_cache', json_enc($maps));
         $pv = channel_get('preview');
@@ -692,28 +742,33 @@ function program_update_live(int $instanceId, int $expectedTakeId, int $expected
         }
         $st = instance_state($inst, $sid);
         $snap = $pg['snapshot'];
-        // 송출에 반영하는 값: 수정값(MANUAL, 이번 입력 포함) 중 송출값과 다른 것만.
+        // 송출에 반영하는 값: 수정값(MANUAL, 이번 입력 포함) 중 송출값과 다른 것만 + 항목 빼기/다시 넣기.
         // 자동 갱신으로 바뀐 AUTO 값은 UPDATE LIVE로 내보내지 않는다 (의도하지 않은 값이 송출되지 않게, TAKE로만 반영).
+        $base = $snap['final_raw'] ?? $snap['final']; // v0.5 이전 스냅샷에는 빼기 전 값이 없다
         $apply = [];
         $manualDerived = [];
         foreach ($st['merged'] as $key => $f) {
             if (isset($st['tpl']['fields'][$key]['derived']) && $f['has_manual']) {
                 $manualDerived[] = $key;
             }
-            if ($f['has_manual'] && ($snap['final'][$key] ?? null) !== $f['final']) {
+            if ($f['has_manual'] && ($base[$key] ?? null) !== $f['final']) {
                 $apply[$key] = $f['final'];
             }
         }
-        $final = ov_apply_to_final($st['tpl']['fields'], $snap['final'], $apply, $manualDerived);
+        $raw = ov_apply_to_final($st['tpl']['fields'], $base, $apply, $manualDerived);
+        $final = hidden_apply($raw, $st['hidden']);
         $changed = array_keys(array_filter($final, static fn($v, $k) => ($snap['final'][$k] ?? null) !== $v, ARRAY_FILTER_USE_BOTH));
         if (!$changed) {
             throw new ActionError('NO_CHANGE', '송출 중인 값과 같아서 바꿀 내용이 없습니다. (자동값 변경은 TAKE로 반영됩니다)', 409);
         }
-        $problems = template_problems($inst['template'], $final, $inst['params'], $inst['issues'], manual_keys($st['merged']));
+        $problems = template_problems($inst['template'], $final, $inst['params'], $inst['issues'], manual_keys($st['merged']),
+            $st['hidden']);
         if ($problems) {
             throw new ActionError('NOT_SENDABLE', '값이 비어 있어 송출할 수 없습니다: ' . implode(' ', $problems), 422);
         }
         $snap['final'] = $final;
+        $snap['final_raw'] = $raw;
+        $snap['hidden'] = $st['hidden'];
         $snap['view'] = template_present($inst['template'], $final, $inst['params'], $st['mock']);
         $snap['updated_live_at'] = now();
         db_exec("UPDATE cg_channels SET snapshot_json = ? WHERE layer = 1 AND kind = 'program'", [json_enc($snap)]);
@@ -758,8 +813,9 @@ function rundown_export(): array
 {
     $pages = [];
     foreach (rundown_rows() as $r) {
+        $hidden = instance_get((int)$r['instance_id'])['hidden'];
         $pages[] = ['page_no' => (int)$r['page_no'], 'label' => $r['label'], 'template' => $r['template'],
-            'params' => json_dec($r['params_json'])];
+            'params' => json_dec($r['params_json'])] + ($hidden ? ['hidden' => $hidden] : []);
     }
     return ['format' => 'endgame-cg-pages', 'version' => 1, 'app_version' => APP_VERSION, 'exported_at' => now(), 'pages' => $pages];
 }
@@ -777,7 +833,8 @@ function rundown_import(mixed $data, array $op): array
     foreach ($data['pages'] as $i => $p) {
         try {
             [$slug, $params] = page_input(is_array($p) ? $p : []);
-            $items[] = [$slug, $params, page_label($p['label'] ?? ''), (int)($p['page_no'] ?? 0)];
+            $hidden = hidden_keys(template_get($slug), array_values(array_filter((array)($p['hidden'] ?? []), 'is_string')));
+            $items[] = [$slug, $params, page_label($p['label'] ?? ''), (int)($p['page_no'] ?? 0), $hidden];
         } catch (ActionError $e) {
             throw new ActionError('BAD_FILE', ($i + 1) . '번째 페이지: ' . $e->getMessage(), 422);
         }
@@ -786,7 +843,7 @@ function rundown_import(mixed $data, array $op): array
     return db_tx(function () use ($items, $ds, $op) {
         $used = array_map('intval', array_column(db_all('SELECT page_no FROM cg_rundown'), 'page_no'));
         $sort = (int)db_value('SELECT COALESCE(MAX(sort), 0) FROM cg_rundown');
-        foreach ($items as [$slug, $params, $label, $no]) {
+        foreach ($items as [$slug, $params, $label, $no, $hidden]) {
             if ($no < 1 || $no > 999 || in_array($no, $used, true)) {
                 $no = 1;
                 while (in_array($no, $used, true)) {
@@ -798,6 +855,9 @@ function rundown_import(mixed $data, array $op): array
             }
             $used[] = $no;
             $inst = instance_for($slug, $params, $ds);
+            if ($hidden) { // 내보낸 파일의 '뺀 항목'도 그대로 (v0.6)
+                db_exec('UPDATE cg_instances SET hidden_json = ? WHERE id = ?', [json_enc($hidden), $inst['id']]);
+            }
             db_exec('INSERT INTO cg_rundown (page_no, instance_id, sort, label, created_at) VALUES (?, ?, ?, ?, ?)',
                 [$no, $inst['id'], ++$sort, $label, now()]);
         }

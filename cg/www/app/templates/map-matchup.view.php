@@ -16,7 +16,9 @@
     </div>
 <?php endforeach ?>
   </div>
+<?php if ($view['foot'] !== ''): ?>
   <div class="cg-sumbar mu-foot"><span class="cg-fit"><?= h($view['foot']) ?></span></div>
+<?php endif ?>
 <?php if (!empty($view['mock'])): ?>
   <div class="cg-mock">MOCK</div>
 <?php endif ?>

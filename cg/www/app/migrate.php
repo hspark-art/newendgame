@@ -117,6 +117,16 @@ function migrations(): array
             'CREATE TABLE IF NOT EXISTS cg_map_info (map VARCHAR(60) NOT NULL PRIMARY KEY, name_ko VARCHAR(20) NOT NULL,
                 updated_at VARCHAR(19) NOT NULL) {opts}',
         ],
+        // v0.6.0: CG에서 뺀 항목 묶음 (타이틀 에디터의 [빼기]). 오늘 매치는 cg_settings에 둔다
+        6 => [
+            static function (): void {
+                try {
+                    db_value('SELECT hidden_json FROM cg_instances WHERE 1 = 0');
+                } catch (PDOException) {
+                    db()->exec('ALTER TABLE cg_instances ADD COLUMN hidden_json TEXT NULL');
+                }
+            },
+        ],
     ];
 }
 

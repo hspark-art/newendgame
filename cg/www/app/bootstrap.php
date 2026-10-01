@@ -31,6 +31,7 @@ require_once APP_DIR . '/log.php';
 require_once APP_DIR . '/alerts.php';
 require_once APP_DIR . '/control.php';
 require_once APP_DIR . '/design.php';
+require_once APP_DIR . '/match.php';
 require_once APP_DIR . '/views.php';
 require_once APP_DIR . '/actions.php';
 require_once APP_DIR . '/portal.php';

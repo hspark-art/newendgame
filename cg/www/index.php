@@ -57,6 +57,7 @@ $op = guard_control();
       <div class="pagebox" title="숫자를 누르고 Enter: 해당 페이지를 PREVIEW에 큐">PAGE <span id="pageBuf">___</span></div>
       <h2>페이지 리스트</h2>
       <div class="spacer"></div>
+      <button type="button" id="btnMatch" class="btn match" title="오늘 매치 두 선수: 페이지 추가에 미리 채우기 · 한 번에 추가 · 페이지 리스트 바꾸기">오늘 매치 <b id="matchText">설정 안 함</b></button>
       <button type="button" id="btnAdd" class="btn primary">+ 페이지 추가</button>
       <button type="button" id="btnExport" class="btn">내보내기</button>
       <button type="button" id="btnImport" class="btn">가져오기</button>
@@ -122,6 +123,8 @@ $op = guard_control();
     <div class="panel-head">
       <h2>타이틀 에디터</h2>
       <span id="edTarget" class="ellipsis muted">PREVIEW에 큐된 페이지가 없습니다.</span>
+      <div class="spacer"></div>
+      <label class="check" title="[CG에서 빼기]로 뺀 묶음의 입력 줄을 에디터에서 감춥니다"><input type="checkbox" id="edFold"> 뺀 항목 접기</label>
     </div>
     <div id="edNotice" class="notice" hidden></div>
     <div class="table-wrap">
@@ -161,6 +164,26 @@ $op = guard_control();
     <label>페이지 번호 <input type="number" id="pNo" min="1" max="999" placeholder="비우면 다음 번호"></label>
     <label>메모 <input type="text" id="pLabel" maxlength="100" placeholder="예: 3세트 전"></label>
     <div class="dlg-btns"><button value="cancel" class="btn">취소</button><button value="ok" id="pOk" class="btn primary">저장</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgMatch" class="dlg">
+  <form method="dialog">
+    <h3>오늘 매치</h3>
+    <p class="hint">두 선수를 정해 두면 [+ 페이지 추가] 창에 미리 채워지고, 상대 종족은 서로의 종족으로 맞춰집니다.</p>
+    <label>A 선수 (왼쪽) <select id="mA"></select></label>
+    <label>B 선수 (오른쪽) <select id="mB"></select></label>
+    <div class="dlg-btns left"><button type="button" id="mSave" class="btn primary">매치 저장</button></div>
+    <h4>이 매치 CG 한 번에 추가</h4>
+    <div id="mTpls" class="checks"></div>
+    <label>이번 맵 (매치 프리뷰·맵 전적, 선택) <select id="mMap"></select></label>
+    <div class="dlg-btns left"><button type="button" id="mAdd" class="btn">고른 CG 페이지 추가</button></div>
+    <h4>페이지 리스트를 이 매치로 바꾸기</h4>
+    <p class="hint">선수 두 명을 쓰는 페이지(상대 종족 승률·매치 프리뷰·맞대결·풀세트·더블 찬스 등)의 선수를 오늘 매치로 바꿉니다.
+      페이지 번호·메모·경기 수·맵은 그대로이고, 송출 중인 페이지는 바꾸지 않습니다.</p>
+    <div class="dlg-btns left"><button type="button" id="mApply" class="btn">페이지 리스트 바꾸기</button></div>
+    <p class="hint" id="mResult"></p>
+    <div class="dlg-btns"><button value="close" class="btn">닫기</button></div>
   </form>
 </dialog>
 

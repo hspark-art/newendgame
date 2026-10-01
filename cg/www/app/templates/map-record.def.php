@@ -12,9 +12,10 @@ $side = static fn(string $s, string $who) => [
     "$s.wins" => ['label' => "$who 맵 승", 'type' => 'int'],
     "$s.losses" => ['label' => "$who 맵 패", 'type' => 'int'],
     "$s.rate" => ['label' => "$who 맵 승률", 'type' => 'rate', 'derived' => ["$s.wins", "$s.losses"]],
-    "$s.vs" => ['label' => "$who 상대 종족", 'type' => 'text', 'max' => 1, 'optional' => true],
-    "$s.vw" => ['label' => "$who 이 맵 상대 종족전 승", 'type' => 'int', 'optional' => true],
-    "$s.vl" => ['label' => "$who 이 맵 상대 종족전 패", 'type' => 'int', 'optional' => true],
+    // 아래 줄(그 맵 상대 종족전)은 타이틀 에디터에서 [빼기]로 뺄 수 있다
+    "$s.vs" => ['label' => "$who 상대 종족", 'type' => 'text', 'max' => 1, 'optional' => true, 'group' => '그 맵 상대 종족전'],
+    "$s.vw" => ['label' => "$who 승", 'type' => 'int', 'optional' => true, 'group' => '그 맵 상대 종족전'],
+    "$s.vl" => ['label' => "$who 패", 'type' => 'int', 'optional' => true, 'group' => '그 맵 상대 종족전'],
 ];
 
 return [
@@ -28,7 +29,11 @@ return [
         ['key' => 'b.player', 'label' => 'B 선수 (오른쪽)', 'type' => 'player'],
     ],
     'check' => 'check_two_players',
-    'fields' => ['title' => ['label' => '제목', 'type' => 'text', 'max' => 40]] + $side('a', 'A') + $side('b', 'B'),
+    // 묶음 필드(그 맵 상대 종족전)는 에디터에서 한데 보이게 맨 뒤로
+    'fields' => (static function () use ($side): array {
+        $all = ['title' => ['label' => '제목', 'type' => 'text', 'max' => 40]] + $side('a', 'A') + $side('b', 'B');
+        return array_filter($all, static fn($d) => !isset($d['group'])) + array_filter($all, static fn($d) => isset($d['group']));
+    })(),
     'auto' => static function (array $p, array $ds): array {
         $auto = ['title' => map_label($ds, $p['map']) . ' 맵 전적'];
         foreach (['a' => 'b', 'b' => 'a'] as $s => $o) {

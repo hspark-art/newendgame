@@ -402,6 +402,37 @@ function stats_map_matchup(array $games, string $map): array
     return $r;
 }
 
+/**
+ * 맵 고르기 순서: 최근 끝장전 $recentMatches경기에서 쓴 맵을 먼저(그 경기들에서 쓴 세트 많은 순 → 마지막 사용일 최근 순),
+ * 그다음 나머지 맵을 마지막 사용일 최근 순으로. 끝장전 1경기 = 같은 날 같은 두 선수의 세트 묶음 (sheet_matches와 같은 기준).
+ * @return array<string, array{sets:int, recent:int, last:string}> 맵 => {전체 세트, 최근 경기 세트, 마지막 사용일}
+ */
+function stats_map_usage(array $games, int $recentMatches = 20): array
+{
+    $byMatch = [];
+    $u = [];
+    foreach ($games as $g) {
+        if ($g['map'] === '') {
+            continue;
+        }
+        $pair = [$g['winner'], $g['loser']];
+        sort($pair, SORT_STRING);
+        $byMatch[$g['date'] . '|' . implode('|', $pair)][] = $g['map'];
+        $u[$g['map']] ??= ['sets' => 0, 'recent' => 0, 'last' => $g['date']];
+        $u[$g['map']]['sets']++;
+        $u[$g['map']]['last'] = max($u[$g['map']]['last'], $g['date']);
+    }
+    krsort($byMatch, SORT_STRING); // 날짜 최근 순 (키가 날짜로 시작)
+    foreach (array_slice($byMatch, 0, $recentMatches, true) as $maps) {
+        foreach ($maps as $m) {
+            $u[$m]['recent']++;
+        }
+    }
+    uksort($u, static fn($a, $b) => [$u[$b]['recent'] > 0, $u[$b]['recent'], $u[$b]['last'], $u[$b]['sets'], (string)$a]
+        <=> [$u[$a]['recent'] > 0, $u[$a]['recent'], $u[$a]['last'], $u[$a]['sets'], (string)$b]);
+    return $u;
+}
+
 /** 맵 목록: 사용 세트 수 많은 순 (같으면 이름순). @return array<string, int> 맵 => 세트 수 */
 function stats_maps(array $games): array
 {

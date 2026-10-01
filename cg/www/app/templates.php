@@ -190,10 +190,12 @@ function manual_keys(array $merged): array
  * - 목록형 CG는 표시할 행이 1개 이상이어야 한다.
  * @return list<string> 문제 목록 (비어 있으면 송출 가능)
  */
-function template_problems(string $slug, array $final, array $params, array $issues = [], array $manual = []): array
+function template_problems(string $slug, array $final, array $params, array $issues = [], array $manual = [],
+    array $hidden = []): array
 {
     $tpl = template_get($slug);
-    $problems = ov_sendable($tpl['fields'], $final);
+    // 뺀 항목은 비어 있어도 된다 (송출 화면에 나오지 않음)
+    $problems = ov_sendable(array_diff_key($tpl['fields'], array_flip($hidden)), $final);
     $players = players_cache();
     foreach ($tpl['params'] as $p) {
         $v = array_reduce(explode('.', $p['key']), static fn($c, $k) => is_array($c) ? ($c[$k] ?? null) : null, $params);

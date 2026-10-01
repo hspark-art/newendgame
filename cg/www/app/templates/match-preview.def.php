@@ -5,25 +5,43 @@ declare(strict_types=1);
  * #11 매치 프리뷰 — 경기 전 두 선수 비교표: 매치 전적, 세트 전적, 상대 종족전(세트), 최근 5경기 흐름, 맞대결, 이번 맵 전적(맵을 고르면).
  * 매치 = 끝장전 승패(이상·제외 경기 뺌), 세트 = Results 모든 세트. 각 줄에서 기록이 더 좋은 쪽을 강조색으로 표시한다.
  */
-$side = static fn(string $s, string $who) => [
-    "$s.name" => ['label' => "$who 이름", 'type' => 'text', 'max' => 12],
-    "$s.nick" => ['label' => "$who 닉네임", 'type' => 'text', 'max' => 16, 'optional' => true],
-    "$s.race" => ['label' => "$who 종족", 'type' => 'text', 'max' => 1, 'optional' => true],
-    "$s.mw" => ['label' => "$who 매치 승", 'type' => 'int'],
-    "$s.ml" => ['label' => "$who 매치 패", 'type' => 'int'],
-    "$s.mrate" => ['label' => "$who 매치 승률", 'type' => 'rate', 'derived' => ["$s.mw", "$s.ml"]],
-    "$s.sw" => ['label' => "$who 세트 승", 'type' => 'int'],
-    "$s.sl" => ['label' => "$who 세트 패", 'type' => 'int'],
-    "$s.srate" => ['label' => "$who 세트 승률", 'type' => 'rate', 'derived' => ["$s.sw", "$s.sl"]],
-    "$s.vs" => ['label' => "$who 상대 종족", 'type' => 'text', 'max' => 1, 'optional' => true],
-    "$s.rw" => ['label' => "$who 상대 종족전 승", 'type' => 'int', 'optional' => true],
-    "$s.rl" => ['label' => "$who 상대 종족전 패", 'type' => 'int', 'optional' => true],
-    "$s.rrate" => ['label' => "$who 상대 종족전 승률", 'type' => 'rate', 'derived' => ["$s.rw", "$s.rl"], 'optional' => true],
-    "$s.form" => ['label' => "$who 최근 5경기 (W/L, 오래된 순)", 'type' => 'text', 'max' => 5, 'optional' => true],
-    "$s.pw" => ['label' => "$who 이번 맵 승", 'type' => 'int', 'optional' => true],
-    "$s.pl" => ['label' => "$who 이번 맵 패", 'type' => 'int', 'optional' => true],
-    "$s.prate" => ['label' => "$who 이번 맵 승률", 'type' => 'rate', 'derived' => ["$s.pw", "$s.pl"], 'optional' => true],
-];
+/*
+ * 필드는 줄(묶음)마다 A·B를 함께 둔다. 묶음(group)은 타이틀 에디터에서 [빼기]로 CG에서 통째로 뺄 수 있다.
+ * $pair(묶음, 키 => [이름, 정의]) → "a.키", "b.키" 필드 (이름 앞에 A/B)
+ */
+$pair = static function (string $group, array $spec): array {
+    $out = [];
+    foreach (['a' => 'A', 'b' => 'B'] as $s => $who) {
+        foreach ($spec as $k => [$label, $def]) {
+            if (isset($def['derived'])) {
+                $def['derived'] = array_map(static fn($x) => "$s.$x", $def['derived']);
+            }
+            $out["$s.$k"] = ['label' => "$who $label"] + $def + ($group === '' ? [] : ['group' => $group]);
+        }
+    }
+    return $out;
+};
+$fields = ['title' => ['label' => '제목', 'type' => 'text', 'max' => 40]]
+    + $pair('', ['name' => ['이름', ['type' => 'text', 'max' => 12]]])
+    + $pair('닉네임', ['nick' => ['닉네임', ['type' => 'text', 'max' => 16, 'optional' => true]]])
+    + $pair('종족 표시', ['race' => ['종족', ['type' => 'text', 'max' => 1, 'optional' => true]]])
+    + $pair('매치 전적', ['mw' => ['승', ['type' => 'int']], 'ml' => ['패', ['type' => 'int']],
+        'mrate' => ['승률', ['type' => 'rate', 'derived' => ['mw', 'ml']]]])
+    + $pair('세트 전적', ['sw' => ['승', ['type' => 'int']], 'sl' => ['패', ['type' => 'int']],
+        'srate' => ['승률', ['type' => 'rate', 'derived' => ['sw', 'sl']]]])
+    + $pair('상대 종족전', ['vs' => ['상대 종족', ['type' => 'text', 'max' => 1, 'optional' => true]],
+        'rw' => ['승', ['type' => 'int', 'optional' => true]], 'rl' => ['패', ['type' => 'int', 'optional' => true]],
+        'rrate' => ['승률', ['type' => 'rate', 'derived' => ['rw', 'rl'], 'optional' => true]]])
+    + $pair('최근 5경기', ['form' => ['W/L (오래된 순)', ['type' => 'text', 'max' => 5, 'optional' => true]]])
+    + [
+        'h.a' => ['label' => 'A 승', 'type' => 'int', 'max' => 999, 'group' => '맞대결'],
+        'h.b' => ['label' => 'B 승', 'type' => 'int', 'max' => 999, 'group' => '맞대결'],
+        'h.sa' => ['label' => 'A 세트', 'type' => 'int', 'group' => '맞대결'],
+        'h.sb' => ['label' => 'B 세트', 'type' => 'int', 'group' => '맞대결'],
+        'map.name' => ['label' => '맵 이름', 'type' => 'text', 'max' => 20, 'optional' => true, 'group' => '이번 맵'],
+    ]
+    + $pair('이번 맵', ['pw' => ['승', ['type' => 'int', 'optional' => true]], 'pl' => ['패', ['type' => 'int', 'optional' => true]],
+        'prate' => ['승률', ['type' => 'rate', 'derived' => ['pw', 'pl'], 'optional' => true]]]);
 
 return [
     'slug' => 'match-preview',
@@ -36,13 +54,7 @@ return [
         ['key' => 'map', 'label' => '이번 맵 (고르지 않으면 맵 줄 없음)', 'type' => 'map_any'],
     ],
     'check' => 'check_two_players',
-    'fields' => ['title' => ['label' => '제목', 'type' => 'text', 'max' => 40]] + $side('a', 'A') + $side('b', 'B') + [
-        'h.a' => ['label' => '맞대결 A 승', 'type' => 'int', 'max' => 999],
-        'h.b' => ['label' => '맞대결 B 승', 'type' => 'int', 'max' => 999],
-        'h.sa' => ['label' => '맞대결 A 세트', 'type' => 'int'],
-        'h.sb' => ['label' => '맞대결 B 세트', 'type' => 'int'],
-        'map.name' => ['label' => '맵 이름', 'type' => 'text', 'max' => 20, 'optional' => true],
-    ],
+    'fields' => $fields,
     'auto' => static function (array $p, array $ds): array {
         $auto = ['title' => '중계진 스타 끝장전 매치 프리뷰'];
         $map = $p['map'];
@@ -109,10 +121,13 @@ return [
             $line('상대 종족전', 'race', 'rw', 'rl', 'rrate', 'vs'),
             ($f['a.form'] ?? null) !== null || ($f['b.form'] ?? null) !== null
                 ? ['kind' => 'form', 'key' => 'form', 'label' => '최근 5경기', 'a' => $form($f['a.form']), 'b' => $form($f['b.form'])] : null,
-            (int)$f['h.a'] + (int)$f['h.b'] === 0
-                ? ['kind' => 'note', 'key' => 'h2h', 'label' => '맞대결', 'text' => '첫 맞대결']
-                : ['kind' => 'rec', 'key' => 'h2h', 'label' => '맞대결', 'a' => $f['h.a'] . '승', 'a_sub' => '세트 ' . $f['h.sa'],
-                    'b' => $f['h.b'] . '승', 'b_sub' => '세트 ' . $f['h.sb'], 'lead' => $lead($f['h.a'], $f['h.b'])],
+            match (true) {
+                ($f['h.a'] ?? null) === null && ($f['h.b'] ?? null) === null => null, // 맞대결 줄을 뺌
+                (int)$f['h.a'] + (int)$f['h.b'] === 0 => ['kind' => 'note', 'key' => 'h2h', 'label' => '맞대결', 'text' => '첫 맞대결'],
+                default => ['kind' => 'rec', 'key' => 'h2h', 'label' => '맞대결', 'a' => $f['h.a'] . '승',
+                    'a_sub' => $f['h.sa'] === null ? '' : '세트 ' . $f['h.sa'], 'b' => $f['h.b'] . '승',
+                    'b_sub' => $f['h.sb'] === null ? '' : '세트 ' . $f['h.sb'], 'lead' => $lead($f['h.a'], $f['h.b'])],
+            },
             ($f['map.name'] ?? null) !== null ? $line($f['map.name'], 'map', 'pw', 'pl', 'prate') : null,
         ]));
         $who = static fn(string $s) => ['name' => (string)$f["$s.name"], 'nick' => (string)($f["$s.nick"] ?? ''),
