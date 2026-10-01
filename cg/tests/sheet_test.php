@@ -97,8 +97,10 @@ function fx_tables(?callable $tamper = null): array
     // 실제 시트처럼 순위표 아래 빈 행 뒤에 다른 표("SET별 성공률")가 이어진다 — 순위표로 읽으면 안 됨
     $pred[] = array_merge(array_fill(0, 11, ''), ['SET별 성공률']);
     $pred[] = array_merge(array_fill(0, 11, ''), [1, 19, 0.4211]);
+    // 닉네임 탭 (선택): 나선수만 입력, 다선수는 닉네임 칸이 비어 있음
+    $nicks = [['선수명', '닉네임'], ['나선수', 'Na'], ['다선수', '']];
     $t = ['results' => $results, 'players' => $players, 'matches' => $matchList, 'predictions' => $pred,
-        'adjust' => $adjust, 'stats' => $stats];
+        'adjust' => $adjust, 'stats' => $stats, 'nicks' => $nicks];
     if ($tamper) {
         $tamper($t);
     }

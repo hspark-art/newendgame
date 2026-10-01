@@ -105,12 +105,13 @@ $op = guard_control();
         <p class="hint" title="특정 CG만 띄우려면 주소 끝에 &amp;template=race-win-rate">OBS/vMix 브라우저 소스 1920 × 1080</p>
       </div>
       <div class="block">
-        <h3>위치 · 크기 <small>PREVIEW에 바로, PROGRAM은 다음 TAKE부터</small></h3>
+        <h3>위치 · 크기 <small>[적용]은 PREVIEW에, [송출에도 바로 적용]은 송출 중인 화면까지</small></h3>
         <div class="display-form">
           <label>오른쪽 <input type="number" id="dRight" step="1"> px</label>
           <label>아래 <input type="number" id="dBottom" step="1"> px</label>
           <label>크기 <input type="number" id="dScale" min="50" max="200" step="5"> %</label>
           <button type="button" id="btnDisplay" class="btn sm">적용</button>
+          <button type="button" id="btnDisplayLive" class="btn sm live" title="TAKE 없이 송출 중인 화면의 위치·크기만 바로 바꿉니다 (수치는 그대로)">송출에도 바로 적용</button>
         </div>
       </div>
     </div>
@@ -167,7 +168,7 @@ $op = guard_control();
     <h3>데이터 점검·설정</h3>
     <div class="tabs">
       <button type="button" class="tab on" data-tab="check">점검</button>
-      <button type="button" class="tab" data-tab="players">선수 정보</button>
+      <button type="button" class="tab" data-tab="players">선수 닉네임</button>
       <button type="button" class="tab" data-tab="settings">데이터 설정</button>
     </div>
     <section class="tabpane" data-pane="check">
@@ -187,8 +188,9 @@ $op = guard_control();
       <ul id="dcExcluded" class="dc-list plain"></ul>
     </section>
     <section class="tabpane" data-pane="players" hidden>
-      <p class="hint">닉네임(예: soma, Light)은 시트에 없어 직접 입력합니다. 입력한 닉네임만 다승·연승 CG에 표시됩니다.</p>
-      <div class="dc-list"><table class="grid-table"><thead><tr><th>선수</th><th>종족</th><th>닉네임</th><th></th></tr></thead>
+      <p class="hint">닉네임(예: soma, Light)은 시트의 <b>'닉네임' 탭</b>(A열 선수명, B열 닉네임)에서 읽습니다. 여기에 입력하면 시트보다 우선하고,
+        비우고 저장하면 시트 값을 씁니다. 닉네임은 다승·연승 CG의 이름 옆에 표시됩니다.</p>
+      <div class="dc-list"><table class="grid-table"><thead><tr><th>선수</th><th>종족</th><th>시트 닉네임</th><th>프로그램 닉네임 (우선)</th><th></th></tr></thead>
         <tbody id="piBody"></tbody></table></div>
     </section>
     <section class="tabpane" data-pane="settings" hidden>
@@ -202,6 +204,7 @@ $op = guard_control();
         <label class="prm"><span>승자 예측 탭</span><input type="text" id="dsTabPredictions"></label>
         <label class="prm"><span>더블 찬스 보정 탭</span><input type="text" id="dsTabAdjust"></label>
         <label class="prm"><span>선수별 통계 탭 (더블 찬스 검증)</span><input type="text" id="dsTabStats"></label>
+        <label class="prm"><span>닉네임 탭 (선택)</span><input type="text" id="dsTabNicks"></label>
         <div class="dlg-btns left"><button type="button" id="dsSave" class="btn primary">설정 저장</button>
           <button type="button" id="dsTest" class="btn">연결 테스트</button></div>
         <h4>서비스 계정 키</h4>

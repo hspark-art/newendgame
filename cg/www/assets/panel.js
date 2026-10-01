@@ -24,7 +24,8 @@
     TAKE: '송출(TAKE)', SHOW: '표시(SHOW)', OUT: '내림(OUT)', UPDATE_LIVE: '긴급 수정', UPDATE_LIVE_REJECTED: '긴급 수정 거부',
     SET: '수정', RESET: '되돌리기', KEEP: 'KEEP 설정', PAGE_ADD: '페이지 추가', PAGE_EDIT: '페이지 수정',
     PAGE_REMOVE: '페이지 삭제', PAGE_IMPORT: '가져오기', REFRESH: '데이터 새로고침', REFRESH_FAIL: '데이터 오류',
-    AUTO_CHANGED: '자동값 변경', NEW_SESSION: '새 세션', KEEP_CARRY: 'KEEP 이월', DISPLAY: '위치 변경'
+    AUTO_CHANGED: '자동값 변경', NEW_SESSION: '새 세션', KEEP_CARRY: 'KEEP 이월', DISPLAY: '위치 변경',
+    DISPLAY_LIVE: '위치 변경(송출)', MOCK_PURGE: 'MOCK 삭제', PLAYER_INFO: '닉네임'
   };
 
   // ------------------------------------------------------------ 공용
@@ -581,6 +582,7 @@
         var v = function (ok, label) { return '<span class="tag ' + (ok ? 'auto">' : 'err">') + esc(label) + (ok ? ' 대조됨' : ' 대조 불가') + '</span> '; };
         html = '<p><b>Google 시트' + (s.method === 'xlsx' ? ' (xlsx 파일)' : '') + '</b> · ' + esc(s.at) + '</p>'
           + '<p>세트 ' + c.games + ' · 끝장전 ' + c.matches + ' (통계 사용 ' + c.valid_matches + ') · 선수 ' + c.players
+          + (c.nicknames ? ' (닉네임 ' + c.nicknames + '명)' : '')
           + ' · 예측 ' + c.predictions + ' · 기간 ' + esc(c.first_date) + ' ~ ' + esc(c.last_date) + '</p>'
           + '<p>' + v(s.verified.sets, '세트 전적') + v(s.verified.matches, '끝장전 목록') + v(s.verified.predictions, '승자 예측')
           + v(s.verified.double, '더블 찬스') + '</p>'
@@ -615,13 +617,15 @@
     var list = r.players || r;
     $('piBody').innerHTML = list.map(function (p) {
       return '<tr data-player="' + esc(p.id) + '"><td>' + esc(p.name) + '</td><td>' + esc(p.race || '-') + '</td>'
-        + '<td><input type="text" class="nick" maxlength="20" value="' + esc(p.nickname) + '"></td>'
+        + '<td class="muted">' + esc(p.sheet_nick || '—') + '</td>'
+        + '<td><input type="text" class="nick" maxlength="20" value="' + esc(p.nickname) + '" placeholder="'
+        + esc(p.sheet_nick ? '비우면 시트 값 (' + p.sheet_nick + ')' : '') + '"></td>'
         + '<td><button type="button" class="btn sm" data-act="nick">저장</button></td></tr>';
-    }).join('') || '<tr><td colspan="4" class="muted">선수 목록이 없습니다. 데이터를 먼저 불러오세요.</td></tr>';
+    }).join('') || '<tr><td colspan="5" class="muted">선수 목록이 없습니다. 데이터를 먼저 불러오세요.</td></tr>';
   }
 
   var TAB_INPUTS = [['dsTabResults', 'results'], ['dsTabPlayers', 'players'], ['dsTabMatches', 'matches'],
-    ['dsTabPredictions', 'predictions'], ['dsTabAdjust', 'adjust'], ['dsTabStats', 'stats']];
+    ['dsTabPredictions', 'predictions'], ['dsTabAdjust', 'adjust'], ['dsTabStats', 'stats'], ['dsTabNicks', 'nicks']];
 
   function renderSettings(r) {
     $('dsNotAdmin').hidden = r.admin;
@@ -818,10 +822,15 @@
       $('pgmFrame').classList.toggle('zoom', zoom);
       this.textContent = zoom ? '전체 화면 보기' : 'CG 확대 보기';
     };
-    $('btnDisplay').onclick = function () {
-      api('set_display', { right: $('dRight').value, bottom: $('dBottom').value, scale_pct: $('dScale').value })
-        .then(function () { toast('위치를 적용했습니다. PROGRAM은 다음 TAKE부터 바뀝니다.', 'ok'); });
+    var setDisplay = function (live) {
+      api('set_display', { right: $('dRight').value, bottom: $('dBottom').value, scale_pct: $('dScale').value, live: live })
+        .then(function (r) {
+          toast(r.live ? '위치·크기를 송출 화면에도 바로 반영했습니다.'
+            : live ? '송출 중인 CG가 없어 PREVIEW에만 반영했습니다.' : '위치·크기를 적용했습니다. PROGRAM은 다음 TAKE부터 바뀝니다.', 'ok');
+        });
     };
+    $('btnDisplay').onclick = function () { setDisplay(false); };
+    $('btnDisplayLive').onclick = function () { setDisplay(true); };
     $('btnNewSession').onclick = function () {
       $('keepCount').textContent = S.keep_count;
       $('sessNameInput').value = new Date().toISOString().slice(0, 10) + ' 방송';

@@ -181,7 +181,7 @@ test('google: 서명한 JWT로 토큰 → 탭 목록 → 필요한 열만 batchG
             panel_state(op())['data']['check']['verified'], '가져온 표로 4가지 대조 모두 가능');
         $batch = rawurldecode($log[2][1]);
         foreach (["'Results'!A:F", "'Results'!H:H", "'Players'!A:O", "'상대전적조회NEW'!A:I", "'중계진 예측 현황입력용'!A:Q",
-            "'상금 보정'!A:B", "'상금 보정'!E:E", "'선수별 통계'!B:B", "'선수별 통계'!M:N"] as $range) {
+            "'상금 보정'!A:B", "'상금 보정'!E:E", "'선수별 통계'!B:B", "'선수별 통계'!M:N", "'닉네임'!A:B"] as $range) {
             assert_true(str_contains($batch, $range), "요청 범위 $range");
         }
         assert_true(!str_contains($batch, "'Results'!G") && !str_contains($batch, '!C:') && !str_contains($batch, 'Global'),

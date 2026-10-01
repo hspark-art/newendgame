@@ -40,6 +40,14 @@
     cg.style.setProperty('--dur', (isProgram ? (s.dur_ms | 0) : 0) + 'ms');
   }
 
+  /* 1920×1080 캔버스를 창 크기에 맞춘다 (비율 유지, 오른쪽 아래 기준). 창 크기를 알 수 없으면 그대로 둔다 */
+  function fitStage() {
+    var w = window.innerWidth;
+    var h = window.innerHeight;
+    var s = w > 0 && h > 0 ? Math.min(w / 1920, h / 1080) : 1;
+    stage.style.transform = Math.abs(s - 1) < 0.001 ? '' : 'scale(' + s + ')';
+  }
+
   /* 글자가 칸보다 길면 글자 크기를 줄여 한 줄에 맞춘다 (최소 60%) */
   function fit() {
     var items = cg.querySelectorAll('.cg-fit');
@@ -149,6 +157,8 @@
       });
   }
 
+  fitStage();
+  window.addEventListener('resize', fitStage);
   setEffect(cur);
   applyDisplay(cur.display);
   fit();

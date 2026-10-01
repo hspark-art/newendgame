@@ -1,8 +1,10 @@
 /* 송출 화면: 1920×1080 투명 캔버스. CG 패널 자체의 배경만 보이고 나머지는 투명하다.
+   창(브라우저 소스) 크기가 1920×1080이 아니면 output.js가 캔버스 전체를 창에 맞춰 줄이거나 키운다(오른쪽 아래 기준).
+   → 일반 브라우저 창·화면 배율 125%/150%에서도 CG가 잘리지 않는다. OBS 1920×1080 소스에서는 그대로(100%).
    color-scheme을 지정하지 않는다 (지정하면 iframe 뒤에 불투명 배경이 생길 수 있음). */
-html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
-body.out { width: 1920px; height: 1080px; position: relative; }
-#stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; }
+html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; width: 100%; height: 100%; }
+body.out { position: relative; }
+#stage { position: absolute; right: 0; bottom: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 100% 100%; }
 
 /* 위치: 오른쪽·아래 여백과 크기는 output.js가 적용한다 (CSP 때문에 인라인 style 미사용) */
 .cg-pos { position: absolute; right: 0; bottom: 4px; transform-origin: 100% 100%; }

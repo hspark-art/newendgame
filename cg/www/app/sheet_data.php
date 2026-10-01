@@ -24,15 +24,16 @@ const SHEET_TABS_DEFAULT = [
     'predictions' => '중계진 예측 현황입력용',
     'adjust' => '상금 보정',      // 더블 찬스 횟수 보정 (날짜·선수명·더블 찬스 횟수만 읽음)
     'stats' => '선수별 통계',     // 더블 찬스 검증 (선수명·더블 성공 횟수·더블 시도만 읽음)
+    'nicks' => '닉네임',          // 선택: A열 선수명, B열 닉네임 (프로그램에서 입력한 닉네임이 우선)
 ];
 
 /** 예측 탭의 중계진 표기 "박상현 캐스터"에서 떼어 낼 직책 */
 const PREDICTOR_ROLES = ['캐스터', '해설', '해설위원', '위원', 'MC', '아나운서'];
 
-/** 표에서 이름 비교용: 모든 공백 제거 + 소문자 */
+/** 표에서 이름 비교용: 모든 공백·보이지 않는 문자(BOM 등) 제거 + 소문자 */
 function cell_key(mixed $v): string
 {
-    return mb_strtolower((string)preg_replace('/\s+/u', '', is_scalar($v) ? (string)$v : ''));
+    return mb_strtolower((string)preg_replace('/[\s\x{200B}-\x{200D}\x{FEFF}]+/u', '', is_scalar($v) ? (string)$v : ''));
 }
 
 function cell_str(mixed $v): string
@@ -150,6 +151,21 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
             }
         }
         $players[$pid] = ['id' => $pid, 'name' => $pid, 'nickname' => null, 'race' => $race, 'aliases' => [], 'active' => true];
+    }
+
+    // 닉네임 (선택 탭). 프로그램에서 입력한 닉네임이 있으면 그쪽이 우선한다 (data.php dataset_with_player_info)
+    $nickCount = 0;
+    if (isset($tables['nicks'])) {
+        $nk = sheet_nick_table($tables['nicks']);
+        array_push($check['lint'], ...$nk['lint']);
+        foreach ($nk['rows'] as $name => [$row, $nick]) {
+            if (isset($players[$name])) {
+                $players[$name]['nickname'] = $nick;
+                $nickCount++;
+            } else {
+                $check['lint'][] = ['row' => $row, 'text' => "닉네임 {$row}행 '$name'은(는) Results에 없는 선수 이름입니다. 이름 표기를 확인하세요."];
+            }
+        }
     }
 
     // 검증 1: 세트 전적 (Players 탭)
@@ -293,7 +309,7 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
 
     $check['anomalies_all'] = $check['anomalies'];
     $check['counts'] = ['games' => count($games), 'matches' => count($matches), 'players' => count($players),
-        'predictions' => count($predictions),
+        'predictions' => count($predictions), 'nicknames' => $nickCount,
         'first_date' => $games ? min(array_column($games, 'date')) : null, 'last_date' => $games ? max(array_column($games, 'date')) : null];
 
     return dataset_finalize([
@@ -387,6 +403,41 @@ function sheet_double_chance(array $games, array $matches, array $adjust): array
     }
     ksort($out, SORT_STRING);
     return $out;
+}
+
+/**
+ * 닉네임 탭: A열 선수명, B열 닉네임 (머리글 "선수명"·"닉네임"). 닉네임이 빈 행은 건너뛴다.
+ * 읽을 수 없는 행은 건너뛰고 점검 목록(lint)에 행 번호로 알린다 — 닉네임 때문에 다른 데이터를 막지 않는다.
+ * @return array{rows:array<string, array{0:int, 1:string}>, lint:list<array>} 선수 => [시트 행 번호, 닉네임]
+ */
+function sheet_nick_table(array $rows): array
+{
+    $h = table_header_row($rows, [0 => '선수명', 1 => '닉네임']) ?? table_header_row($rows, [0 => '선수', 1 => '닉네임']);
+    if ($h === null) {
+        return ['rows' => [], 'lint' => [['row' => 1, 'text' => '닉네임 탭의 머리글(A열 "선수명", B열 "닉네임")을 찾을 수 없습니다.']]];
+    }
+    $out = $lint = [];
+    foreach ($rows as $i => $r) {
+        if ($i <= $h || row_blank($r)) {
+            continue;
+        }
+        $n = $i + 1;
+        $name = name_norm($r[0] ?? '');
+        $nick = trim((string)preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', cell_str($r[1] ?? '')));
+        if ($nick === '') {
+            continue;
+        }
+        if ($name === null) {
+            $lint[] = ['row' => $n, 'text' => "닉네임 {$n}행 선수명을 읽을 수 없습니다."];
+        } elseif (mb_strlen($nick) > 20 || preg_match('/[\x00-\x1F\x7F<>"]/u', $nick)) {
+            $lint[] = ['row' => $n, 'text' => "닉네임 {$n}행 '$name'의 닉네임은 20자 이내 글자로 입력하세요."];
+        } elseif (isset($out[$name])) {
+            $lint[] = ['row' => $n, 'text' => "닉네임 {$n}행 '$name'이(가) 위({$out[$name][0]}행)에 이미 있습니다. 한 줄만 남기세요."];
+        } else {
+            $out[$name] = [$n, $nick];
+        }
+    }
+    return ['rows' => $out, 'lint' => $lint];
 }
 
 /**

@@ -276,7 +276,7 @@ function match_exclude(array $in, array $op): array
     return data_check_view();
 }
 
-/** 선수 부가 정보(운영자가 입력한 닉네임)를 데이터에 합친다. 시트에 없는 값이라 추측하지 않고 입력한 것만 쓴다 */
+/** 선수 부가 정보(운영자가 입력한 닉네임)를 데이터에 합친다. 시트 '닉네임' 탭 값보다 우선한다. 추측하지 않고 입력한 것만 쓴다 */
 function dataset_with_player_info(array $ds): array
 {
     foreach (db_all('SELECT player, nickname FROM cg_player_info') as $r) {
@@ -406,11 +406,13 @@ function player_info_view(): array
     foreach (db_all('SELECT player, nickname FROM cg_player_info') as $r) {
         $info[$r['player']] = $r['nickname'];
     }
+    // 시트 '닉네임' 탭의 값 (원본 캐시). 프로그램에서 입력한 값(nickname)이 있으면 그쪽이 CG에 나간다
+    $raw = dataset_cache_get(data_source());
     return array_values(array_map(static fn($p) => ['id' => $p['id'], 'name' => $p['name'], 'race' => $p['race'],
-        'nickname' => $info[$p['id']] ?? ''], players_cache()));
+        'nickname' => $info[$p['id']] ?? '', 'sheet_nick' => (string)($raw['players'][$p['id']]['nickname'] ?? '')], players_cache()));
 }
 
-/** 닉네임 저장 (빈 값이면 삭제). 저장 후 마지막 정상 데이터로 AUTO를 다시 계산한다 (네트워크 접속 없음) */
+/** 닉네임 저장 (빈 값이면 삭제 → 시트 '닉네임' 탭 값이 있으면 그 값을 쓴다). 저장 후 마지막 정상 데이터로 AUTO를 다시 계산한다 (네트워크 접속 없음) */
 function player_info_save(array $in, array $op): array
 {
     $pid = (string)($in['player'] ?? '');

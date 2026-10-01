@@ -21,6 +21,7 @@ const SHEET_RANGES = [
     'predictions' => ['A:Q'],
     'adjust' => ['A:B', 'E:E'],       // 날짜·선수명·더블 찬스 횟수
     'stats' => ['B:B', 'M:N'],        // 선수명·더블 성공 횟수·더블 시도
+    'nicks' => ['A:B'],               // 선수명·닉네임 (선택 탭)
 ];
 
 /** "H:H" → 7 (A=0) */

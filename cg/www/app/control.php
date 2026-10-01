@@ -338,7 +338,12 @@ function cue_step(int $dir): ?array
 }
 
 /** 위치·크기. PREVIEW에 바로 반영되고, PROGRAM에는 다음 TAKE부터 적용된다. */
-function preview_display(array $in, array $op): void
+/**
+ * 위치·크기: PREVIEW에 바로 반영. PROGRAM은 다음 TAKE부터 — live=true(명시적 버튼)면 송출 중인 화면에도 바로 반영한다.
+ * 위치·크기만 바꾸고 송출 값(수치)은 바꾸지 않는다.
+ * @return array{live:bool} 송출 화면에 반영했는지 (PROGRAM이 비어 있으면 false)
+ */
+function preview_display(array $in, array $op): array
 {
     $num = static function ($v, int $min, int $max, string $label): int {
         if (!is_int($v) && !(is_string($v) && preg_match('/^-?\d{1,4}$/D', $v))) {
@@ -355,10 +360,21 @@ function preview_display(array $in, array $op): void
         'bottom' => $num($in['bottom'] ?? 4, -500, 1080, '아래 여백'),
         'scale_pct' => $num($in['scale_pct'] ?? 100, 50, 200, '크기(%)'),
     ];
-    db_tx(function () use ($d, $op) {
+    $live = !empty($in['live']);
+    return db_tx(function () use ($d, $op, $live) {
         db_exec("UPDATE cg_channels SET display_json = ? WHERE layer = 1 AND kind = 'preview'", [json_enc($d)]);
-        cg_log('broadcast', 'DISPLAY', $op, ['detail' => "right {$d['right']}, bottom {$d['bottom']}, {$d['scale_pct']}%"]);
-        state_bump(['preview']);
+        $kinds = ['preview'];
+        $snap = $live ? channel_get('program')['snapshot'] : null;
+        if ($snap !== null) {
+            $snap['display'] = $d;
+            db_exec("UPDATE cg_channels SET snapshot_json = ?, display_json = ? WHERE layer = 1 AND kind = 'program'",
+                [json_enc($snap), json_enc($d)]);
+            $kinds[] = 'program';
+        }
+        cg_log('broadcast', $snap !== null ? 'DISPLAY_LIVE' : 'DISPLAY', $op,
+            ['detail' => "right {$d['right']}, bottom {$d['bottom']}, {$d['scale_pct']}%" . ($snap !== null ? ' (송출 화면에도 바로 반영)' : '')]);
+        state_bump($kinds);
+        return ['live' => $snap !== null];
     });
 }
 

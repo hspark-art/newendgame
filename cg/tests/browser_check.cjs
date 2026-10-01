@@ -209,6 +209,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }).length);
   await out.screenshot({ path: path.join(OUT, 'type-win-ranking-long.png'), omitBackground: true, clip: { x: 1340, y: 810, width: 580, height: 270 } });
   assert(longOver === 0, '긴 이름(5자)·닉네임(16자)도 이름·닉네임이 함께 줄어 칸 안에 표시');
+  // 송출 화면 자동 맞춤: 1920×1080보다 작은 창(일반 브라우저·화면 배율 125%)에서도 CG 전체가 보임
+  const small = await ctx.newPage();
+  await small.setViewportSize({ width: 1536, height: 730 });
+  await small.goto(BASE + '/output.php?layer=1');
+  await small.waitForFunction(() => document.getElementById('cg').classList.contains('is-shown'));
+  await small.waitForTimeout(500);
+  const fitBox = await small.evaluate(() => {
+    const r = document.querySelector('#cg .cg-box').getBoundingClientRect();
+    return { ok: r.left >= 0 && r.top >= 0 && r.right <= innerWidth + 0.5 && r.bottom <= innerHeight + 0.5,
+      t: document.getElementById('stage').style.transform };
+  });
+  await small.screenshot({ path: path.join(OUT, 'output-small-window.png') });
+  assert(fitBox.ok && fitBox.t.startsWith('scale('), '작은 창(1536×730)에서도 CG가 잘리지 않음 (송출 캔버스 자동 축소)');
+  await small.close();
+  // 위치·크기 [송출에도 바로 적용]: TAKE 없이 송출 화면 크기만 바뀜
+  await panel.fill('#dScale', '80');
+  await panel.click('#btnDisplayLive');
+  await out.waitForFunction(() => document.getElementById('pos').style.transform === 'scale(0.8)', null, { timeout: 5000 });
+  assert(await out.evaluate(() => document.getElementById('cg').classList.contains('is-shown')),
+    '[송출에도 바로 적용] → TAKE 없이 송출 화면 크기 변경 (CG는 계속 표시)');
+  await panel.fill('#dScale', '100');
+  await panel.click('#btnDisplayLive');
+  await out.waitForFunction(() => document.getElementById('pos').style.transform === 'scale(1)', null, { timeout: 5000 });
   await panel.keyboard.press('F2');
   await panel.click('#rdBody tr[data-no="105"] [data-act="edit"]');
   await panel.waitForSelector('#dlgPage[open]');
