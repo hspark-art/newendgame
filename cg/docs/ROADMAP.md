@@ -44,10 +44,10 @@ CLAUDE.md → 아래 진행 기록 → 현재 단계 관련 문서·코드만 �
 
 | 항목 | 현재 기록 |
 |---|---|
-| 현재 단계 | v0.4.0 — 더블 찬스 자동값(시트 집계 대조), 연승 종료일 = 마지막 출전일, 관리자 알림, 시트 입력 점검. PHASE 9 eloboard는 조건부 대기 |
+| 현재 단계 | v0.4.1 — MOCK 데이터 제거(배포본·기존 DB), Google 시트 전용. v0.4.0: 더블 찬스 자동값, 연승 종료일, 관리자 알림, 시트 입력 점검. PHASE 9 eloboard는 조건부 대기 |
 | 완료 단계 | 0~6 첫 MVP, W 웹 계정·관리자·비밀 송출 주소, R 배포·패치·무결성 검사, 7 CG 9종, 8 Google 시트(세트 단위 원천·끝장전 묶기·이상 경기 분리·시트 집계 교차 검증·마지막 정상 데이터 캐시·데이터 점검 창·선수 닉네임) |
-| 변경 파일 | v0.4.0: www/app/alerts.php(신규), sheet_data·sheets·xlsx·verify·data·control·views·actions·stats·migrate(3), templates/{double-chance,win-streak}.*, www/index.php·admin.php·assets/panel.*, tests/alerts_test.php(신규)·sheet·google·cg_types·http_test, browser_check.cjs |
-| 검증 결과 / 미검증 | 자동 테스트 85건 통과(SQLite·MySQL, v0.4.0). 실제 시트 xlsx로 더블 찬스 31명 모두 선수별 통계와 일치, 알림 15건(행 번호 포함) 확인. 브라우저 확인은 VALIDATION 8절. **미검증**: 실제 Google 연결(키 없음), Windows openssl·zip, eloboard(접속 차단), OBS/vMix, 실제 호스팅 |
+| 변경 파일 | v0.4.1: www/app/data/mock → tests/fixtures/mock(이동), data·provider·migrate(4)·views, assets/panel.js, tests/nomock_test.php·browser_check_fresh.cjs(신규), 설치 안내. v0.4.0: www/app/alerts.php(신규), sheet_data·sheets·xlsx·verify·data·control·views·actions·stats·migrate(3), templates/{double-chance,win-streak}.*, www/index.php·admin.php·assets/panel.*, tests/alerts_test.php(신규)·sheet·google·cg_types·http_test, browser_check.cjs |
+| 검증 결과 / 미검증 | 자동 테스트 87건 통과(SQLite·MySQL, v0.4.1). 배포 설정 첫 실행 브라우저 9항목, 실제 시트 xlsx로 선수 31명 전원 확인. 실제 시트 xlsx로 더블 찬스 31명 모두 선수별 통계와 일치, 알림 15건(행 번호 포함) 확인. 브라우저 확인은 VALIDATION 8절. **미검증**: 실제 Google 연결(키 없음), Windows openssl·zip, eloboard(접속 차단), OBS/vMix, 실제 호스팅 |
 | 미확정·장애 | eloboard 약관·접속(이 환경에서 차단 — 사용자가 네트워크 허용 필요), 예측 순위 표시 순서, 방송 폰트, 웹 도메인·호스팅. 실제 시트 수정 필요: Results 236·281·454·497행 종족 칸 공백, 2110행 변현제 종족 |
 | 다음 작업 | 시트 수정 후 새로고침 → 알림 해결 확인 → (eloboard 접속 허용 시) 약관·robots 확인 → PHASE 9 또는 수동 입력 유지 |
 
@@ -84,3 +84,9 @@ CLAUDE.md → 아래 진행 기록 → 현재 단계 관련 문서·코드만 �
   - 승 = A열 승자인 더블 찬스 세트 수(상금 보정 탭 우선), 패 = 2 × 경기 수 − 승. 선수별 통계 탭과 31명 모두 일치.
   - C열 기준 패는 89건이 시트 집계와 달라 쓰지 않는다. 선수별 통계 탭과 다르면 송출 차단.
 - 데이터 오류 알림: 관리자 메뉴의 알림 목록으로만 알린다(브라우저·메일 알림 없음, 사용자 선택). PC는 상단 [알림], 웹은 [알림]과 관리자 화면 "데이터 알림".
+
+### v0.4.1 결정 (2026-10-01)
+- 사용자 요청 "MOCK로 나오는 데이터는 다 지워줘": 배포본에서 MOCK JSON을 빼고(테스트 전용 `tests/fixtures/mock`), 데이터 소스는 Google 시트 하나로 한다.
+- 기존 DB는 마이그레이션 4가 정리한다. 대상은 MOCK 선수·중계진 페이지와 수정값, MOCK 닉네임·캐시·목록이다. 선수와 무관한 페이지는 AUTO만 비우고, 송출 중이던 MOCK 화면은 내린다.
+- 시트 주소·키가 없으면 자동 새로고침을 하지 않는다(xlsx만 쓰는 경우 실패 알림이 반복되지 않게).
+- "시트 선수가 전부 나오지 않음"의 원인: MOCK 데이터(17명, 가짜 선수 포함)로 동작 중이었기 때문이다. 실제 시트의 Results 선수 31명은 Players·선수별 통계·섭외 리스트 탭과 같고, 가져오면 전원 나온다.

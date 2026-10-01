@@ -93,7 +93,7 @@ function alerts_sync(array $ds, string $now): void
 /** 새로고침 실패 (마지막 정상 데이터는 유지됨) */
 function alert_refresh_failed(string $source, string $detail, string $now): void
 {
-    alert_upsert('refresh', $source, '데이터 새로고침 실패 — ' . (DATA_SOURCES[$source] ?? $source),
+    alert_upsert('refresh', $source, '데이터 새로고침 실패 — ' . (data_sources()[$source] ?? $source),
         $detail . ' (마지막 정상 데이터와 송출 중인 CG는 그대로 유지됩니다)', $now);
 }
 

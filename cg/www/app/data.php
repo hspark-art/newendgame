@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * 데이터 소스 관리: 지금 쓰는 소스(mock | sheet), 마지막 정상 데이터 보관, 시트 설정, 서비스 계정 키 보관,
+ * 데이터 소스 관리: 지금 쓰는 소스(sheet, 테스트에서만 mock), 마지막 정상 데이터 보관, 시트 설정, 서비스 계정 키 보관,
  * xlsx 가져오기, 선수 부가 정보(닉네임), 데이터 점검 결과.
  *
  * 비밀값 규칙
@@ -10,12 +10,26 @@ declare(strict_types=1);
  * - 화면에는 서비스 계정 이메일만 보여 준다. 시트 ID·탭 이름은 관리자에게만 보인다.
  */
 
-const DATA_SOURCES = ['mock' => 'MOCK 데이터', 'sheet' => 'Google 시트'];
+/**
+ * 쓸 수 있는 데이터 소스. 배포본은 Google 시트뿐이다.
+ * MOCK(검증용 가짜 수치)은 배포본에 들어 있지 않고, 설정에 mock_dir가 있을 때(자동 테스트·개발)만 쓴다.
+ */
+function data_sources(): array
+{
+    return ['sheet' => 'Google 시트'] + (config('mock_dir') ? ['mock' => 'MOCK 데이터 (테스트용)'] : []);
+}
 
 function data_source(): string
 {
-    $s = setting_get('data_source', 'mock');
-    return isset(DATA_SOURCES[$s]) ? $s : 'mock';
+    $all = data_sources();
+    $s = setting_get('data_source', isset($all['mock']) ? 'mock' : 'sheet');
+    return isset($all[$s]) ? $s : 'sheet';
+}
+
+/** 시트를 자동으로 읽을 준비가 되었는지 (시트 주소·서비스 계정 키 등록). 아니면 패널이 자동 새로고침을 하지 않는다 */
+function data_ready(): bool
+{
+    return data_source() === 'mock' || (sheet_config()['id'] !== '' && is_file(google_key_path()));
 }
 
 /** @return array{id:string, tabs:array<string,string>} */
@@ -141,6 +155,84 @@ function dataset_cache_get(string $source): ?array
     return is_array($ds) ? $ds : null;
 }
 
+// ---------------------------------------------------------------- MOCK 데이터 지우기 (v0.4.1)
+
+/** v0.1~v0.4.0 배포본에 들어 있던 MOCK 선수·중계진 id. 기존 DB에서 MOCK으로 만든 페이지를 찾을 때만 쓴다 */
+const MOCK_LEGACY_IDS = ['jo-iljang', 'jang-yunchul', 'mock-p1', 'mock-p2', 'mock-p3', 'mock-z1', 'mock-z2', 'mock-z3', 'mock-z4',
+    'mock-t1', 'kim-minchul', 'kim-jisung', 'lee-jaeho', 'hwang-byungyoung', 'park-sanghyun', 'do-jaewook', 'yoo-youngjin',
+    'lim-sungchun', 'lee-seungwon'];
+
+/**
+ * 기존 DB에서 MOCK 데이터를 지운다 (마이그레이션 4). 여러 번 실행해도 결과가 같다.
+ * - MOCK 선수·중계진으로 만든 페이지, 그 CG의 수정값, MOCK 선수 닉네임, MOCK 마지막 정상 데이터·점검 결과·목록.
+ * - 선수와 무관한 페이지(예: 다승 순위 전체 종족)는 남기고, MOCK 수치로 계산해 둔 AUTO 값만 비운다 → 시트를 불러오면 다시 계산.
+ * - PREVIEW·PROGRAM이 MOCK이면 비운다(송출 중이던 MOCK 화면도 내린다).
+ * - 데이터 소스가 MOCK이면 기본값(Google 시트)으로 돌린다.
+ */
+function mock_purge(): void
+{
+    $ids = array_flip(MOCK_LEGACY_IDS);
+    $usesMock = static function (mixed $v) use (&$usesMock, $ids): bool {
+        if (is_array($v)) {
+            foreach ($v as $x) {
+                if ($usesMock($x)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return is_string($v) && isset($ids[$v]);
+    };
+    $gone = [];
+    foreach (db_all('SELECT id, params_json FROM cg_instances') as $r) {
+        if ($usesMock(json_dec($r['params_json']))) {
+            $gone[(int)$r['id']] = true;
+        }
+    }
+    $pages = 0;
+    foreach (array_keys($gone) as $iid) {
+        $pages += (int)db_value('SELECT COUNT(*) FROM cg_rundown WHERE instance_id = ?', [$iid]);
+        db_exec('DELETE FROM cg_rundown WHERE instance_id = ?', [$iid]);
+        db_exec('DELETE FROM cg_overrides WHERE instance_id = ?', [$iid]);
+        db_exec('DELETE FROM cg_instances WHERE id = ?', [$iid]);
+    }
+    $cleared = (int)db_value("SELECT COUNT(*) FROM cg_instances WHERE auto_source = 'mock'");
+    db_exec("UPDATE cg_instances SET auto_json = NULL, issues_json = NULL, auto_source = NULL, auto_at = NULL WHERE auto_source = 'mock'");
+
+    $channels = [];
+    $pv = db_one("SELECT rundown_id, instance_id FROM cg_channels WHERE layer = 1 AND kind = 'preview'");
+    if ($pv !== null && $pv['instance_id'] !== null && isset($gone[(int)$pv['instance_id']])) {
+        db_exec("UPDATE cg_channels SET rundown_id = NULL, instance_id = NULL WHERE kind = 'preview'");
+        $channels[] = 'preview';
+    }
+    foreach (db_all("SELECT layer, snapshot_json FROM cg_channels WHERE kind = 'program' AND snapshot_json IS NOT NULL") as $r) {
+        $snap = json_dec($r['snapshot_json']);
+        if (!empty($snap['mock']) || isset($gone[(int)($snap['instance_id'] ?? 0)])) {
+            db_exec("UPDATE cg_channels SET snapshot_json = NULL, visible = 0, rundown_id = NULL, instance_id = NULL
+                WHERE layer = ? AND kind = 'program'", [$r['layer']]);
+            $channels[] = 'program';
+        }
+    }
+
+    $nicks = (int)db_value('SELECT COUNT(*) FROM cg_player_info WHERE player IN (' . implode(',', array_fill(0, count($ids), '?')) . ')',
+        MOCK_LEGACY_IDS);
+    db_exec('DELETE FROM cg_player_info WHERE player IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', MOCK_LEGACY_IDS);
+    $cache = (int)db_value("SELECT COUNT(*) FROM cg_dataset_cache WHERE source = 'mock'");
+    db_exec("DELETE FROM cg_dataset_cache WHERE source = 'mock'");
+    db_exec("UPDATE cg_sources SET status = 'NEVER', last_attempt_at = NULL, last_success_at = NULL, last_error = NULL WHERE id = 'mock'");
+    $check = json_dec(setting_get('data_check', 'null'));
+    $wasMock = setting_get('data_source') === 'mock' || !empty($check['mock']);
+    if ($wasMock) {
+        // 선수·중계진·연도 목록과 점검 결과가 MOCK에서 온 것 → 처음 설치한 상태로 (시트를 불러오면 다시 만든다)
+        db_exec("DELETE FROM cg_settings WHERE k IN ('data_source', 'data_check', 'players_cache', 'predictors_cache', 'years_cache')");
+    }
+    if ($gone || $cleared || $channels || $nicks || $cache || $wasMock) {
+        state_bump(array_values(array_unique($channels)));
+        cg_log('data', 'MOCK_PURGE', ['name' => '업데이트'], ['detail' => sprintf('MOCK 데이터 삭제: 페이지 %d개, AUTO 비움 %d개, 닉네임 %d개%s',
+            $pages, $cleared, $nicks, in_array('program', $channels, true) ? ', 송출 중이던 MOCK 화면 내림' : '')]);
+    }
+}
+
 /** 관리자가 "통계 제외 확정"한 경기 id 목록 */
 function match_exclusions(): array
 {
@@ -234,7 +326,7 @@ function data_settings_view(array $op): array
     $cfg = sheet_config();
     return [
         'source' => data_source(),
-        'sources' => DATA_SOURCES,
+        'sources' => data_sources(),
         'admin' => $admin,
         'sheet_id' => $admin ? $cfg['id'] : ($cfg['id'] === '' ? '' : '설정됨'),
         'tabs' => $admin ? $cfg['tabs'] : [],
@@ -249,7 +341,7 @@ function data_settings_save(array $in, array $op): array
 {
     require_admin_op($op);
     $source = (string)($in['source'] ?? data_source());
-    if (!isset(DATA_SOURCES[$source])) {
+    if (!isset(data_sources()[$source])) {
         throw new ActionError('BAD_SOURCE', '알 수 없는 데이터 소스입니다.', 422);
     }
     $sheet = trim((string)($in['sheet'] ?? ''));
@@ -270,7 +362,7 @@ function data_settings_save(array $in, array $op): array
         setting_set('data_source', $source);
         setting_set('sheet_id', $id);
         setting_set('sheet_tabs', json_enc($tabs));
-        cg_log('data', 'SOURCE_SET', $op, ['detail' => '데이터 소스: ' . DATA_SOURCES[$source] . ($prev !== $source ? ' (변경)' : '')]);
+        cg_log('data', 'SOURCE_SET', $op, ['detail' => '데이터 소스: ' . data_sources()[$source] . ($prev !== $source ? ' (변경)' : '')]);
         state_bump();
     });
     return data_settings_view($op);

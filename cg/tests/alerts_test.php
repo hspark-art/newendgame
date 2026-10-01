@@ -138,11 +138,12 @@ test('알림: 새로고침 실패는 한 줄로 모으고, 성공하면 해결�
 
 test('알림: 마이그레이션 3 (v0.3.x DB 업그레이드) — 다시 실행해도 안전, 다음 새로고침에서 현재 문제를 새 알림으로', function () {
     setup_sheet();
-    assert_same(3, schema_version());
+    $latest = max(array_keys(migrations()));
+    assert_same($latest, schema_version());
     db()->exec('DROP TABLE cg_alerts');
     setting_set('schema_version', '2'); // v0.3.x DB
     run_migrations();
-    assert_same(3, schema_version());
+    assert_same($latest, schema_version());
     foreach (migrations()[3] as $step) {
         db()->exec(ddl($step));
     }

@@ -134,7 +134,7 @@
     renderEditor();
     renderSide();
     renderButtons();
-    if (first && (s.source.status === 'NEVER' || !s.caches_ready)) {
+    if (first && s.data.ready && (s.source.status === 'NEVER' || !s.caches_ready)) {
       refresh(true);
     }
   }
@@ -166,7 +166,7 @@
       st.title = src.last_error || '';
     } else {
       st.className = 'status never';
-      st.textContent = '데이터 없음 · 새로고침 필요';
+      st.textContent = S.data.ready ? '데이터 없음 · 새로고침 필요' : '데이터 없음 · Google 시트 연결 필요 ([데이터 점검·설정])';
     }
     renderSeen();
   }
@@ -496,7 +496,8 @@
 
   function openPage(row) {
     if (!S.players.length) {
-      toast('선수 목록이 없습니다. 데이터 새로고침을 먼저 하세요.', 'err');
+      toast(S.data.ready ? '선수 목록이 없습니다. 데이터 새로고침을 먼저 하세요.'
+        : '선수 목록이 없습니다. [데이터 점검·설정]에서 Google 시트를 연결하거나 xlsx 파일을 가져오세요.', 'err');
       return;
     }
     editingPageId = row ? row.id : null;
@@ -572,7 +573,7 @@
       var s = r.summary;
       var html = '';
       if (!s) {
-        html = '<p>아직 불러온 데이터가 없습니다. [데이터 새로고침]을 누르세요.</p>';
+        html = '<p>아직 불러온 데이터가 없습니다. [데이터 설정] 탭에서 Google 시트를 연결하거나 xlsx 파일을 가져오세요.</p>';
       } else if (s.mock) {
         html = '<p><b>MOCK 데이터</b> (검증용 가짜 수치) · ' + esc(s.at) + '</p>';
       } else {
@@ -968,10 +969,10 @@
 
   bind();
   window.setInterval(tickClock, 500);
-  // 자동 새로고침: MOCK은 1분, Google 시트는 5분마다 (요청 수 절약)
+  // 자동 새로고침: Google 시트는 5분마다 (요청 수 절약), 테스트용 MOCK은 1분. 시트 주소·키가 없으면(파일 가져오기만 쓰는 경우) 하지 않는다
   var lastAuto = Date.now();
   window.setInterval(function () {
-    if (!S || !$('autoRefresh').checked) { return; }
+    if (!S || !$('autoRefresh').checked || !S.data.ready) { return; }
     if (S.data.source === 'sheet' && Date.now() - lastAuto < 290000) { return; }
     lastAuto = Date.now();
     refresh(true);

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * 데이터 소스. 수집(fetch) → 정규화(normalize) → 검증(validate)을 나눈다.
- *   mock  : MOCK JSON (검증용 가짜 수치)
+ *   mock  : MOCK JSON (검증용 가짜 수치). 배포본에 없다 — 자동 테스트가 config의 mock_dir(tests/fixtures/mock)로만 쓴다
  *   sheet : Google 시트 (서비스 계정으로 Sheets API 읽기, 또는 xlsx 가져오기) — sheet_data.php, sheets.php
  * 두 소스 모두 같은 모양으로 만든다: players, games(세트), matches(끝장전), predictions(예측 결과), predictors …
  */
@@ -23,7 +23,7 @@ const RACES = ['P', 'T', 'Z'];
  * @return array{source:string, mock:bool, players:array<string,array>, matches:list<array>, online:list<array>,
  *   predictors:array<string,array>, picks:list<array>, double_chance:array<string,array>}
  */
-function provider_load(string $sourceId = 'mock', ?string $dir = null): array
+function provider_load(string $sourceId, ?string $dir = null): array
 {
     if ($sourceId === 'sheet') {
         return sheet_dataset(sheets_fetch_tables(), 'api');
@@ -31,7 +31,11 @@ function provider_load(string $sourceId = 'mock', ?string $dir = null): array
     if ($sourceId !== 'mock') {
         throw new ProviderError("알 수 없는 데이터 소스: $sourceId");
     }
-    $raw = mock_fetch($dir ?? (string)config('mock_dir', APP_DIR . '/data/mock'));
+    $dir ??= (string)config('mock_dir', '');
+    if ($dir === '') {
+        throw new ProviderError('MOCK 데이터는 배포본에 없습니다. 데이터 설정에서 Google 시트를 연결하세요.');
+    }
+    $raw = mock_fetch($dir);
     $ds = dataset_normalize($raw, 'mock');
     $problems = dataset_validate($ds);
     if ($problems) {

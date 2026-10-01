@@ -17,6 +17,7 @@ set_error_handler(static function (int $no, string $msg, string $file, int $line
 });
 
 $GLOBALS['TESTS'] = [];
+const TEST_MOCK_DIR = __DIR__ . '/fixtures/mock';
 $GLOBALS['TEST_TMP'] = sys_get_temp_dir() . '/cg-test-' . getmypid();
 
 function test(string $name, callable $fn): void
@@ -77,6 +78,7 @@ function fresh_db(array $extra = []): string
         'db' => test_db_config($dir),
         'storage_dir' => $dir,
         'operator' => '테스트',
+        'mock_dir' => TEST_MOCK_DIR, // MOCK은 배포본에 없고 테스트만 쓴다
     ], $extra);
     db_reset();
     if (db_driver() === 'mysql') {
@@ -151,7 +153,7 @@ function run_tests(string $filter): int
 /** MOCK 데이터를 고쳐서 쓰기 (세트·예측 결과는 고친 경기 기록으로 다시 만든다) */
 function mock_with(callable $change): array
 {
-    $ds = dataset_normalize(mock_fetch((string)config('mock_dir', APP_DIR . '/data/mock')), 'mock');
+    $ds = dataset_normalize(mock_fetch((string)config('mock_dir')), 'mock');
     $change($ds);
     return mock_enrich($ds);
 }

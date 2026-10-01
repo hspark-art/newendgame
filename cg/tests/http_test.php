@@ -13,7 +13,7 @@ function web_server(): TestServer
     if ($db['driver'] === 'mysql') {
         fresh_db(); // 테스트 DB 비우기
     }
-    return new TestServer(['mode' => 'web', 'db' => $db, 'storage_dir' => $dir], __DIR__ . '/web_router.php');
+    return new TestServer(['mode' => 'web', 'db' => $db, 'storage_dir' => $dir, 'mock_dir' => TEST_MOCK_DIR], __DIR__ . '/web_router.php');
 }
 
 test('http(web): 설치 → 초대 → 가입 → 승인 → 조작 → 비밀 출력 → 정지·재설정·시도 제한', function () {
@@ -199,7 +199,7 @@ test('http(pc): 조작은 로컬 Host만, 웹 전용 화면·내부 파일 차�
     $dir = $GLOBALS['TEST_TMP'] . '/pc-' . bin2hex(random_bytes(3));
     @mkdir($dir, 0775, true);
     $srv = new TestServer(['mode' => 'desktop', 'db' => ['driver' => 'sqlite', 'path' => "$dir/cg.sqlite"], 'storage_dir' => $dir,
-        'operator' => '운영자'], dirname(__DIR__) . '/desktop/router.php');
+        'operator' => '운영자', 'mock_dir' => TEST_MOCK_DIR], dirname(__DIR__) . '/desktop/router.php');
     try {
         $c = new Client($srv->base);
         assert_same(200, $c->get('/')['status']);

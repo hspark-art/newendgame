@@ -106,6 +106,12 @@ function migrations(): array
                 title VARCHAR(255) NOT NULL, detail TEXT NOT NULL, first_at VARCHAR(19) NOT NULL, last_at VARCHAR(19) NOT NULL,
                 resolved_at VARCHAR(19) NULL, acked_at VARCHAR(19) NULL, acked_by VARCHAR(50) NULL) {opts}',
         ],
+        // v0.4.1: MOCK 데이터 제거 — 배포본에서 MOCK JSON을 뺐고, 기존 DB의 MOCK 페이지·캐시도 지운다 (data.php mock_purge)
+        4 => [
+            static function (): void {
+                mock_purge();
+            },
+        ],
     ];
 }
 

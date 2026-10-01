@@ -41,11 +41,10 @@ cg/
 │     ├─ auth.php           웹 계정 (초대·가입·승인·재설정·정지·시도 제한)
 │     ├─ release.php        버전·무결성 검사
 │     ├─ templates/         CG 9종: <slug>.def.php(파라미터·필드·AUTO·표시 문자열) + <slug>.view.php(HTML)
-│     └─ data/mock/         MOCK 선수·경기 JSON
 ├─ desktop/                 PC 전용: 시작.bat, 종료.bat, PHP 준비, router.php, php.ini, 설정
 ├─ web/                     웹 전용: 설치·패치 안내, 설정 견본
 ├─ tools/                   배포 zip·패치 zip 생성
-├─ tests/                   자동 테스트 (php tests/run.php)
+├─ tests/                   자동 테스트 (php tests/run.php). fixtures/mock = 테스트 전용 MOCK 데이터 (배포본에 없음)
 └─ docs/                    지침·설계 문서
 ```
 

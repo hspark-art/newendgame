@@ -24,9 +24,11 @@ test('release: PC·웹 zip 구성과 MANIFEST 일치', function () {
     $pcFiles = zip_entries($pc['zip']);
     foreach (['시작.bat', '시작-LAN.bat', '종료.bat', 'PHP준비.bat', 'launcher/start.bat', 'launcher/setup-php.ps1', 'router.php',
         'config.desktop.php', 'runtime/php.ini', 'README_KR.txt', 'www/index.php', 'www/output.php', 'www/app/bootstrap.php',
-        'www/app/data/mock/matches.json', 'VERSION.json', 'MANIFEST.sha256', 'GOOGLE_SHEET_KR.md', 'www/app/sheets.php'] as $f) {
+        'VERSION.json', 'MANIFEST.sha256', 'GOOGLE_SHEET_KR.md', 'www/app/sheets.php'] as $f) {
         assert_true(isset($pcFiles[$f]), "PC zip에 $f");
     }
+    assert_same([], array_values(array_filter(array_keys($pcFiles), static fn($f) => stripos($f, 'mock') !== false)),
+        'MOCK 데이터는 배포본에 없음 (테스트 전용)');
     foreach (['www/admin.php', 'www/install.php', 'www/app/config.php', 'www/app/config.sample.php', 'www/assets/portal.css'] as $f) {
         assert_true(!isset($pcFiles[$f]), "PC zip에 없어야 함: $f");
     }
@@ -40,6 +42,7 @@ test('release: PC·웹 zip 구성과 MANIFEST 일치', function () {
         assert_true(!isset($webFiles[$f]), "웹 zip에 없어야 함: $f");
     }
     assert_true(!array_filter(array_keys($webFiles), fn($k) => str_starts_with($k, 'www/app/storage/')), 'storage 제외');
+    assert_true(!array_filter(array_keys($webFiles), static fn($f) => stripos($f, 'mock') !== false), '웹 zip에도 MOCK 데이터 없음');
     foreach ([$pcFiles, $webFiles] as $files) {
         assert_true(!array_filter(array_keys($files), fn($k) => str_contains($k, 'secrets') || str_ends_with($k, '.xlsx')), '키·시트 파일 없음');
         assert_true(!array_filter($files, fn($d) => str_contains($d, 'PRIVATE KEY-----')), '개인 키 없음');
@@ -76,7 +79,7 @@ test('release: 패치 zip은 바뀐 파일만, 버전 파일은 마지막', func
     $top = $web['name'];
     $z->addFromString("$top/www/assets/panel.css", "/* changed */\n");
     $z->addFromString("$top/www/assets/extra.js", "// new\n");
-    $z->deleteName("$top/www/app/data/mock/players.json");
+    $z->deleteName("$top/www/app/templates/full-set.view.php");
     $v = json_decode((string)$z->getFromName("$top/www/app/version.json"), true);
     $v['version'] = APP_VERSION . '-next';
     $z->addFromString("$top/www/app/version.json", json_encode($v));
@@ -88,7 +91,7 @@ test('release: 패치 zip은 바뀐 파일만, 버전 파일은 마지막', func
     $r = patch_build($web['zip'], $new, "$out/patch.zip");
     assert_same(['www/assets/extra.js'], $r['added']);
     assert_same(['www/assets/panel.css', 'www/app/manifest.sha256', 'www/app/version.json', 'VERSION.json'], $r['changed']);
-    assert_same(['www/app/data/mock/players.json'], $r['removed']);
+    assert_same(['www/app/templates/full-set.view.php'], $r['removed']);
     $p = zip_entries("$out/patch.zip");
     assert_true(isset($p['PATCH_INFO.txt'], $p['patch.json'], $p['files/www/assets/panel.css']));
     assert_true(!isset($p['files/www/index.php']), '안 바뀐 파일은 제외');
