@@ -180,8 +180,14 @@ foreach ($opts as $o) {
                 $code = (int)$m[1];
             }
         }
-        $code === 403 || $code === 404 ? cli_line('정상', "웹에서 $p 차단됨 ($code)")
-            : cli_line('실패', "웹에서 $p 이(가) 막혀 있지 않습니다 (HTTP $code) — 웹 서버 설정(SERVER_KR.md 5) 확인");
+        if ($code === 403 || $code === 404) {
+            cli_line('정상', "웹에서 $p 차단됨 ($code)");
+        } elseif ($code === 0) {
+            // 응답 없음: 웹호스팅은 서버 안에서 자기 도메인으로 접속이 안 되는 경우가 많다 → 판단 불가
+            cli_line('주의', "웹에서 $p 확인 불가 (서버 안에서 이 주소로 접속되지 않음) — 브라우저로 $base$p 를 열어 403/404인지 확인하세요");
+        } else {
+            cli_line('실패', "웹에서 $p 이(가) 막혀 있지 않습니다 (HTTP $code) — 웹 서버 설정(SERVER_KR.md 5) 확인");
+        }
     }
 }
 

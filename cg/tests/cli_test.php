@@ -50,4 +50,7 @@ test('서버 점검(cli.php): 첫 설치 → DB 구조 업데이트 → 관리�
     } finally {
         $srv->stop();
     }
+    // 서버 안에서 주소에 접속되지 않으면(응답 없음) 실패가 아니라 확인 불가로 안내
+    [$code, $out] = cli_run(['check', '--url=http://127.0.0.1:1'], "$dir/config.php");
+    assert_true($code === 0 && str_contains($out, '[주의] 웹에서 /app/config.php 확인 불가') && !str_contains($out, '막혀 있지 않습니다'), $out);
 });
