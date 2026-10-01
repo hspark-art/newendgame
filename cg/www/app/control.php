@@ -192,7 +192,7 @@ function dataset_or_null(): ?array
             return null;
         }
     }
-    return $ds === null ? null : dataset_with_player_info($ds);
+    return $ds === null ? null : dataset_prepare($ds);
 }
 
 function page_add(array $in, array $op): array
@@ -468,13 +468,17 @@ function data_refresh(array $op, ?array $dataset = null): array
 function data_apply(array $ds, array $op, bool $fetched): array
 {
     $now = now();
-    $raw = $ds; // 캐시에는 닉네임을 합치기 전 원본을 둔다 (닉네임을 지우면 원래 값으로 돌아가게)
-    $ds = dataset_with_player_info($ds);
+    // 캐시에는 원본(경기 제외 확정·닉네임을 합치기 전)을 둔다 — 설정을 바꾸면 원본에서 다시 계산한다
+    $raw = $ds;
+    if ($fetched) {
+        $raw['fetched_at'] = $now;
+    }
+    $ds = dataset_prepare($raw);
     return db_tx(function () use ($ds, $raw, $now, $op, $fetched) {
         if ($fetched) {
             dataset_cache_put($raw, $now);
-            setting_set('data_check', json_enc(data_check_summary($ds, $now)));
         }
+        setting_set('data_check', json_enc(data_check_summary($ds, $now)));
         $players = [];
         foreach ($ds['players'] as $id => $p) {
             $players[$id] = ['id' => (string)$id, 'name' => $p['name'], 'race' => $p['race']];

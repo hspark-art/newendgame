@@ -165,14 +165,16 @@ function stats_head_to_head(array $matches, string $a, string $b, int $limit): a
 }
 
 /**
- * 다승 순위 (세트 기준). race가 있으면 그 종족 선수만(선수 정보의 주 종족 — 정해지지 않은 선수는 제외).
+ * 다승 순위 (끝장전 승패 기준 — 2026-10-01 사용자 결정, 레퍼런스 04 "박상현 39W 14L"과 일치).
+ * race가 있으면 그 종족 선수만(선수 정보의 주 종족 — 정해지지 않은 선수는 제외). 같은 승수는 공동 순위.
  * @return list<array{player:string, wins:int, losses:int, rank:int}>
  */
-function stats_win_ranking(array $games, array $players, ?string $race, int $limit): array
+function stats_win_ranking(array $matches, array $players, ?string $race, int $limit): array
 {
     $t = [];
-    foreach ($games as $g) {
-        foreach ([[$g['winner'], 'wins'], [$g['loser'], 'losses']] as [$p, $k]) {
+    foreach ($matches as $m) {
+        $aWin = $m['scoreA'] > $m['scoreB'];
+        foreach ([[$m['playerA'], $aWin ? 'wins' : 'losses'], [$m['playerB'], $aWin ? 'losses' : 'wins']] as [$p, $k]) {
             if ($race !== null && ($players[$p]['race'] ?? '') !== $race) {
                 continue;
             }

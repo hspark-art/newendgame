@@ -70,6 +70,9 @@ function fx_tables(?callable $tamper = null): array
         }
         $pred[] = $row;
     }
+    // 실제 시트처럼 순위표 아래 빈 행 뒤에 다른 표("SET별 성공률")가 이어진다 — 순위표로 읽으면 안 됨
+    $pred[] = array_merge(array_fill(0, 11, ''), ['SET별 성공률']);
+    $pred[] = array_merge(array_fill(0, 11, ''), [1, 19, 0.4211]);
     $t = ['results' => $results, 'players' => $players, 'matches' => $matchList, 'predictions' => $pred];
     if ($tamper) {
         $tamper($t);
@@ -168,19 +171,23 @@ test('sheet: 시트 집계와 다르면 그 수치를 쓰는 CG만 송출 차단
     page_add(['template' => 'race-win-rate', 'params' => ['a' => ['player' => '나선수', 'vs' => 'Z'], 'b' => ['player' => '다선수', 'vs' => 'P']]], op());
     cue_page(2);
     assert_same([], panel_state(op())['preview']['problems']);
-    // 다승 순위는 전체 세트 전적(일치)을 쓰므로 막지 않는다
+    // 다승 순위(끝장전 기준)는 세트 전적 불일치와 무관. 확인 안 된 이상 경기(다선수·라선수)가 있으면 막히고, 제외 확정하면 풀린다
     $st = type_state('win-ranking', ['race' => '', 'count' => '3']);
+    assert_true(str_contains(implode(' ', $st['problems']), '다선수'), '확인 안 된 이상 경기');
+    match_exclude(['match' => '2025-01-04|다선수|라선수', 'on' => true], op());
+    $st = instance_state(instance_get(channel_get('preview')['instance_id']), current_session_id());
     assert_same([], $st['problems']);
-    // 전체 세트 전적이 다르면 그 선수 행과 순위 칸을 막는다
+    // 끝장전 목록이 다르면 순위 칸까지 막는다 (라선수는 표시 행에 없어도 순위 후보라서)
     setup_sheet(function (array &$t) {
-        foreach ($t['players'] as &$row) {
-            if (($row[1] ?? '') === '라선수') {
-                $row[3] = 2;
+        foreach ($t['matches'] as &$row) {
+            if (($row[2] ?? '') === '라선수') {
+                $row[6] = 2;
             }
         }
     });
+    match_exclude(['match' => '2025-01-04|다선수|라선수', 'on' => true], op());
     $st = type_state('win-ranking', ['race' => '', 'count' => '3']);
-    assert_same(1, count($st['problems']), '라선수는 3위 밖이라 행 칸은 해당 없음, 순위 칸만');
+    assert_same(1, count($st['problems']), implode(' / ', $st['problems']));
     assert_true(str_contains($st['problems'][0], '순위 확인 불가: 라선수'), $st['problems'][0]);
 });
 
@@ -229,17 +236,21 @@ test('sheet: 예측 순위·연승·다승이 시트 데이터로 계산됨, 닉
     assert_same('2026 중계진 승자 예측 순위', $st['view']['title']);
     assert_same([['1', '김중계', '3W 1L', '75.0%'], ['2', '이해설', '1W 2L', '33.3%']],
         array_map(fn($r) => [$r['rank'], $r['name'], $r['record'], $r['rate']], $st['view']['rows']));
+    // 연승: 다선수는 확인 안 된 이상 경기가 있어 순위·기록 칸이 막힌다
+    $st = type_state('win-streak', ['race' => '', 'count' => '3']);
+    assert_true((bool)array_filter($st['problems'], fn($p) => str_contains($p, '순위 확인 불가')));
+    // 그 경기(4세트)를 끝장전 통계에서 제외 확정하면 다승·연승 모두 송출 가능
+    match_exclude(['match' => '2025-01-04|다선수|라선수', 'on' => true], op());
     $st = type_state('win-ranking', ['race' => '', 'count' => '4']);
     assert_same([], $st['problems']);
-    assert_same(['가선수', '나선수', '다선수', '라선수'], array_column($st['view']['rows'], 'name'));
-    assert_same(['16W 11L', ''], [$st['view']['rows'][0]['record'], $st['view']['rows'][0]['nick']]);
+    assert_same(['가선수', '다선수', '나선수'], array_column($st['view']['rows'], 'name'), '끝장전 승수 → 같은 승수는 패가 적은 순');
+    assert_same(['1st', '2nd', '2nd'], array_column($st['view']['rows'], 'rank'));
+    assert_same(['2W 1L', '', '66.7%'], [$st['view']['rows'][0]['record'], $st['view']['rows'][0]['nick'], $st['view']['rows'][0]['rate']]);
     player_info_save(['player' => '가선수', 'nickname' => 'Ga'], op());
     $st = instance_state(instance_get(channel_get('preview')['instance_id']), current_session_id());
     assert_same('Ga', $st['view']['rows'][0]['nick'], '닉네임 저장 후 AUTO 반영 (네트워크 없이)');
     assert_throws(ActionError::class, fn() => player_info_save(['player' => '없는선수', 'nickname' => 'x'], op()), 'NO_PLAYER');
-    // 연승: 다선수는 이상 경기가 있어 순위·기록 칸이 막힌다
-    $st = type_state('win-streak', ['race' => '', 'count' => '3']);
-    assert_true((bool)array_filter($st['problems'], fn($p) => str_contains($p, '순위 확인 불가')));
+    assert_same([], type_state('win-streak', ['race' => '', 'count' => '3'])['problems']);
 });
 
 test('sheet: 온라인·더블 찬스는 자동값 없음 → 직접 입력 전 송출 불가, MOCK 선수 페이지는 막힘', function () {
@@ -283,6 +294,7 @@ test('검토 반영: 시트 집계에만 있는 선수·종족 열 불일치·�
     // Players 탭에만 있는 마선수 → 불일치 + 다승 순위 전체 행 차단
     $ds = setup_sheet(function (array &$t) {
         $t['players'][] = [9, '마선수', 'T', 30, 1, 'x', 10, 0, 'x', 10, 1, 'x', 10, 0, 'x'];
+        $t['matches'][] = ['2024-06-01', 'Saturday', '마선수', 'T', '가선수', 'Z', 5, 4, '승']; // 끝장전 목록에만 있음
         foreach ($t['matches'] as &$row) {
             if (($row[2] ?? '') === '나선수' && ($row[0] ?? '') === '2024-03-02') {
                 $row[5] = 'P'; // 상대(다선수) 종족을 틀리게
@@ -290,7 +302,7 @@ test('검토 반영: 시트 집계에만 있는 선수·종족 열 불일치·�
         }
     });
     $who = array_map(fn($m) => $m['kind'] . ':' . $m['who'], $ds['check']['mismatches']);
-    assert_same(['sets:마선수', 'matches:나선수'], $who);
+    assert_same(['sets:마선수', 'matches:나선수', 'matches:마선수'], $who);
     $st = type_state('win-ranking', ['race' => '', 'count' => '2']);
     assert_true(str_contains(implode(' ', $st['problems']), '시트 집계에만 있는 마선수'));
     assert_true(str_contains(implode(' ', $st['problems']), '1행 이름'), '이름까지 막음');
@@ -318,6 +330,7 @@ test('검토 반영: 시트 집계에만 있는 선수·종족 열 불일치·�
 
 test('검토 반영: 닉네임을 지우면 새로고침 뒤에도 사라짐, 마이그레이션 2는 다시 실행해도 안전', function () {
     setup_sheet();
+    match_exclude(['match' => '2025-01-04|다선수|라선수', 'on' => true], op());
     player_info_save(['player' => '가선수', 'nickname' => 'Ga'], op());
     data_refresh(op(), sheet_dataset(fx_tables(), 'api'));
     player_info_save(['player' => '가선수', 'nickname' => ''], op());
@@ -328,4 +341,33 @@ test('검토 반영: 닉네임을 지우면 새로고침 뒤에도 사라짐, �
         $step instanceof Closure ? $step() : db()->exec(ddl($step));
     }
     assert_same(1, (int)db_value("SELECT COUNT(*) FROM cg_sources WHERE id = 'sheet'"));
+});
+
+test('경기 제외 확정: 9세트가 아닌 경기만, 관리자만, 새로고침 뒤에도 유지, 취소 가능', function () {
+    setup_sheet(function (array &$t) {
+        // 가선수 vs 나선수 2024-01-06 경기의 마지막 세트를 나선수 저그로 기록 (경기 중 종족 변경)
+        foreach ($t['results'] as $i => &$row) {
+            if ($i === 9) {
+                $row[3] = $row[2] === '나선수' ? 'Z' : $row[3];
+                $row[1] = $row[0] === '나선수' ? 'Z' : $row[1];
+            }
+        }
+    });
+    $v = data_check_view();
+    assert_same(['race', 'sets'], array_values(array_unique(array_column($v['anomalies'], 'sub'))));
+    assert_throws(ActionError::class, fn() => match_exclude(['match' => '2024-01-06|가선수|나선수', 'on' => true], op()), 'BAD_MATCH');
+    assert_throws(ActionError::class, fn() => match_exclude(['match' => '2025-01-04|다선수|라선수', 'on' => true],
+        ['name' => '운영', 'role' => 'operator', 'user_id' => 2]), 'ADMIN_ONLY');
+    $v = match_exclude(['match' => '2025-01-04|다선수|라선수', 'on' => true], op());
+    assert_same(1, count($v['excluded']));
+    assert_same(['race'], array_column($v['anomalies'], 'sub'), '종족 변경 경기는 시트를 고쳐야 함');
+    assert_same(1, panel_state(op())['data']['check']['counts']['excluded']);
+    assert_same(1, panel_state(op())['data']['check']['anomalies']);
+    data_refresh(op(), sheet_dataset(fx_tables(), 'api'));
+    assert_same(1, count(data_check_view()['excluded']), '새로 불러와도 확정 유지');
+    assert_same(true, dataset_or_null()['verify']['matches']['players']['라선수']);
+    $v = match_exclude(['match' => '2025-01-04|다선수|라선수', 'on' => false], op());
+    assert_same([], $v['excluded']);
+    assert_same(false, dataset_or_null()['verify']['matches']['players']['라선수'], '취소하면 다시 확인 필요');
+    assert_true(str_contains(implode(' ', array_column(db_all("SELECT detail FROM cg_logs WHERE action = 'MATCH_EXCLUDE'"), 'detail')), '제외 취소'));
 });

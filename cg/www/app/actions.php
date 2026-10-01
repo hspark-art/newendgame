@@ -64,6 +64,7 @@ function action_dispatch(string $action, array $in, array $op): mixed
         'data_key_remove' => google_key_remove($op),
         'data_test' => data_test($op),
         'data_import_xlsx' => data_import_xlsx($in, $op),
+        'match_exclude' => match_exclude($in, $op),
         'player_info' => player_info_view(),
         'player_info_save' => player_info_save($in, $op),
         default => throw new ActionError('UNKNOWN_ACTION', '알 수 없는 동작입니다.', 400),

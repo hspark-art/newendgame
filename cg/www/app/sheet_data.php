@@ -192,17 +192,13 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
             $calcLists[$m['playerA']][] = [$m['date'], $m['playerB'], $m['scoreA'], $m['scoreB'], (string)$m['raceA'], (string)$m['raceB']];
             $calcLists[$m['playerB']][] = [$m['date'], $m['playerA'], $m['scoreB'], $m['scoreA'], (string)$m['raceB'], (string)$m['raceA']];
         }
-        $withAnomaly = [];
-        foreach ($matches as $m) {
-            if ($m['anomaly'] !== null) {
-                $withAnomaly[$m['playerA']] = $withAnomaly[$m['playerB']] = true;
-            }
-        }
         foreach ($calcLists as $pid => $list) {
             $pid = (string)$pid;
             $sheetList = $sheetMatches['rows'][$pid] ?? [];
             $diff = sheet_list_diff($list, $sheetList);
-            $verify['matches']['players'][$pid] = $diff === null && !isset($withAnomaly[$pid]);
+            // 목록 일치 여부. 확인 안 된 이상 경기가 있는 선수는 dataset_finalize에서 다시 false로 만든다
+            $verify['matches']['list_ok'][$pid] = $diff === null;
+            $verify['matches']['players'][$pid] = $diff === null;
             if ($diff !== null) {
                 $check['mismatches'][] = ['kind' => 'matches', 'who' => $pid, 'item' => '끝장전 목록'] + $diff;
             }
@@ -261,17 +257,17 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         }
     }
 
-    $valid = array_values(array_filter($matches, static fn($m) => $m['anomaly'] === null));
-    $check['counts'] = ['games' => count($games), 'matches' => count($matches), 'valid_matches' => count($valid),
-        'players' => count($players), 'predictions' => count($predictions),
+    $check['anomalies_all'] = $check['anomalies'];
+    $check['counts'] = ['games' => count($games), 'matches' => count($matches), 'players' => count($players),
+        'predictions' => count($predictions),
         'first_date' => $games ? min(array_column($games, 'date')) : null, 'last_date' => $games ? max(array_column($games, 'date')) : null];
 
-    return [
+    return dataset_finalize([
         'source' => 'sheet',
         'mock' => false,
         'players' => $players,
         'games' => $games,
-        'matches' => $valid,          // 통계용: 이상 사례 제외
+        'matches' => [],              // 통계용 (dataset_finalize가 채움: 이상·제외 경기 빼고)
         'matches_all' => $matches,    // 점검·검증용
         'predictions' => $predictions,
         'predictors' => $predictors,
@@ -280,7 +276,51 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         'double_chance' => [],        // 정의 확인 전까지 자동값 없음
         'verify' => $verify,
         'check' => $check,
-    ];
+    ], []);
+}
+
+/**
+ * 이상 경기 처리를 확정한다 (순수 함수, 여러 번 불러도 같은 결과).
+ * - 관리자가 "통계 제외 확정"한 경기(세트 수가 9가 아닌 경기만): 끝장전 통계에서 빼고, 관련 선수를 막지 않는다.
+ * - 확정하지 않은 이상 경기: 끝장전 통계에서 빼고, 관련 선수의 끝장전 CG는 확인 전까지 막는다.
+ * 세트 통계(종족 승률)에는 어느 경우든 그 세트를 센다.
+ * @param list<string> $excluded 제외 확정한 경기 id ("날짜|선수|선수")
+ */
+function dataset_finalize(array $ds, array $excluded): array
+{
+    if (($ds['check'] ?? null) === null) {
+        return $ds; // MOCK
+    }
+    $ex = array_flip($excluded);
+    $valid = $uncertain = $excl = [];
+    foreach ($ds['matches_all'] as &$m) {
+        $m['excluded'] = $m['anomaly'] !== null && $m['anomaly_kind'] === 'sets' && isset($ex[$m['id']]);
+        if ($m['anomaly'] === null) {
+            $valid[] = $m;
+        } elseif (!$m['excluded']) {
+            $uncertain[$m['playerA']] = $uncertain[$m['playerB']] = true;
+        }
+    }
+    unset($m);
+    $anomalies = [];
+    foreach ($ds['check']['anomalies_all'] as $a) {
+        if (($a['match'] ?? null) !== null && isset($ex[$a['match']]) && $a['sub'] === 'sets') {
+            $excl[] = $a;
+        } else {
+            $anomalies[] = $a;
+        }
+    }
+    $ds['matches'] = $valid;
+    $ds['check']['anomalies'] = $anomalies;
+    $ds['check']['excluded'] = $excl;
+    $ds['check']['counts']['valid_matches'] = count($valid);
+    $ds['check']['counts']['excluded'] = count($excl);
+    if ($ds['verify']['matches']['available']) {
+        foreach ($ds['verify']['matches']['list_ok'] ?? [] as $pid => $ok) {
+            $ds['verify']['matches']['players'][$pid] = $ok && !isset($uncertain[$pid]);
+        }
+    }
+    return $ds;
 }
 
 /** Results 탭 → 세트 목록. 형식 오류가 있으면 ProviderError */
@@ -355,13 +395,13 @@ function sheet_matches(array $games): array
             $races[$s['loser']][$s['lrace']] = true;
         }
         $n = count($sets);
-        $anomaly = null;
+        $anomaly = $kind = null;
         if ($n !== 9) {
-            $anomaly = "세트 수 {$n}개 (9세트가 아님)";
+            [$anomaly, $kind] = ["세트 수 {$n}개 (9세트가 아님)", 'sets'];
         } elseif ($score[$a] === $score[$b]) {
-            $anomaly = '승자 없음 (동점)';
+            [$anomaly, $kind] = ['승자 없음 (동점)', 'tie'];
         } elseif (count($races[$a]) > 1 || count($races[$b]) > 1) {
-            $anomaly = '경기 중 종족 변경';
+            [$anomaly, $kind] = ['경기 중 종족 변경', 'race'];
         }
         $m = [
             'id' => $key, 'date' => $sets[0]['date'], 'playerA' => $a, 'playerB' => $b,
@@ -369,11 +409,11 @@ function sheet_matches(array $games): array
             'raceB' => count($races[$b]) === 1 ? array_key_first($races[$b]) : null,
             'scoreA' => $score[$a], 'scoreB' => $score[$b], 'sets' => $n,
             'bestOf' => $n === 9 ? 9 : null, 'rows' => [$sets[0]['row'], $sets[$n - 1]['row']], 'anomaly' => $anomaly,
-            'source' => 'sheet',
+            'anomaly_kind' => $kind, 'excluded' => false, 'source' => 'sheet',
         ];
         $matches[] = $m;
         if ($anomaly !== null) {
-            $anomalies[] = ['kind' => 'match', 'text' => sprintf('%s %s vs %s %d:%d — %s (Results %d~%d행)',
+            $anomalies[] = ['kind' => 'match', 'match' => $key, 'sub' => $kind, 'text' => sprintf('%s %s vs %s %d:%d — %s (Results %d~%d행)',
                 $m['date'], $a, $b, $m['scoreA'], $m['scoreB'], $anomaly, $m['rows'][0], $m['rows'][1])];
         }
     }
@@ -523,17 +563,24 @@ function sheet_predictions_table(array $rows, bool $serialDates): array
     }
     $records = [];
     $ranking = $nameCol !== null && $totalCol !== null && $winCol !== null ? [] : null;
+    $rankingDone = false;
     foreach ($rows as $i => $r) {
         if ($i <= $h) {
             continue;
         }
-        if ($ranking !== null && ($rn = name_norm($r[$nameCol] ?? '')) !== null) {
-            $t = int_norm($r[$totalCol] ?? null);
-            $w = int_norm($r[$winCol] ?? null);
-            if ($t === null || $w === null || isset($ranking[$rn])) {
-                return ['error' => '예측 순위표 ' . ($i + 1) . '행을 읽을 수 없음', 'records' => [], 'ranking' => null];
+        // 순위표는 머리글 바로 아래부터 첫 빈 행까지 (그 아래 "SET별 성공률" 같은 다른 표는 읽지 않는다)
+        if ($ranking !== null && !$rankingDone) {
+            $rn = name_norm($r[$nameCol] ?? '');
+            if ($rn === null) {
+                $rankingDone = true;
+            } else {
+                $t = int_norm($r[$totalCol] ?? null);
+                $w = int_norm($r[$winCol] ?? null);
+                if ($t === null || $w === null || isset($ranking[$rn])) {
+                    return ['error' => '예측 순위표 ' . ($i + 1) . '행을 읽을 수 없음', 'records' => [], 'ranking' => null];
+                }
+                $ranking[$rn] = [$t, $w];
             }
-            $ranking[$rn] = [$t, $w];
         }
         $date = date_norm($r[0] ?? null, $serialDates);
         $who = cell_str($r[6] ?? '');

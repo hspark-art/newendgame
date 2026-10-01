@@ -141,6 +141,49 @@ function dataset_cache_get(string $source): ?array
     return is_array($ds) ? $ds : null;
 }
 
+/** 관리자가 "통계 제외 확정"한 경기 id 목록 */
+function match_exclusions(): array
+{
+    $l = json_dec(setting_get('match_exclusions', '[]'));
+    return is_array($l) ? array_values(array_filter($l, 'is_string')) : [];
+}
+
+/** 캐시(원본) → 쓸 데이터: 경기 제외 확정 반영 + 닉네임 */
+function dataset_prepare(array $ds): array
+{
+    return dataset_with_player_info(dataset_finalize($ds, match_exclusions()));
+}
+
+/**
+ * 이상 경기(세트 수가 9가 아닌 경기)를 끝장전 통계에서 제외하는 것을 확정하거나 취소한다 (관리자).
+ * 확정한 경기는 통계에서 빠지고 관련 선수의 CG를 막지 않는다. 네트워크 없이 마지막 정상 데이터로 다시 계산한다.
+ */
+function match_exclude(array $in, array $op): array
+{
+    require_admin_op($op);
+    $id = (string)($in['match'] ?? '');
+    $on = !empty($in['on']);
+    $ds = dataset_cache_get(data_source());
+    $m = null;
+    foreach ($ds['matches_all'] ?? [] as $x) {
+        if ($x['id'] === $id) {
+            $m = $x;
+        }
+    }
+    if ($m === null || $m['anomaly_kind'] !== 'sets') {
+        throw new ActionError('BAD_MATCH', '제외할 수 있는 경기가 아닙니다. (세트 수가 9가 아닌 경기만 제외할 수 있습니다)', 422);
+    }
+    $list = array_values(array_diff(match_exclusions(), [$id]));
+    if ($on) {
+        $list[] = $id;
+    }
+    setting_set('match_exclusions', json_enc($list));
+    cg_log('data', 'MATCH_EXCLUDE', $op, ['detail' => sprintf('%s %s vs %s %d:%d — %s', $m['date'], $m['playerA'], $m['playerB'],
+        $m['scoreA'], $m['scoreB'], $on ? '끝장전 통계 제외 확정' : '제외 취소')]);
+    data_apply($ds, $op, false);
+    return data_check_view();
+}
+
 /** 선수 부가 정보(운영자가 입력한 닉네임)를 데이터에 합친다. 시트에 없는 값이라 추측하지 않고 입력한 것만 쓴다 */
 function dataset_with_player_info(array $ds): array
 {
@@ -160,7 +203,7 @@ function data_check_summary(array $ds, string $now): array
         return ['source' => $ds['source'], 'mock' => true, 'at' => $now];
     }
     return [
-        'source' => $ds['source'], 'mock' => false, 'at' => $now, 'method' => $c['method'], 'counts' => $c['counts'],
+        'source' => $ds['source'], 'mock' => false, 'at' => $ds['fetched_at'] ?? $now, 'method' => $c['method'], 'counts' => $c['counts'],
         'verified' => array_map(static fn($v) => $v['available'], $ds['verify']),
         'anomalies' => count($c['anomalies']), 'mismatches' => count($c['mismatches']), 'unavailable' => $c['unavailable'],
     ];
@@ -170,10 +213,11 @@ function data_check_summary(array $ds, string $now): array
 function data_check_view(): array
 {
     $ds = dataset_cache_get(data_source());
-    $c = $ds['check'] ?? null;
+    $c = $ds === null ? null : dataset_finalize($ds, match_exclusions())['check'];
     return [
         'summary' => json_dec(setting_get('data_check', 'null')),
         'anomalies' => array_slice($c['anomalies'] ?? [], 0, 200),
+        'excluded' => $c['excluded'] ?? [],
         'mismatches' => array_slice($c['mismatches'] ?? [], 0, 200),
         'unavailable' => $c['unavailable'] ?? [],
     ];
@@ -239,7 +283,7 @@ function data_test(array $op): array
     } catch (ProviderError $e) {
         throw new ActionError('SOURCE_ERROR', $e->getMessage() . ($e->problems ? ': ' . implode(' / ', array_slice($e->problems, 0, 5)) : ''), 502);
     }
-    return data_check_summary($ds, now());
+    return data_check_summary(dataset_finalize($ds, match_exclusions()), now());
 }
 
 /** xlsx 가져오기 (시트 연결이 안 될 때의 예비). 성공하면 데이터 소스를 Google 시트로 바꾸고 반영한다 */

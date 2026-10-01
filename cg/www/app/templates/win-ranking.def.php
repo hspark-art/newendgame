@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-// #4 다승 순위 — 세트 승수 기준, 같은 승수는 공동 순위 (레퍼런스 04: "1st 박상현 soma 39W 14L 73.6%")
+// #4 다승 순위 — 끝장전 승패 기준, 같은 승수는 공동 순위 (레퍼런스 04: "1st 박상현 soma 39W 14L 73.6%" = 끝장전 39승 14패)
 return [
     'slug' => 'win-ranking',
     'name' => '다승 순위',
@@ -22,7 +22,7 @@ return [
     'auto' => static function (array $p, array $ds): array {
         $race = $p['race'] === '' ? null : $p['race'];
         $auto = ['title' => '중계진 스타 끝장전 ' . ($race ? RACE_NAMES[$race] . ' ' : '') . '다승 순위'];
-        foreach (stats_win_ranking($ds['games'], $ds['players'], $race, $p['count']) as $i => $r) {
+        foreach (stats_win_ranking($ds['matches'], $ds['players'], $race, $p['count']) as $i => $r) {
             $n = $i + 1;
             $auto += ["r$n.rank" => $r['rank'], "r$n.name" => pname($ds['players'], $r['player']),
                 "r$n.nick" => $ds['players'][$r['player']]['nickname'] ?? null, "r$n.wins" => $r['wins'], "r$n.losses" => $r['losses']];
@@ -31,13 +31,13 @@ return [
     },
     'verify' => static function (array $p, array $ds): array {
         $race = $p['race'] === '' ? null : $p['race'];
-        $all = stats_win_ranking($ds['games'], $ds['players'], $race, PHP_INT_MAX);
+        $all = stats_win_ranking($ds['matches'], $ds['players'], $race, PHP_INT_MAX);
         $rows = row_keys(['rank', 'name', 'nick', 'wins', 'losses'], $p['count']);
-        $issues = array_merge(verify_population($ds, 'sets', players_of_race($ds['players'], $race), $rows),
+        $issues = array_merge(verify_population($ds, 'matches', players_of_race($ds['players'], $race), $rows),
             verify_race_known($ds, $race, $rows));
         foreach (array_slice($all, 0, $p['count']) as $i => $r) {
             $n = $i + 1;
-            $issues = array_merge($issues, verify_sets($ds, $r['player'], 'all', ["r$n.rank", "r$n.name", "r$n.wins", "r$n.losses"]));
+            $issues = array_merge($issues, verify_matches($ds, $r['player'], ["r$n.rank", "r$n.name", "r$n.wins", "r$n.losses"]));
         }
         return $issues;
     },

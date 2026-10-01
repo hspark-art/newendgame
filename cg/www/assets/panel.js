@@ -587,8 +587,17 @@
         return '<tr><td>' + esc(kinds[m.kind] || m.kind) + '</td><td>' + esc(m.who) + '</td><td>' + esc(m.item) + '</td><td>'
           + esc(m.sheet) + '</td><td>' + esc(m.calc) + '</td></tr>';
       }).join('') || '<tr><td colspan="5" class="muted">없음</td></tr>';
-      $('dcAnomaly').innerHTML = r.anomalies.map(function (a) { return '<li>' + esc(a.text) + '</li>'; }).join('')
-        || '<li class="muted">없음</li>';
+      var admin = S.operator.role === 'admin';
+      $('dcAnomaly').innerHTML = r.anomalies.map(function (a) {
+        var btn = admin && a.sub === 'sets'
+          ? ' <button type="button" class="btn sm" data-exclude="' + esc(a.match) + '" data-on="1">끝장전 통계 제외 확정</button>' : '';
+        return '<li>' + esc(a.text) + btn + '</li>';
+      }).join('') || '<li class="muted">없음</li>';
+      $('dcExcCount').textContent = r.excluded.length + '건';
+      $('dcExcluded').innerHTML = r.excluded.map(function (a) {
+        var btn = admin ? ' <button type="button" class="btn sm" data-exclude="' + esc(a.match) + '" data-on="0">제외 취소</button>' : '';
+        return '<li>' + esc(a.text) + btn + '</li>';
+      }).join('') || '<li class="muted">없음</li>';
     });
   }
 
@@ -698,6 +707,19 @@
       if (e.key !== 'Enter' || e.target.tagName !== 'INPUT' || e.isComposing) { return; }
       e.preventDefault();
       if (e.target.classList.contains('nick')) { e.target.closest('tr').querySelector('[data-act="nick"]').click(); }
+    });
+    // 이상 경기 → 끝장전 통계 제외 확정 / 취소 (관리자)
+    $('dlgData').addEventListener('click', function (e) {
+      var id = e.target.getAttribute('data-exclude');
+      if (id === null) { return; }
+      var on = e.target.getAttribute('data-on') === '1';
+      confirmBox(on ? '끝장전 통계에서 제외' : '제외 취소',
+        '<p>' + esc(e.target.parentNode.firstChild.textContent) + '</p><p>' + (on
+          ? '이 경기를 끝장전 통계(맞대결·다승·연승·풀세트·최근 전적)에서 뺍니다. 세트 전적에는 그대로 들어갑니다.'
+          : '다시 "확인 필요" 경기로 돌립니다. 관련 선수의 끝장전 CG는 확인 전까지 막힙니다.') + '</p>', on ? '제외 확정' : '제외 취소')
+        .then(function (ok) {
+          if (ok) { api('match_exclude', { match: id, on: on }).then(function () { loadCheck(); toast('반영했습니다.', 'ok'); }); }
+        });
     });
     $('piBody').addEventListener('click', function (e) {
       if (e.target.getAttribute('data-act') !== 'nick') { return; }

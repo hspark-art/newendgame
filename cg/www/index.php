@@ -178,6 +178,9 @@ $op = guard_control();
       <h4>이상 경기·확인 필요 <span class="muted" id="dcAnoCount"></span></h4>
       <p class="hint">9세트가 아닌 경기·동점·경기 중 종족 변경 등은 끝장전 통계(맞대결·연승·풀세트·최근 전적)에서 빼고, 관련 선수의 CG는 확인 전까지 막습니다.</p>
       <ul id="dcAnomaly" class="dc-list plain"></ul>
+      <h4>끝장전 통계에서 제외한 경기 (확정) <span class="muted" id="dcExcCount"></span></h4>
+      <p class="hint">세트 수가 9가 아닌 특별 경기 등을 관리자가 제외로 확정한 목록입니다. 세트 전적(종족 승률)에는 그대로 들어갑니다.</p>
+      <ul id="dcExcluded" class="dc-list plain"></ul>
     </section>
     <section class="tabpane" data-pane="players" hidden>
       <p class="hint">닉네임(예: soma, Light)은 시트에 없어 직접 입력합니다. 입력한 닉네임만 다승·연승 CG에 표시됩니다.</p>

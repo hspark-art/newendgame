@@ -83,11 +83,11 @@ test('CG#4 다승 순위: 세트 승수, 종족 필터, 공동 순위', function
     setup_types();
     $st = type_state('win-ranking', ['race' => '', 'count' => '4']);
     assert_same('중계진 스타 끝장전 다승 순위', $st['view']['title']);
-    assert_same(['rank' => '1st', 'name' => '장윤철', 'nick' => 'SnOw', 'record' => '139W 127L', 'rate' => '52.3%'], $st['view']['rows'][0]);
+    assert_same(['rank' => '1st', 'name' => '장윤철', 'nick' => 'SnOw', 'record' => '17W 15L', 'rate' => '53.1%'], $st['view']['rows'][0], '끝장전 승패');
     assert_same(4, count($st['view']['rows']));
     $st = type_state('win-ranking', ['race' => 'Z', 'count' => '5']);
     assert_same('중계진 스타 끝장전 저그 다승 순위', $st['view']['title']);
-    assert_same(['1st', '2nd', '3rd', '3rd', '5th'], array_column($st['view']['rows'], 'rank'), '같은 승수는 공동 순위');
+    assert_same(['1st', '2nd', '2nd', '2nd', '2nd'], array_column($st['view']['rows'], 'rank'), '같은 승수는 공동 순위');
 });
 
 test('CG#5 승자 예측 순위: 적중률 순위, 자리 순서 표시(1→3→2)', function () {
@@ -293,7 +293,7 @@ test('검토 반영: 예측 동률은 적중 수로, 풀세트 0경기 모순 �
     program_update_live($iid, $pg['take_id'], channel_get('preview')['rev'], ['r2.wins' => '200'], op());
     assert_same('변경: 2행 승, 2행 승률', db_value("SELECT detail FROM cg_logs WHERE action = 'UPDATE_LIVE' ORDER BY id DESC"));
     $log = array_values(array_filter(panel_state(op())['logs'], fn($l) => $l['action'] === 'SET'))[0];
-    assert_same('2행 승: AUTO 54 → 200', $log['detail']);
+    assert_same('2행 승: AUTO 7 → 200', $log['detail']);
 
     // 행 필드에 비율(share) 파생값: 행 번호가 parts·total에 모두 붙음
     $rf = row_fields(2, ['m' => ['label' => '경기', 'type' => 'int'], 'f' => ['label' => '풀세트', 'type' => 'int'],

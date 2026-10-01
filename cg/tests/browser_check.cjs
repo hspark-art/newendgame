@@ -141,7 +141,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     ['race-win-rate', [['a.player', 'jo-iljang'], ['b.player', 'jang-yunchul']], '129승 123패'],
     ['recent-race', [['player', 'kim-minchul'], ['vs', 'T']], '2026-05-06'],
     ['head-to-head', [['a.player', 'jo-iljang'], ['b.player', 'kim-jisung']], '다섯 번째 맞대결'],
-    ['win-ranking', [['race', '']], '139W 127L'],
+    ['win-ranking', [['race', '']], '17W 15L'],
     ['prediction-ranking', [['seats', ['park-sanghyun', 'lim-sungchun', 'lee-seungwon']]], '100.0%'],
     ['online-h2h', [['a.player', 'jo-iljang'], ['b.player', 'jang-yunchul']], '12 : 8'],
     ['double-chance', [['a.player', 'yoo-youngjin'], ['b.player', 'jo-iljang']], '(70.0%)'],
@@ -238,6 +238,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const sum = await panel.textContent('#dcSummary');
     assert(sum.includes('세트 40') && sum.includes('끝장전 5') && sum.includes('세트 전적 대조됨'), 'xlsx 가져오기 → 점검: 세트 40 · 끝장전 5 · 대조됨');
     assert((await panel.textContent('#dcAnomaly')).includes('세트 수 4개'), '이상 경기 목록 표시');
+    await panel.click('#dcAnomaly [data-exclude][data-on="1"]');
+    await panel.waitForSelector('#dlgConfirm[open]');
+    await panel.click('#cfOk');
+    await panel.waitForFunction(() => document.getElementById('dcExcluded').textContent.includes('세트 수 4개'));
+    assert((await panel.textContent('#dcExcCount')).includes('1건'), '관리자: 이상 경기 "끝장전 통계 제외 확정" → 제외 목록으로 이동');
     await panel.waitForTimeout(600);
     await panel.screenshot({ path: path.join(OUT, 'panel-data-check.png') });
     await panel.click('#dlgData button[value="close"]');
