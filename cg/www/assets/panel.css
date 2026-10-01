@@ -123,12 +123,21 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .notice { margin-bottom: 8px; padding: 6px 10px; border-radius: 4px; background: #3b2a06; color: #fde68a; }
 .notice.err { background: #450a0a; color: #fecaca; }
 .ed { table-layout: fixed; }
-.ed th:nth-child(1) { width: 150px; } .ed th:nth-child(3) { width: 196px; } .ed th:nth-child(6) { width: 128px; }
+.ed th:nth-child(1) { width: 172px; } .ed th:nth-child(3) { width: 196px; } .ed th:nth-child(6) { width: 128px; }
 .ed th:nth-child(7) { width: 52px; } .ed th:nth-child(8) { width: 96px; }
 .ed td { padding: 3px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ed td.label { color: var(--muted); white-space: normal; line-height: 1.25; } /* 긴 항목 이름은 두 줄로 (잘리지 않게) */
-.ed tr.grp .hide-grp { margin-left: 8px; font-weight: 400; }
-.ed tr.is-hidden:not(.grp) td { opacity: .4; }
+.ed td.label .lab { display: flex; align-items: center; gap: 6px; }
+/* 항목 빼기: 빨간 − (누르면 빠짐) / 뺀 항목은 테두리만 있는 + (누르면 다시 넣기) */
+.ed .hide-x { flex: none; width: 22px; height: 18px; padding: 0; border: 1px solid #c62828; border-radius: 4px; background: #d32f2f;
+  color: #fff; font: 700 15px/16px var(--mono); cursor: pointer; }
+.ed .hide-x:hover { background: #b71c1c; }
+.ed .hide-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ed tr.is-hidden .hide-x { background: transparent; color: #66bb6a; border-color: #66bb6a; }
+.ed tr.is-hidden .hide-x:hover { background: rgba(102, 187, 106, .15); }
+.ed tr.is-hidden:not(.grp) td:not(.label), .ed tr.is-hidden td.label span { opacity: .4; }
+.ed tr.is-hidden td.label span { text-decoration: line-through; }
+.ed-tip { font-size: 12px; margin-right: 6px; }
 .ed tr.grp.is-hidden th { color: var(--dim); }
 .ed.fold tr.is-hidden:not(.grp) { display: none; }
 .ed td.num { font: 14px var(--mono); }

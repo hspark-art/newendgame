@@ -41,17 +41,20 @@ return [
     'present' => static function (array $f) use ($pairs): array {
         $rows = [];
         foreach ($pairs as $k => [$l, $r]) {
-            if ($f["$k.l"] === null && $f["$k.r"] === null) {
-                continue; // 그 종족전 줄을 뺌
+            if (hid($f, "$k.l") && hid($f, "$k.r") && hid($f, "$k.rate")) {
+                continue; // 그 종족전 줄의 항목을 모두 뺌
             }
-            $rate = $f["$k.rate"];
+            // 승률 글자만 뺀 경우에도 막대는 승수로 그린다
+            $rate = $f["$k.rate"] ?? ($f["$k.l"] !== null && $f["$k.r"] !== null ? stats_rate_tenths($f["$k.l"], $f["$k.r"]) : null);
+            $showPct = !hid($f, "$k.rate") && $rate !== null;
             $rows[] = ['l' => $l, 'r' => $r, 'lw' => (string)$f["$k.l"], 'rw' => (string)$f["$k.r"],
-                'lrate' => $rate === null ? '' : fmt_rate($rate) . '%', 'rrate' => $rate === null ? '' : fmt_rate(1000 - $rate) . '%',
+                'lrate' => $showPct ? fmt_rate($rate) . '%' : '', 'rrate' => $showPct ? fmt_rate(1000 - $rate) . '%' : '',
                 'lead' => $rate === null || $rate === 500 ? '' : ($rate > 500 ? 'l' : 'r'),
                 // 막대 폭 (SVG 속성 — 송출 화면 CSP가 인라인 style을 막으므로 style 대신 width 속성)
-                'lw_pct' => $rate === null ? 0 : $rate / 10, 'empty' => $rate === null];
+                'lw_pct' => $rate === null ? 0 : $rate / 10, 'empty' => $rate === null && !hid($f, "$k.rate")];
         }
-        return ['title' => (string)$f['title'], 'rows' => $rows,
-            'foot' => $f['sets'] === null ? '' : sprintf('총 %s세트 · %s ~ %s', $f['sets'], $f['first'], $f['last'])];
+        $period = trim(($f['first'] ?? '') . ' ~ ' . ($f['last'] ?? ''), ' ~');
+        $foot = array_filter([$f['sets'] === null ? '' : '총 ' . $f['sets'] . '세트', $period]);
+        return ['title' => (string)$f['title'], 'rows' => $rows, 'foot' => implode(' · ', $foot)];
     },
 ];

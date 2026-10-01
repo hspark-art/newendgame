@@ -128,16 +128,16 @@ function instance_state(array $inst, int $sessionId): array
         'hidden' => $hidden,
         'problems' => $problems,
         'mock' => $mock,
-        'view' => $problems ? null : template_present($inst['template'], $final, $inst['params'], $mock),
+        'view' => $problems ? null : template_present($inst['template'], $final, $inst['params'], $mock, $hidden),
     ];
 }
 
 // ---------------------------------------------------------------- 항목 빼기 (타이틀 에디터)
 
-/** 뺄 수 있는 항목 = 묶음(group)이 있는 필드. 저장된 키 중 지금 템플릿에 있는 것만 */
+/** 뺀 항목 키 중 지금 템플릿에 있는 것만 (v0.6.1부터 모든 항목을 하나씩 뺄 수 있다) */
 function hidden_keys(array $tpl, array $hidden): array
 {
-    return array_values(array_filter($hidden, static fn($k) => is_string($k) && isset($tpl['fields'][$k]['group'])));
+    return array_values(array_unique(array_filter($hidden, static fn($k) => is_string($k) && isset($tpl['fields'][$k]))));
 }
 
 /** 뺀 항목을 비운 값 (송출 화면에는 그 항목이 나오지 않는다) */
@@ -150,23 +150,25 @@ function hidden_apply(array $final, array $hidden): array
 }
 
 /**
- * 항목 묶음 빼기/다시 넣기 (예: 매치 프리뷰의 '최근 5경기', 순위 CG의 '3행'). PREVIEW만 바뀐다 — 송출 중이면 TAKE 또는 UPDATE LIVE.
+ * 항목 빼기/다시 넣기 (타이틀 에디터의 빨간 − 버튼, Shift+클릭은 같은 행·묶음 전체). PREVIEW만 바뀐다 — 송출 중이면 TAKE 또는 UPDATE LIVE.
  * 같은 CG(같은 선수·조건)를 쓰는 페이지는 함께 바뀐다.
+ * @param list<string> $keys 필드 키
  */
-function instance_hide(int $instanceId, string $group, bool $hide, array $op): array
+function instance_hide(int $instanceId, array $keys, bool $hide, array $op): array
 {
-    return db_tx(function () use ($instanceId, $group, $hide, $op) {
+    return db_tx(function () use ($instanceId, $keys, $hide, $op) {
         $inst = instance_get($instanceId);
         $tpl = template_get($inst['template']);
-        $keys = array_keys(array_filter($tpl['fields'], static fn($d) => ($d['group'] ?? null) === $group));
-        if ($group === '' || !$keys) {
-            throw new ActionError('VALIDATION', '뺄 수 없는 항목입니다.', 422);
+        $keys = array_values(array_unique(array_filter($keys, static fn($k) => is_string($k))));
+        if (!$keys || array_diff($keys, array_keys($tpl['fields']))) {
+            throw new ActionError('VALIDATION', '없는 항목입니다.', 422);
         }
         $hidden = hidden_keys($tpl, $inst['hidden']);
         $hidden = $hide ? array_values(array_unique(array_merge($hidden, $keys))) : array_values(array_diff($hidden, $keys));
         db_exec('UPDATE cg_instances SET hidden_json = ?, updated_at = ? WHERE id = ?', [json_enc($hidden), now(), $inst['id']]);
         cg_log('override', $hide ? 'HIDE' : 'SHOW', $op, ['instance_id' => $inst['id'], 'template' => $inst['template'],
-            'detail' => "$group " . ($hide ? '빼기' : '다시 넣기')]);
+            'detail' => implode(', ', array_map(static fn($k) => field_label($tpl['fields'][$k]), array_slice($keys, 0, 6)))
+                . (count($keys) > 6 ? ' 외 ' . (count($keys) - 6) . '개' : '') . ($hide ? ' 빼기' : ' 다시 넣기')]);
         state_bump(channel_get('preview')['instance_id'] === $inst['id'] ? ['preview'] : []);
         return ['hidden' => $hidden];
     });
@@ -769,7 +771,7 @@ function program_update_live(int $instanceId, int $expectedTakeId, int $expected
         $snap['final'] = $final;
         $snap['final_raw'] = $raw;
         $snap['hidden'] = $st['hidden'];
-        $snap['view'] = template_present($inst['template'], $final, $inst['params'], $st['mock']);
+        $snap['view'] = template_present($inst['template'], $final, $inst['params'], $st['mock'], $st['hidden']);
         $snap['updated_live_at'] = now();
         db_exec("UPDATE cg_channels SET snapshot_json = ? WHERE layer = 1 AND kind = 'program'", [json_enc($snap)]);
         cg_log('broadcast', 'UPDATE_LIVE', $op, ['session_id' => $sid, 'instance_id' => $instanceId, 'template' => $inst['template'],

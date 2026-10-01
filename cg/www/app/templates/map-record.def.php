@@ -67,10 +67,12 @@ return [
     'present' => static function (array $f): array {
         $cols = [];
         foreach (['a', 'b'] as $s) {
-            $detail = $f["$s.vs"] !== null && $f["$s.vw"] !== null && $f["$s.vl"] !== null
-                ? "vs {$f["$s.vs"]} " . text_record($f["$s.vw"], $f["$s.vl"]) : '';
+            $vrec = hid($f, "$s.vw") || hid($f, "$s.vl") || ($f["$s.vw"] !== null && $f["$s.vl"] !== null)
+                ? text_record_hid($f, "$s.vw", "$s.vl") : '';
+            $detail = $vrec === '' ? '' : trim(($f["$s.vs"] !== null ? "vs {$f["$s.vs"]} " : '') . $vrec);
             $cols[] = ['name' => (string)$f["$s.name"], 'race' => (string)($f["$s.race"] ?? ''),
-                'record' => text_record($f["$s.wins"], $f["$s.losses"]), 'rate' => text_rate_paren($f["$s.rate"]), 'detail' => $detail];
+                'record' => text_record_hid($f, "$s.wins", "$s.losses"),
+                'rate' => hid($f, "$s.rate") ? '' : text_rate_paren($f["$s.rate"]), 'detail' => $detail];
         }
         return ['title' => (string)$f['title'], 'cols' => $cols];
     },

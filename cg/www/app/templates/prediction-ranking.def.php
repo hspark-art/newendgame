@@ -52,11 +52,12 @@ return [
     'present' => static function (array $f): array {
         $rows = [];
         for ($i = 1; $i <= 5; $i++) {
-            $r = row_values($f, $i, ['rank', 'name', 'wins', 'losses', 'rate']);
-            if ($r !== null && $r['name'] !== null) {
-                $rows[] = ['rank' => $r['rank'] === null ? '-' : (string)$r['rank'], 'name' => $r['name'],
-                    'record' => $r['wins'] === null ? '기록 없음' : sprintf('%sW %sL', $r['wins'], $r['losses'] ?? '-'),
-                    'rate' => text_pct($r['rate']), 'top' => $r['rank'] === 1];
+            $r = row_visible($f, $i, ['rank', 'name', 'wins', 'losses', 'rate'], 'name');
+            if ($r !== null) {
+                $rows[] = ['rank' => hid($f, "r$i.rank") ? '' : ($r['rank'] === null ? '-' : (string)$r['rank']), 'name' => (string)$r['name'],
+                    'record' => $r['wins'] === null && !hid($f, "r$i.wins") ? '기록 없음'
+                        : text_wl($r['wins'], $r['losses'], hid($f, "r$i.wins"), hid($f, "r$i.losses")),
+                    'rate' => hid($f, "r$i.rate") ? '' : text_pct($r['rate']), 'top' => $r['rank'] === 1];
             }
         }
         return ['title' => (string)$f['title'], 'rows' => $rows];

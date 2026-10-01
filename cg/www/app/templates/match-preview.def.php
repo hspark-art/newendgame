@@ -6,7 +6,7 @@ declare(strict_types=1);
  * 매치 = 끝장전 승패(이상·제외 경기 뺌), 세트 = Results 모든 세트. 각 줄에서 기록이 더 좋은 쪽을 강조색으로 표시한다.
  */
 /*
- * 필드는 줄(묶음)마다 A·B를 함께 둔다. 묶음(group)은 타이틀 에디터에서 [빼기]로 CG에서 통째로 뺄 수 있다.
+ * 필드는 줄(묶음)마다 A·B를 함께 둔다. 타이틀 에디터에서 항목마다 빨간 −로 뺄 수 있고 (Shift+클릭은 묶음 전체), 줄의 항목을 모두 빼면 그 줄이 CG에서 빠진다.
  * $pair(묶음, 키 => [이름, 정의]) → "a.키", "b.키" 필드 (이름 앞에 A/B)
  */
 $pair = static function (string $group, array $spec): array {
@@ -99,40 +99,72 @@ return [
     'summary' => static fn(array $p, array $ctx): string => sprintf('%s vs %s%s', pname($ctx['players'], $p['a']['player']),
         pname($ctx['players'], $p['b']['player']), $p['map'] === '' ? '' : ' · ' . ($ctx['maps'][$p['map']]['name'] ?? $p['map'])),
     'present' => static function (array $f): array {
-        // 0승 0패 = 그 조건의 세트가 없음 (예: 동족전을 한 적 없음) → "기록 없음"
-        $rec = static fn($w, $l) => $w === null || $l === null ? null : ($w + $l === 0 ? '기록 없음' : "{$w}승 {$l}패");
         // 더 좋은 쪽: 승률(0.1%) 비교. 같거나 한쪽이 없으면 강조 없음
         $lead = static fn(?int $a, ?int $b) => $a === null || $b === null || $a === $b ? '' : ($a > $b ? 'a' : 'b');
-        $line = static function (string $label, string $k, string $w, string $l, string $rate, string $pre = '') use ($f, $rec, $lead): ?array {
-            $a = $rec($f["a.$w"], $f["a.$l"]);
-            $b = $rec($f["b.$w"], $f["b.$l"]);
+        // 한 줄 = A·B 각각 "N승 N패" + 작은 글씨(상대 종족·승률). 뺀 항목은 그 자리만 비우고, 줄의 항목을 모두 빼면 줄을 뺀다
+        $line = static function (string $label, string $k, string $w, string $l, string $rate, bool $vs = false) use ($f, $lead): ?array {
+            $keys = array_merge([$w, $l, $rate], $vs ? ['vs'] : []);
+            if (!array_filter(['a', 'b'], static fn($s) => array_filter($keys, static fn($x) => !hid($f, "$s.$x")))) {
+                return null;
+            }
+            // null = 자료 없음, '' = 뺌. 0승 0패 = 그 조건의 세트가 없음 (예: 동족전을 한 적 없음) → "기록 없음"
+            $rec = static function (string $s) use ($f, $w, $l): ?string {
+                [$hw, $hl] = [hid($f, "$s.$w"), hid($f, "$s.$l")];
+                if ($hw && $hl) {
+                    return '';
+                }
+                if ((!$hw && $f["$s.$w"] === null) || (!$hl && $f["$s.$l"] === null)) {
+                    return null;
+                }
+                if (!$hw && !$hl && $f["$s.$w"] + $f["$s.$l"] === 0) {
+                    return '기록 없음';
+                }
+                return trim(($hw ? '' : $f["$s.$w"] . '승') . ' ' . ($hl ? '' : $f["$s.$l"] . '패'));
+            };
+            $sub = static fn(string $s) => implode(' · ', array_filter([
+                $vs && ($f["$s.vs"] ?? null) ? "vs {$f["$s.vs"]}" : '',
+                $f["$s.$rate"] === null ? '' : text_pct($f["$s.$rate"]),
+            ]));
+            // 강조는 승률로, 승률을 뺐으면 승·패로 계산
+            $score = static fn(string $s) => $f["$s.$rate"] ?? stats_rate_tenths($f["$s.$w"], $f["$s.$l"]);
+            $a = $rec('a');
+            $b = $rec('b');
             if ($a === null && $b === null) {
                 return null;
             }
-            $sub = static fn(string $s) => trim(($pre !== '' && ($f["$s.vs"] ?? null) ? "vs {$f["$s.vs"]} · " : '')
-                . ($f["$s.$rate"] === null ? '' : text_pct($f["$s.$rate"])), ' ·');
             return ['kind' => 'rec', 'key' => $k, 'label' => $label, 'a' => $a ?? '—', 'a_sub' => $a === null ? '' : $sub('a'),
-                'b' => $b ?? '—', 'b_sub' => $b === null ? '' : $sub('b'), 'lead' => $lead($f["a.$rate"], $f["b.$rate"])];
+                'b' => $b ?? '—', 'b_sub' => $b === null ? '' : $sub('b'), 'lead' => $lead($score('a'), $score('b'))];
         };
         // str_split('')는 PHP 8.1에서 [''] (8.2부터 []) — 빈 값은 직접 []로
         $form = static function (?string $s): array {
             $t = (string)preg_replace('/[^WL]/', '', strtoupper((string)$s));
             return $t === '' ? [] : str_split($t);
         };
+        $h2h = static function () use ($f, $lead): ?array {
+            if (hid($f, 'h.a') && hid($f, 'h.b') && hid($f, 'h.sa') && hid($f, 'h.sb')) {
+                return null; // 맞대결 줄을 통째로 뺌
+            }
+            $sh = !hid($f, 'h.a') && !hid($f, 'h.b'); // 승수를 둘 다 보여 줌
+            if ($sh && $f['h.a'] === null && $f['h.b'] === null) {
+                return null;
+            }
+            if ($sh && (int)$f['h.a'] + (int)$f['h.b'] === 0) {
+                return ['kind' => 'note', 'key' => 'h2h', 'label' => '맞대결', 'text' => '첫 맞대결'];
+            }
+            $win = static fn(string $k) => hid($f, $k) ? '' : ($f[$k] === null ? '—' : $f[$k] . '승');
+            $set = static fn(string $k) => $f[$k] === null ? '' : '세트 ' . $f[$k];
+            return ['kind' => 'rec', 'key' => 'h2h', 'label' => '맞대결', 'a' => $win('h.a'), 'a_sub' => $set('h.sa'),
+                'b' => $win('h.b'), 'b_sub' => $set('h.sb'), 'lead' => $lead($f['h.a'], $f['h.b']) ?: $lead($f['h.sa'], $f['h.sb'])];
+        };
         $rows = array_values(array_filter([
             $line('매치 전적', 'match', 'mw', 'ml', 'mrate'),
             $line('세트 전적', 'set', 'sw', 'sl', 'srate'),
-            $line('상대 종족전', 'race', 'rw', 'rl', 'rrate', 'vs'),
+            $line('상대 종족전', 'race', 'rw', 'rl', 'rrate', true),
             ($f['a.form'] ?? null) !== null || ($f['b.form'] ?? null) !== null
                 ? ['kind' => 'form', 'key' => 'form', 'label' => '최근 5경기', 'a' => $form($f['a.form']), 'b' => $form($f['b.form'])] : null,
-            match (true) {
-                ($f['h.a'] ?? null) === null && ($f['h.b'] ?? null) === null => null, // 맞대결 줄을 뺌
-                (int)$f['h.a'] + (int)$f['h.b'] === 0 => ['kind' => 'note', 'key' => 'h2h', 'label' => '맞대결', 'text' => '첫 맞대결'],
-                default => ['kind' => 'rec', 'key' => 'h2h', 'label' => '맞대결', 'a' => $f['h.a'] . '승',
-                    'a_sub' => $f['h.sa'] === null ? '' : '세트 ' . $f['h.sa'], 'b' => $f['h.b'] . '승',
-                    'b_sub' => $f['h.sb'] === null ? '' : '세트 ' . $f['h.sb'], 'lead' => $lead($f['h.a'], $f['h.b'])],
-            },
-            ($f['map.name'] ?? null) !== null ? $line($f['map.name'], 'map', 'pw', 'pl', 'prate') : null,
+            $h2h(),
+            // 맵을 고르지 않았으면 맵 줄 없음. 맵 이름만 뺐으면 가운데 칸만 비운다
+            ($f['map.name'] ?? null) !== null || hid($f, 'map.name') ? $line((string)$f['map.name'], 'map', 'pw', 'pl', 'prate') : null,
         ]));
         $who = static fn(string $s) => ['name' => (string)$f["$s.name"], 'nick' => (string)($f["$s.nick"] ?? ''),
             'race' => (string)($f["$s.race"] ?? '')];

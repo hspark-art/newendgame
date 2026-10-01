@@ -1,7 +1,9 @@
 <?php /** 더블 찬스 승률 — $view: {title, cols[{name, record, rate}], mock} */ ?>
 <div class="cg-box cg-rwr cg-double">
+<?php if ($view['title'] !== ''): ?>
   <div class="cg-title"><span class="cg-fit"><?= h($view['title']) ?></span></div>
   <div class="cg-band"></div>
+<?php endif ?>
   <div class="cg-head">
 <?php foreach ($view['cols'] as $c): ?>
     <div class="cg-cell"><span class="cg-fit"><span class="cg-name"><?= h($c['name']) ?></span></span></div>

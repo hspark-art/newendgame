@@ -50,11 +50,12 @@ return [
     'present' => static function (array $f): array {
         $rows = [];
         for ($i = 1; $i <= 5; $i++) {
-            $r = row_values($f, $i, ['rank', 'name', 'nick', 'streak', 'start', 'end']);
-            if ($r !== null && $r['name'] !== null) {
-                $rows[] = ['rank' => $r['rank'] === null ? '' : english_ordinal($r['rank']), 'name' => $r['name'],
-                    'nick' => (string)$r['nick'], 'streak' => ($r['streak'] ?? '-') . '연승',
-                    'period' => trim(($r['start'] ?? '') . ' ~ ' . ($r['end'] ?? ''), ' ~')];
+            $r = row_visible($f, $i, ['rank', 'name', 'nick', 'streak', 'start', 'end'], 'name');
+            if ($r !== null) {
+                $rows[] = ['rank' => $r['rank'] === null ? '' : english_ordinal($r['rank']), 'name' => (string)$r['name'],
+                    'nick' => (string)$r['nick'], 'streak' => hid($f, "r$i.streak") ? '' : ($r['streak'] ?? '-') . '연승',
+                    'period' => trim(($r['start'] ?? '') . ' ~ ' . ($r['end'] ?? ''), ' ~'),
+                    'top' => $r['rank'] === 1 || ($r['rank'] === null && hid($f, "r$i.rank") && $i === 1)];
             }
         }
         return ['title' => (string)$f['title'], 'rows' => $rows];

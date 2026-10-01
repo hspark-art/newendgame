@@ -1,7 +1,9 @@
 <?php /** 미션 성공 지수 — $view: {title, rows[{rank, name, index, roi, index_sign, roi_sign, top}], mock} */ ?>
 <div class="cg-box cg-list cg-ranking cg-prediction cg-mission cg-n<?= count($view['rows']) ?>">
+<?php if ($view['title'] !== ''): ?>
   <div class="cg-title"><span class="cg-fit"><?= h($view['title']) ?></span></div>
   <div class="cg-band"></div>
+<?php endif ?>
   <div class="cg-rows cg-bars">
 <?php foreach ($view['rows'] as $r): ?>
     <div class="cg-row cg-bar<?= $r['top'] ? ' is-top is-hl' : '' ?>">

@@ -164,7 +164,7 @@ function match_pages_apply(array $in, array $op): array
             continue;
         }
         page_update((int)$r['id'], ['params' => $params], $op);
-        // 그 페이지에서 뺀 항목(CG에서 빼기)은 새 선수 CG에도 그대로 (새 CG에 이미 정한 것이 없을 때)
+        // 그 페이지에서 뺀 항목(빨간 −)은 새 선수 CG에도 그대로 (새 CG에 이미 정한 것이 없을 때)
         $oldHidden = instance_get((int)$r['instance_id'])['hidden'];
         $newInst = instance_get((int)rundown_get((int)$r['id'])['instance_id']);
         if ($oldHidden && !$newInst['hidden']) {

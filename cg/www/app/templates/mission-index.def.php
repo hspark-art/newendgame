@@ -51,15 +51,16 @@ return [
     'present' => static function (array $f): array {
         $rows = [];
         for ($i = 1; $i <= 5; $i++) {
-            $r = row_values($f, $i, ['rank', 'name', 'index', 'roi']);
-            if ($r === null || $r['name'] === null) {
+            $r = row_visible($f, $i, ['rank', 'name', 'index', 'roi'], 'name');
+            if ($r === null) {
                 continue;
             }
             $sign = static fn(?int $v) => $v === null ? '' : ($v > 0 ? 'plus' : ($v < 0 ? 'minus' : ''));
-            $rows[] = ['rank' => $r['rank'] === null ? '-' : (string)$r['rank'], 'name' => $r['name'],
-                'index' => $r['index'] === null ? '기록 없음' : ($r['index'] > 0 ? '+' : '') . number_format($r['index']) . '개',
-                'roi' => $r['roi'] === null ? '—' : ($r['roi'] > 0 ? '+' : '') . fmt_srate($r['roi']) . '%',
-                'index_sign' => $sign($r['index']), 'roi_sign' => $sign($r['roi']), 'top' => $r['rank'] === 1];
+            $rows[] = ['rank' => hid($f, "r$i.rank") ? '' : ($r['rank'] === null ? '-' : (string)$r['rank']), 'name' => (string)$r['name'],
+                'index' => hid($f, "r$i.index") ? '' : ($r['index'] === null ? '기록 없음' : ($r['index'] > 0 ? '+' : '') . number_format($r['index']) . '개'),
+                'roi' => hid($f, "r$i.roi") ? '' : ($r['roi'] === null ? '—' : ($r['roi'] > 0 ? '+' : '') . fmt_srate($r['roi']) . '%'),
+                'index_sign' => $sign($r['index']), 'roi_sign' => $sign($r['roi']),
+                'top' => $r['rank'] === 1 || ($r['rank'] === null && hid($f, "r$i.rank") && $i === 1)];
         }
         return ['title' => (string)$f['title'], 'rows' => $rows];
     },

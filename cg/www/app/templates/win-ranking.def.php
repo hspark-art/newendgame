@@ -46,11 +46,13 @@ return [
     'present' => static function (array $f): array {
         $rows = [];
         for ($i = 1; $i <= 5; $i++) {
-            $r = row_values($f, $i, ['rank', 'name', 'nick', 'wins', 'losses', 'rate']);
-            if ($r !== null && $r['name'] !== null) {
-                $rows[] = ['rank' => $r['rank'] === null ? '' : english_ordinal($r['rank']), 'name' => $r['name'],
-                    'nick' => (string)$r['nick'], 'record' => sprintf('%sW %sL', $r['wins'] ?? '-', $r['losses'] ?? '-'),
-                    'rate' => text_pct($r['rate'])];
+            $r = row_visible($f, $i, ['rank', 'name', 'nick', 'wins', 'losses', 'rate'], 'name');
+            if ($r !== null) {
+                $rows[] = ['rank' => $r['rank'] === null ? '' : english_ordinal($r['rank']), 'name' => (string)$r['name'],
+                    'nick' => (string)$r['nick'], 'record' => text_wl($r['wins'], $r['losses'], hid($f, "r$i.wins"), hid($f, "r$i.losses")),
+                    'rate' => hid($f, "r$i.rate") ? '' : text_pct($r['rate']),
+                    // 1위 줄 강조는 순위 글자를 빼도 유지
+                    'top' => $r['rank'] === 1 || ($r['rank'] === null && hid($f, "r$i.rank") && $i === 1)];
             }
         }
         return ['title' => (string)$f['title'], 'rows' => $rows];

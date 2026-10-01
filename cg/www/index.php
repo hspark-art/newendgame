@@ -124,7 +124,9 @@ $op = guard_control();
       <h2>타이틀 에디터</h2>
       <span id="edTarget" class="ellipsis muted">PREVIEW에 큐된 페이지가 없습니다.</span>
       <div class="spacer"></div>
-      <label class="check" title="[CG에서 빼기]로 뺀 묶음의 입력 줄을 에디터에서 감춥니다"><input type="checkbox" id="edFold"> 뺀 항목 접기</label>
+      <span class="muted ed-tip">빨간 − 로 항목 빼기 · Shift+클릭 = 줄 전체</span>
+      <button type="button" id="btnShowAll" class="btn sm" disabled>모두 다시 넣기</button>
+      <label class="check" title="빨간 − 로 뺀 항목의 입력 줄을 에디터에서 감춥니다"><input type="checkbox" id="edFold"> 뺀 항목 접기</label>
     </div>
     <div id="edNotice" class="notice" hidden></div>
     <div class="table-wrap">

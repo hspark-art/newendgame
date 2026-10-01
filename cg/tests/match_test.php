@@ -2,7 +2,15 @@
 declare(strict_types=1);
 
 // v0.6: 타이틀 에디터 '항목 빼기', 오늘 매치(한 번에 추가·페이지 리스트 바꾸기), 맵 최근 순서
+// v0.6.1: 항목 빼기는 항목마다(빨간 −). 묶음 전체는 패널에서 Shift+클릭 = 묶음의 키를 모두 보냄 (hide_group)
 // 합성 시트(fx_tables): 가선수 Z, 나선수 P, 다선수 T, 라선수 Z / 맵 = 'Map 1'~'Map 9'
+
+/** 패널의 Shift+클릭과 같음: 묶음(group)의 항목을 모두 빼기/다시 넣기 */
+function hide_group(int $iid, string $group, bool $hide): array
+{
+    $fields = template_get(instance_get($iid)['template'])['fields'];
+    return instance_hide($iid, array_keys(array_filter($fields, static fn($d) => ($d['group'] ?? '') === $group)), $hide, op());
+}
 
 test('항목 빼기: 묶음을 빼면 송출 화면에서 사라지고, 필수 항목이어도 송출 가능, TAKE·UPDATE LIVE로 반영', function () {
     setup_sheet();
@@ -13,8 +21,8 @@ test('항목 빼기: 묶음을 빼면 송출 화면에서 사라지고, 필수 �
     assert_same(['match', 'set', 'race', 'form', 'h2h', 'map'], $keys($st));
     program_take(channel_get('preview')['rev'], ['effect' => 'cut'], op());
 
-    instance_hide($iid, '최근 5경기', true, op());
-    instance_hide($iid, '매치 전적', true, op()); // 필수 항목(매치 승·패)이 있는 묶음
+    hide_group($iid, '최근 5경기', true);
+    hide_group($iid, '매치 전적', true); // 필수 항목(매치 승·패)이 있는 묶음
     $st = instance_state(instance_get($iid), current_session_id());
     assert_same([], $st['problems'], '뺀 필수 항목은 송출을 막지 않음');
     assert_same(['set', 'race', 'h2h', 'map'], $keys($st));
@@ -29,19 +37,98 @@ test('항목 빼기: 묶음을 빼면 송출 화면에서 사라지고, 필수 �
     program_update_live($iid, channel_get('program')['take_id'], channel_get('preview')['rev'], [], op());
     assert_same(['set', 'race', 'h2h', 'map'], array_column(channel_get('program')['snapshot']['view']['rows'], 'key'));
     // 다시 넣기 → UPDATE LIVE: 뺐던 줄이 송출 때 값으로 돌아온다 (덮어쓴 AUTO가 아님)
-    instance_hide($iid, '매치 전적', false, op());
+    hide_group($iid, '매치 전적', false);
     program_update_live($iid, channel_get('program')['take_id'], channel_get('preview')['rev'], [], op());
     $snap = channel_get('program')['snapshot'];
     assert_same(['match', 'set', 'race', 'h2h', 'map'], array_column($snap['view']['rows'], 'key'));
     assert_same('2승 1패', $snap['view']['rows'][0]['a']);
     assert_same(['a.form', 'b.form'], $snap['hidden']);
 
-    // 묶음이 없는 항목(제목·이름)은 뺄 수 없다
-    assert_throws(ActionError::class, fn() => instance_hide($iid, '', true, op()), 'VALIDATION');
-    assert_throws(ActionError::class, fn() => instance_hide($iid, '없는 묶음', true, op()), 'VALIDATION');
+    assert_throws(ActionError::class, fn() => instance_hide($iid, [], true, op()), 'VALIDATION');
+    assert_throws(ActionError::class, fn() => instance_hide($iid, ['a.mw', '없는 항목'], true, op()), 'VALIDATION');
     // 맞대결 줄을 빼면 "첫 맞대결"로 바뀌지 않고 줄이 사라진다
-    instance_hide($iid, '맞대결', true, op());
+    hide_group($iid, '맞대결', true);
     assert_true(!in_array('h2h', $keys(instance_state(instance_get($iid), current_session_id())), true));
+});
+
+test('항목 빼기(v0.6.1): 항목 하나만 빼면 그 자리만 비고 줄은 남는다 — 제목·이름·승·승률·맞대결·맵 이름', function () {
+    setup_sheet();
+    match_exclude(['match' => '2025-01-04|다선수|라선수', 'on' => true], op());
+    $st = type_state('match-preview', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'], 'map' => 'Map 1']);
+    $iid = channel_get('preview')['instance_id'];
+    $row = static fn(array $st, string $k) => array_column($st['view']['rows'], null, 'key')[$k] ?? null;
+    $match = $row($st, 'match');
+    assert_same('2승 1패', $match['a']);
+    $leadBefore = $match['lead'];
+    $state = static fn() => instance_state(instance_get($iid), current_session_id());
+
+    // 제목 → 제목 줄(띠 포함)이 송출 화면에서 사라짐. 필수 항목이어도 송출 가능
+    instance_hide($iid, ['title'], true, op());
+    $st = $state();
+    assert_same(['', []], [$st['view']['title'], $st['problems']]);
+    assert_true(!str_contains(cg_render($st['view']), 'cg-title') && !str_contains(cg_render($st['view']), 'cg-band'));
+    // A 이름만 → A 이름 칸만 비고 B는 그대로
+    instance_hide($iid, ['a.name'], true, op());
+    $st = $state();
+    assert_same(['', '나선수', []], [$st['view']['a']['name'], $st['view']['b']['name'], $st['problems']]);
+    // A 매치 승만 → "1패", 줄은 남음. A 승률만 → 작은 글씨 비움, 강조(더 좋은 쪽)는 승·패로 계산해 그대로
+    instance_hide($iid, ['a.mw'], true, op());
+    instance_hide($iid, ['a.mrate', 'b.mrate'], true, op());
+    $m = $row($state(), 'match');
+    assert_same(['1패', '', ''], [$m['a'], $m['a_sub'], $m['b_sub']]);
+    instance_hide($iid, ['a.mw'], false, op());
+    assert_same($leadBefore, $row($state(), 'match')['lead'], '승률을 빼도 강조는 유지');
+    // 맞대결: 승수만 빼면 줄은 남고 세트만 표시, 넷 다 빼야 줄이 사라짐
+    instance_hide($iid, ['h.a', 'h.b'], true, op());
+    $h = $row($state(), 'h2h');
+    assert_true($h !== null && $h['a'] === '' && $h['b'] === '' && str_starts_with($h['a_sub'], '세트 '));
+    // 맵 이름만 → 가운데 칸만 비고 맵 줄은 남음
+    instance_hide($iid, ['map.name'], true, op());
+    $mp = $row($state(), 'map');
+    assert_true($mp !== null && $mp['label'] === '' && $mp['a'] !== '');
+    // 상대 종족만 → "vs Z"만 빠짐
+    instance_hide($iid, ['a.vs'], true, op());
+    assert_true(!str_contains($row($state(), 'race')['a_sub'], 'vs'));
+    // 줄의 항목을 모두 빼면 줄이 사라짐 (항목 하나씩 빼서)
+    foreach (['a.sw', 'a.sl', 'a.srate', 'b.sw', 'b.sl'] as $k) {
+        instance_hide($iid, [$k], true, op());
+        assert_true($row($state(), 'set') !== null, "{$k}까지 빼도 줄은 남음");
+    }
+    instance_hide($iid, ['b.srate'], true, op());
+    assert_same(null, $row($state(), 'set'));
+
+    // 순위 CG: 1행 이름만 빼도 1행·1위 강조는 그대로
+    type_state('win-ranking', ['race' => '', 'count' => '3']);
+    $wr = channel_get('preview')['instance_id'];
+    instance_hide($wr, ['r1.name'], true, op());
+    $v = instance_state(instance_get($wr), current_session_id())['view'];
+    assert_same([3, '', true], [count($v['rows']), $v['rows'][0]['name'], $v['rows'][0]['top']]);
+    instance_hide($wr, ['r1.losses'], true, op());
+    assert_true(!str_contains(instance_state(instance_get($wr), current_session_id())['view']['rows'][0]['record'], 'L'));
+    // 다시 넣기 = 같은 키로 hide=false (패널의 '모두 다시 넣기'는 뺀 키를 모두 보냄)
+    instance_hide($wr, ['r1.name', 'r1.losses'], false, op());
+    assert_same([], instance_get($wr)['hidden']);
+});
+
+test('항목 빼기(v0.6.1): CG 14종 모두 — 어떤 항목 하나를 빼도, 모두 빼도 오류 없이 그려진다', function () {
+    $sample = static fn(array $def) => match ($def['type']) {
+        'text' => ($def['max'] ?? 9) === 1 ? 'Z' : (($def['max'] ?? 9) === 5 ? 'WWLWL' : '값'),
+        'date' => '2026-01-02', 'rate' => 612, 'srate' => -35, 'sint' => -1200, default => 3,
+    };
+    $p = ['a' => ['player' => '가', 'vs' => 'P'], 'b' => ['player' => '나', 'vs' => 'T'], 'map' => 'Map 1', 'year' => 2026,
+        'race' => '', 'count' => 3, 'seats' => []];
+    foreach (cg_templates() as $slug => $tpl) {
+        $final = array_map($sample, $tpl['fields']);
+        $keys = array_keys($tpl['fields']);
+        foreach (array_merge([[]], array_map(static fn($k) => [$k], $keys), [$keys]) as $hidden) {
+            $view = template_present($slug, hidden_apply($final, $hidden), $p, false, $hidden);
+            $html = cg_render($view);
+            assert_true($html !== '', "$slug 빼기 " . implode(',', $hidden));
+            if (in_array('title', $hidden, true)) {
+                assert_true(!str_contains($html, 'class="cg-title"'), "$slug 제목을 빼면 제목 줄 없음");
+            }
+        }
+    }
 });
 
 test('항목 빼기: 순위 CG의 행, 맵 상성의 종족전 줄·아래 줄, 페이지 내보내기·가져오기에도 유지', function () {
@@ -49,18 +136,18 @@ test('항목 빼기: 순위 CG의 행, 맵 상성의 종족전 줄·아래 줄, 
     match_exclude(['match' => '2025-01-04|다선수|라선수', 'on' => true], op());
     type_state('win-ranking', ['race' => '', 'count' => '3']);
     $iid = channel_get('preview')['instance_id'];
-    instance_hide($iid, '2행', true, op());
+    hide_group($iid, '2행', true);
     $st = instance_state(instance_get($iid), current_session_id());
     assert_same(2, count($st['view']['rows']), '3명 중 2행을 뺌');
-    instance_hide($iid, '1행', true, op());
-    instance_hide($iid, '3행', true, op());
+    hide_group($iid, '1행', true);
+    hide_group($iid, '3행', true);
     assert_true(in_array('표시할 행이 없습니다. 행 값을 입력하거나 다른 조건을 고르세요.',
         instance_state(instance_get($iid), current_session_id())['problems'], true), '모두 빼면 송출 막음');
 
     type_state('map-matchup', ['map' => 'Map 1']);
     $mm = channel_get('preview')['instance_id'];
-    instance_hide($mm, 'P vs T', true, op());
-    instance_hide($mm, '총 세트·기간', true, op());
+    hide_group($mm, 'P vs T', true);
+    hide_group($mm, '총 세트·기간', true);
     $st = instance_state(instance_get($mm), current_session_id());
     assert_same([[], ['Z', 'T'], ''], [$st['problems'], array_column($st['view']['rows'], 'l'), $st['view']['foot']]);
     assert_true(!str_contains(cg_render($st['view']), 'mu-foot'));
@@ -135,7 +222,7 @@ test('리뷰 수정 (v0.6): 같은 매치로 바꾸면 고른 종족 유지, 매
     // 다른 매치로 바꾸면 바뀐 선수를 상대로 하는 종족만 새로 (B 그대로 → A의 상대 종족 T 유지, A가 다선수 → B의 상대 종족 T),
     // 그 페이지에서 뺀 항목은 새 CG에도 그대로
     $r = page_add(['template' => 'match-preview', 'params' => ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'], 'map' => '']], op());
-    instance_hide((int)rundown_get($r['id'])['instance_id'], '최근 5경기', true, op());
+    hide_group((int)rundown_get($r['id'])['instance_id'], '최근 5경기', true);
     match_pages_apply(['a' => '다선수', 'b' => '나선수'], op());
     assert_same(['a.form', 'b.form'], instance_get((int)rundown_get($r['id'])['instance_id'])['hidden']);
     $p = json_dec(rundown_rows()[0]['params_json']);

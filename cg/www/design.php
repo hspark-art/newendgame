@@ -23,7 +23,7 @@ foreach (rundown_rows() as $row) {
     if ($view === null) {
         // 시트 대조로 송출이 막힌 CG도 모양은 볼 수 있게 계산값으로 그린다 (송출은 여전히 막힘)
         try {
-            $view = template_present($inst['template'], $st['final'], $inst['params'], false);
+            $view = template_present($inst['template'], $st['final'], $inst['params'], false, $st['hidden']);
             $label .= ' (송출 확인 필요)';
         } catch (Throwable) {
             continue;

@@ -43,10 +43,14 @@ return [
     'present' => static function (array $f): array {
         $cols = [];
         foreach (['a', 'b'] as $s) {
-            $full = $f["$s.fsw"] === null || $f["$s.fsl"] === null ? null : $f["$s.fsw"] + $f["$s.fsl"];
-            $cols[] = ['name' => (string)$f["$s.name"], 'rate' => text_pct($f["$s.rate"]),
-                'count' => sprintf('%s경기 중 %s회 풀세트', $f["$s.matches"] ?? '-', $full ?? '-'),
-                'detail' => sprintf('5:4 승 %s · 4:5 패 %s', $f["$s.fsw"] ?? '-', $f["$s.fsl"] ?? '-')];
+            // 풀세트 횟수 = 5:4 승 + 4:5 패. 둘 중 하나를 뺐으면 횟수는 빼고 경기 수만
+            $full = hid($f, "$s.fsw", "$s.fsl") ? '' : (string)($f["$s.fsw"] === null || $f["$s.fsl"] === null ? '-' : $f["$s.fsw"] + $f["$s.fsl"]);
+            $games = hid($f, "$s.matches") ? '' : ($f["$s.matches"] ?? '-') . '경기';
+            $detail = array_filter([hid($f, "$s.fsw") ? '' : '5:4 승 ' . ($f["$s.fsw"] ?? '-'),
+                hid($f, "$s.fsl") ? '' : '4:5 패 ' . ($f["$s.fsl"] ?? '-')]);
+            $cols[] = ['name' => (string)$f["$s.name"], 'rate' => hid($f, "$s.rate") ? '' : text_pct($f["$s.rate"]),
+                'count' => $full === '' ? $games : ($games === '' ? '' : "$games 중 ") . "{$full}회 풀세트",
+                'detail' => implode(' · ', $detail)];
         }
         return ['title' => (string)$f['title'], 'cols' => $cols];
     },

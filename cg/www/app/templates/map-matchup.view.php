@@ -1,7 +1,9 @@
 <?php /** 맵 종족 상성 — $view: {title, rows[{l, r, lw, rw, lrate, rrate, lead, lw_pct, empty}], foot, mock} */ ?>
 <div class="cg-box cg-matchup">
+<?php if ($view['title'] !== ''): ?>
   <div class="cg-title"><span class="cg-fit"><?= h($view['title']) ?></span></div>
   <div class="cg-band"></div>
+<?php endif ?>
   <div class="mu-rows">
 <?php foreach ($view['rows'] as $r): ?>
     <div class="mu-row">

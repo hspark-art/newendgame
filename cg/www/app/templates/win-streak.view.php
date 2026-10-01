@@ -1,9 +1,11 @@
 <?php /** 연승 순위 — $view: {title, rows[{rank, name, nick, streak, period}], mock} */ ?>
 <div class="cg-box cg-list cg-ranking cg-streak cg-n<?= count($view['rows']) ?>">
+<?php if ($view['title'] !== ''): ?>
   <div class="cg-title"><span class="cg-fit"><?= h($view['title']) ?></span></div>
+<?php endif ?>
   <div class="cg-rows cg-bars">
 <?php foreach ($view['rows'] as $r): ?>
-    <div class="cg-row cg-bar<?= $r['rank'] === '1st' ? ' is-hl' : '' ?>">
+    <div class="cg-row cg-bar<?= $r['top'] ? ' is-hl' : '' ?>">
       <span class="c-rank"><?= h($r['rank']) ?></span>
       <span class="c-name"><span class="cg-fit"><b><?= h($r['name']) ?></b> <small><?= h($r['nick']) ?></small></span></span>
       <span class="c-streak"><?= h($r['streak']) ?></span>

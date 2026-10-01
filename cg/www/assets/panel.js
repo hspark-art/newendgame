@@ -281,16 +281,14 @@
     notice.className = 'notice' + (pv.problems.length ? ' err' : '');
     notice.textContent = msgs.join(' · ');
     pv.fields.forEach(updateEditorRow);
-    // 묶음 빼기 상태: 묶음의 필드가 모두 빠졌으면 '다시 넣기'
+    // 묶음(행·줄)의 항목을 모두 뺐으면 묶음 제목도 흐리게
     Array.prototype.forEach.call(document.querySelectorAll('#edBody tr.grp'), function (tr) {
-      var g = tr.getAttribute('data-group');
-      var fs = pv.fields.filter(function (f) { return f.group === g; });
-      var hidden = fs.length > 0 && fs.every(function (f) { return f.hidden; });
-      tr.classList.toggle('is-hidden', hidden);
-      var b = tr.querySelector('.hide-grp');
-      b.textContent = hidden ? '다시 넣기' : 'CG에서 빼기';
-      b.setAttribute('data-hide', hidden ? '0' : '1');
+      var fs = pv.fields.filter(function (f) { return f.group === tr.getAttribute('data-group'); });
+      tr.classList.toggle('is-hidden', fs.length > 0 && fs.every(function (f) { return f.hidden; }));
     });
+    var nHidden = pv.fields.filter(function (f) { return f.hidden; }).length;
+    $('btnShowAll').disabled = nHidden === 0;
+    $('btnShowAll').textContent = nHidden ? '모두 다시 넣기 (' + nHidden + ')' : '모두 다시 넣기';
   }
 
   function buildEditor() {
@@ -298,13 +296,13 @@
     if (!S.preview.instance_id) { body.innerHTML = ''; return; }
     var group = '';
     body.innerHTML = S.preview.fields.map(function (f) {
-      // 목록형 CG는 행(1행, 2행 …)마다 구분 줄을 넣는다
-      // 묶음은 [CG에서 빼기]로 송출 화면에서 통째로 뺄 수 있다 (행·줄 단위)
-      var head = f.group && f.group !== group ? '<tr class="grp" data-group="' + esc(f.group) + '"><th colspan="8">' + esc(f.group)
-        + ' <button type="button" class="btn sm hide-grp" data-group="' + esc(f.group) + '">CG에서 빼기</button></th></tr>' : '';
+      // 목록형 CG는 행(1행, 2행 …)마다, 비교형은 줄(매치 전적 …)마다 구분 줄을 넣는다
+      var head = f.group && f.group !== group ? '<tr class="grp" data-group="' + esc(f.group) + '"><th colspan="8">' + esc(f.group) + '</th></tr>' : '';
       group = f.group;
+      // 빨간 − = 이 항목을 CG에서 빼기, 뺀 항목은 + (다시 넣기). Shift+클릭 = 같은 행·줄 전체
       return head + '<tr data-key="' + esc(f.key) + '" data-group="' + esc(f.group) + '">'
-        + '<td class="label" title="' + esc((f.group ? f.group + ' ' : '') + f.label) + '">' + esc(f.label) + '</td>'
+        + '<td class="label"><div class="lab"><button type="button" class="hide-x" data-key="' + esc(f.key) + '"></button>'
+        + '<span title="' + esc((f.group ? f.group + ' ' : '') + f.label) + '">' + esc(f.label) + '</span></div></td>'
         + '<td class="num auto"></td>'
         + '<td><input type="text" class="val" data-key="' + esc(f.key) + '" autocomplete="off"></td>'
         + '<td class="num final"></td>'
@@ -321,6 +319,10 @@
     if (!tr) { return; }
     tr.classList.toggle('is-hidden', !!f.hidden);
     var cells = tr.children;
+    var hx = cells[0].querySelector('.hide-x');
+    hx.textContent = f.hidden ? '+' : '−';
+    hx.title = (f.hidden ? '다시 넣기' : 'CG에서 빼기') + (f.group ? ' (Shift+클릭: ' + f.group + ' 전체)' : '');
+    hx.setAttribute('aria-label', f.label + ' ' + (f.hidden ? '다시 넣기' : 'CG에서 빼기'));
     cells[1].innerHTML = esc(f.auto_text) + (f.auto_changed
       ? '<span class="sub warn">자동값 변경 ' + esc(f.auto_at_set_text) + ' → ' + esc(f.auto_text) + '</span>' : '');
     var input = cells[2].firstChild;
@@ -342,6 +344,16 @@
     keep.checked = !!f.keep;
     keep.disabled = !f.has_manual;
     cells[7].firstChild.disabled = !f.has_manual && dirty[f.key] === undefined;
+  }
+
+  /** 항목 빼기/다시 넣기 → PREVIEW에만 반영 (송출 중이면 UPDATE LIVE 또는 TAKE) */
+  function setHidden(keys, hide, what) {
+    if (!S.preview.instance_id || !keys.length) { return; }
+    api('hide', { instance_id: S.preview.instance_id, fields: keys, hide: hide }).then(function () {
+      if (S.program.same_target) {
+        toast(what + (hide ? ' — PREVIEW에서 뺐습니다.' : ' — 다시 넣었습니다.') + ' 송출 화면은 UPDATE LIVE 또는 TAKE로 반영하세요.', 'ok');
+      }
+    });
   }
 
   function renderSide() {
@@ -840,6 +852,9 @@
     // 뺀 항목 접기 (이 브라우저에 기억)
     try { $('edFold').checked = localStorage.getItem('cg.edFold') === '1'; } catch (e) { /* 저장소를 쓸 수 없으면 기본값 */ }
     document.querySelector('.ed').classList.toggle('fold', $('edFold').checked);
+    $('btnShowAll').onclick = function () {
+      setHidden(S.preview.fields.filter(function (f) { return f.hidden; }).map(function (f) { return f.key; }), false, '뺀 항목 모두');
+    };
     $('edFold').onchange = function () {
       document.querySelector('.ed').classList.toggle('fold', this.checked);
       try { localStorage.setItem('cg.edFold', this.checked ? '1' : '0'); } catch (e) { /* 무시 */ }
@@ -1019,12 +1034,14 @@
       if (e.key === 'Escape' && e.target.classList.contains('val')) { e.target.blur(); }
     });
     $('edBody').addEventListener('click', function (e) {
-      if (e.target.classList.contains('hide-grp')) {
-        var hide = e.target.getAttribute('data-hide') !== '0';
-        api('hide', { instance_id: S.preview.instance_id, group: e.target.getAttribute('data-group'), hide: hide }).then(function () {
-          toast(e.target.getAttribute('data-group') + (hide ? ' — PREVIEW에서 뺐습니다.' : ' — 다시 넣었습니다.')
-            + (S.program.same_target ? ' 송출 중이면 UPDATE LIVE 또는 TAKE로 반영하세요.' : ''), 'ok');
-        });
+      if (e.target.classList.contains('hide-x')) {
+        var f = S.preview.fields.filter(function (x) { return x.key === e.target.getAttribute('data-key'); })[0];
+        if (!f) { return; }
+        var hide = !f.hidden;
+        // Shift+클릭: 같은 행·줄(묶음)의 항목을 모두 함께
+        var keys = e.shiftKey && f.group
+          ? S.preview.fields.filter(function (x) { return x.group === f.group; }).map(function (x) { return x.key; }) : [f.key];
+        setHidden(keys, hide, e.shiftKey && f.group ? f.group : f.label);
         return;
       }
       var key = e.target.getAttribute('data-key');

@@ -83,7 +83,7 @@ test('CG#4 다승 순위: 세트 승수, 종족 필터, 공동 순위', function
     setup_types();
     $st = type_state('win-ranking', ['race' => '', 'count' => '4']);
     assert_same('중계진 스타 끝장전 다승 순위', $st['view']['title']);
-    assert_same(['rank' => '1st', 'name' => '장윤철', 'nick' => 'SnOw', 'record' => '17W 15L', 'rate' => '53.1%'], $st['view']['rows'][0], '끝장전 승패');
+    assert_same(['rank' => '1st', 'name' => '장윤철', 'nick' => 'SnOw', 'record' => '17W 15L', 'rate' => '53.1%', 'top' => true], $st['view']['rows'][0], '끝장전 승패');
     assert_same(4, count($st['view']['rows']));
     $st = type_state('win-ranking', ['race' => 'Z', 'count' => '5']);
     assert_same('중계진 스타 끝장전 저그 다승 순위', $st['view']['title']);

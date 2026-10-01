@@ -16,8 +16,10 @@ $side = static function (array $r, string $s): string {
 };
 ?>
 <div class="cg-box cg-preview">
+<?php if ($view['title'] !== ''): ?>
   <div class="cg-title"><span class="cg-fit"><?= h($view['title']) ?></span></div>
   <div class="cg-band"></div>
+<?php endif ?>
   <div class="cg-head">
 <?php foreach (['a', 'b'] as $s): $p = $view[$s]; ?>
     <div class="cg-cell pv-<?= $s ?>"><span class="cg-fit"><span class="cg-name"><?= h($p['name']) ?></span><?php if ($p['nick'] !== ''): ?> <small class="cg-nick"><?= h($p['nick']) ?></small><?php endif ?><?php if ($p['race'] !== ''): ?> <span class="cg-race"><?= h($p['race']) ?></span><?php endif ?></span></div>

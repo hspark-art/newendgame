@@ -36,10 +36,11 @@ return [
     'present' => static function (array $f): array {
         $rows = [];
         for ($i = 1; $i <= 5; $i++) {
-            $r = row_values($f, $i, ['date', 'a', 'sa', 'sb', 'b']);
+            $r = row_visible($f, $i, ['date', 'a', 'sa', 'sb', 'b']);
             if ($r !== null) {
-                $rows[] = $r + ['a_win' => $r['sa'] !== null && $r['sb'] !== null && $r['sa'] > $r['sb'],
-                    'b_win' => $r['sa'] !== null && $r['sb'] !== null && $r['sb'] > $r['sa']];
+                $win = $r['sa'] !== null && $r['sb'] !== null;
+                $rows[] = $r + ['a_win' => $win && $r['sa'] > $r['sb'], 'b_win' => $win && $r['sb'] > $r['sa'],
+                    'score' => hid($f, "r$i.sa", "r$i.sb") ? '' : $r['sa'] . ' : ' . $r['sb']];
             }
         }
         return ['title' => (string)$f['title'], 'rows' => $rows];

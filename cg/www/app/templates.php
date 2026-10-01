@@ -213,7 +213,7 @@ function template_problems(string $slug, array $final, array $params, array $iss
         }
     }
     if (!$problems) {
-        $view = $tpl['present']($final, $params);
+        $view = $tpl['present']($final + ['@hidden' => $hidden], $params);
         if (array_key_exists('rows', $view) && !$view['rows']) {
             $problems[] = '표시할 행이 없습니다. 행 값을 입력하거나 다른 조건을 고르세요.';
         }
@@ -221,10 +221,14 @@ function template_problems(string $slug, array $final, array $params, array $iss
     return $problems;
 }
 
-/** FINAL 값 → 송출 화면 문자열 */
-function template_present(string $slug, array $final, array $params, bool $mock): array
+/**
+ * FINAL 값 → 송출 화면 문자열.
+ * $hidden = 타이틀 에디터에서 뺀 항목 — present가 $f['@hidden']으로 받아 그 자리를 비운다 (hid()).
+ * 뺀 항목의 값은 null로 들어오므로 '자료 없음'과 구분하려면 hid()를 먼저 본다.
+ */
+function template_present(string $slug, array $final, array $params, bool $mock, array $hidden = []): array
 {
-    $view = template_get($slug)['present']($final, $params);
+    $view = template_get($slug)['present']($final + ['@hidden' => $hidden], $params);
     return ['template' => $slug, 'mock' => $mock] + $view;
 }
 
@@ -321,6 +325,45 @@ function row_values(array $final, int $i, array $keys): ?array
         $row[$k] = $final["r$i.$k"] ?? null;
     }
     return array_filter($row, static fn($v) => $v !== null && $v !== '') ? $row : null;
+}
+
+/** 타이틀 에디터에서 뺀 항목인지 (하나라도) — present 안에서 쓴다. 점수(2 : 3)처럼 한 쌍인 값은 한쪽만 빼도 통째로 뺀다 */
+function hid(array $f, string ...$keys): bool
+{
+    foreach ($keys as $k) {
+        if (in_array($k, $f['@hidden'] ?? [], true)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * 목록형 CG의 행 i: 행의 항목을 모두 뺐으면 null(행 없음). 값이 하나도 없어도 null.
+ * $need(예: 이름)가 비었는데 뺀 것이 아니면 '기록 없는 행'으로 보고 null.
+ */
+function row_visible(array $f, int $i, array $keys, ?string $need = null): ?array
+{
+    if (!array_filter($keys, static fn($k) => !hid($f, "r$i.$k"))) {
+        return null;
+    }
+    $r = row_values($f, $i, $keys);
+    if ($r === null || ($need !== null && $r[$need] === null && !hid($f, "r$i.$need"))) {
+        return null;
+    }
+    return $r;
+}
+
+/** "17W 15L" — 뺀 쪽은 빼고 ("15L"), 둘 다 빼면 "" */
+function text_wl(?int $w, ?int $l, bool $hideW, bool $hideL): string
+{
+    return trim(($hideW ? '' : ($w ?? '-') . 'W') . ' ' . ($hideL ? '' : ($l ?? '-') . 'L'));
+}
+
+/** "33승 21패" — 승·패 필드 중 뺀 쪽은 빼고 ("21패"), 둘 다 빼면 "" */
+function text_record_hid(array $f, string $wk, string $lk): string
+{
+    return trim((hid($f, $wk) ? '' : ($f[$wk] ?? '-') . '승') . ' ' . (hid($f, $lk) ? '' : ($f[$lk] ?? '-') . '패'));
 }
 
 /** 두 선수 파라미터 공통 검사 */

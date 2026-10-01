@@ -39,8 +39,10 @@ return [
     'present' => static function (array $f, array $p): array {
         $cols = [];
         foreach (['a', 'b'] as $s) {
+            // 타이틀 에디터에서 뺀 항목은 그 자리를 비운다 (hid)
             $cols[] = ['name' => (string)$f["$s.name"], 'vs' => $p[$s]['vs'],
-                'record' => text_record($f["$s.wins"], $f["$s.losses"]), 'rate' => text_rate_paren($f["$s.rate"])];
+                'record' => text_record_hid($f, "$s.wins", "$s.losses"),
+                'rate' => hid($f, "$s.rate") ? '' : text_rate_paren($f["$s.rate"])];
         }
         return ['title' => (string)$f['title'], 'cols' => $cols];
     },

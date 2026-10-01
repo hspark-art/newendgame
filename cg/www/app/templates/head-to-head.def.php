@@ -47,13 +47,14 @@ return [
     'present' => static function (array $f): array {
         $rows = [];
         for ($i = 1; $i <= 5; $i++) {
-            $r = row_values($f, $i, ['date', 'sa', 'sb']);
+            $r = row_visible($f, $i, ['date', 'sa', 'sb']);
             if ($r !== null) {
-                $rows[] = $r + ['a_win' => $r['sa'] !== null && $r['sb'] !== null && $r['sa'] > $r['sb'],
-                    'b_win' => $r['sa'] !== null && $r['sb'] !== null && $r['sb'] > $r['sa']];
+                $win = $r['sa'] !== null && $r['sb'] !== null;
+                $rows[] = $r + ['a_win' => $win && $r['sa'] > $r['sb'], 'b_win' => $win && $r['sb'] > $r['sa'],
+                    'score' => hid($f, "r$i.sa", "r$i.sb") ? '' : $r['sa'] . ' : ' . $r['sb']];
             }
         }
         return ['title' => (string)$f['title'], 'a' => (string)$f['a.name'], 'b' => (string)$f['b.name'],
-            'summary' => $f['a.mw'] . ' : ' . $f['b.mw'], 'rows' => $rows];
+            'summary' => hid($f, 'a.mw', 'b.mw') ? '' : $f['a.mw'] . ' : ' . $f['b.mw'], 'rows' => $rows];
     },
 ];

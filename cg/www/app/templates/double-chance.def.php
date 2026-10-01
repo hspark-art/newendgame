@@ -44,8 +44,9 @@ return [
     'present' => static function (array $f): array {
         $cols = [];
         foreach (['a', 'b'] as $s) {
-            $cols[] = ['name' => (string)$f["$s.name"], 'record' => text_record($f["$s.wins"], $f["$s.losses"]),
-                'rate' => text_rate_paren($f["$s.rate"])];
+            $cols[] = ['name' => (string)$f["$s.name"],
+                'record' => text_record_hid($f, "$s.wins", "$s.losses"),
+                'rate' => hid($f, "$s.rate") ? '' : text_rate_paren($f["$s.rate"])];
         }
         return ['title' => (string)$f['title'], 'cols' => $cols];
     },

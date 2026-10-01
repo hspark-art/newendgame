@@ -24,7 +24,7 @@ return [
     'present' => static function (array $f): array {
         $lines = [];
         for ($i = 1; $i <= 5; $i++) {
-            $r = row_values($f, $i, ['text', 'sub']);
+            $r = row_values($f, $i, ['text', 'sub']); // 뺀 항목은 비어 있다 — 둘 다 비면 줄 없음
             if ($r !== null) {
                 $lines[] = ['text' => (string)$r['text'], 'sub' => (string)$r['sub']];
             }
