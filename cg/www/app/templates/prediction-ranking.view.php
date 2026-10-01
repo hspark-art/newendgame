@@ -1,5 +1,5 @@
 <?php /** 승자 예측 순위 — $view: {title, rows[{rank, name, record, rate, top}], mock} */ ?>
-<div class="cg-box cg-list cg-ranking cg-prediction">
+<div class="cg-box cg-list cg-ranking cg-prediction cg-n<?= count($view['rows']) ?>">
   <div class="cg-title"><span class="cg-fit"><?= h($view['title']) ?></span></div>
   <div class="cg-band"></div>
   <div class="cg-rows cg-bars">

@@ -1,5 +1,5 @@
 <?php /** 맞대결 — $view: {title, a, b, summary, rows[{date, sa, sb, a_win, b_win}], mock} */ ?>
-<div class="cg-box cg-list cg-head-to-head">
+<div class="cg-box cg-list cg-head-to-head cg-n<?= count($view['rows']) ?>">
   <div class="cg-title"><span class="cg-fit"><?= h($view['title']) ?></span></div>
   <div class="cg-band"></div>
   <div class="cg-sumbar"><span class="cg-fit"><?= h($view['a']) ?> <b><?= h($view['summary']) ?></b> <?= h($view['b']) ?></span></div>

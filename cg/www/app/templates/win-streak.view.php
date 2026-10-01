@@ -1,5 +1,5 @@
 <?php /** 연승 순위 — $view: {title, rows[{rank, name, nick, streak, period}], mock} */ ?>
-<div class="cg-box cg-list cg-ranking cg-streak">
+<div class="cg-box cg-list cg-ranking cg-streak cg-n<?= count($view['rows']) ?>">
   <div class="cg-title"><span class="cg-fit"><?= h($view['title']) ?></span></div>
   <div class="cg-rows cg-bars">
 <?php foreach ($view['rows'] as $r): ?>

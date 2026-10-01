@@ -1,0 +1,116 @@
+/* CG 색 테마 (v0.5.0). 송출 화면 body에 cg-theme-<이름> 클래스가 붙으면 적용된다. 없으면 cg.css 기본(기존 디자인).
+   기준 색: #5593FF + 구글 플레이 4색(파랑 #4285F4, 빨강 #EA4335, 노랑 #FBBC04, 초록 #34A853).
+   크기·배치는 cg.css 그대로 두고 색·선·강조만 바꾼다. */
+
+/* ---------------------------------------------------------------- A. 플레이 화이트 — 흰 카드 + 파란 제목 + 4색 줄 */
+.cg-theme-play .cg-box { background: #fff; color: #13203b; border: 0; border-radius: 12px 0 0 0; box-shadow: 0 10px 28px rgba(0, 8, 30, .5); }
+.cg-theme-play .cg-box * { text-shadow: none; }
+.cg-theme-play .cg-title { background: linear-gradient(100deg, #5593ff 0%, #3d7bf2 70%, #2f6be6 100%);
+  border-bottom: 5px solid; border-image: linear-gradient(90deg, #4285f4 0 25%, #ea4335 25% 50%, #fbbc04 50% 75%, #34a853 75%) 1; }
+.cg-theme-play .cg-title::after { background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, 0)); }
+.cg-theme-play .cg-title .cg-fit { color: #fff; font-style: normal; text-shadow: 0 1px 2px rgba(0, 30, 90, .35); }
+.cg-theme-play .cg-band { display: none; }
+.cg-theme-play .cg-head, .cg-theme-play .cg-sumbar { background: #eaf1ff; border-bottom: 1px solid #d5e2fb; color: #13203b; }
+.cg-theme-play .cg-vs, .cg-theme-play .cg-sumbar small { color: #5b6b8c; }
+.cg-theme-play .cg-body { background: #fff; }
+.cg-theme-play .cg-rate, .cg-theme-play .cg-detail { color: #2f6be6; }
+.cg-theme-play .cg-bars { gap: 0; }
+.cg-theme-play .cg-bars .cg-row { background: #fff; border-bottom: 1px solid #e3eaf7; }
+.cg-theme-play .cg-ranking .cg-bar:nth-child(odd), .cg-theme-play .cg-prediction .cg-bar:nth-child(odd) { background: #f2f6ff; }
+.cg-theme-play .cg-ranking .cg-bar:first-child, .cg-theme-play .cg-prediction .cg-bar.is-top { background: linear-gradient(90deg, #dbe8ff, #f2f6ff); }
+.cg-theme-play .c-rank { color: #2f6be6; font-weight: 800; }
+.cg-theme-play .c-name small, .cg-theme-play .c-period { color: #5b7bbf; }
+.cg-theme-play .c-rate { font-weight: 700; color: #2f6be6; }
+.cg-theme-play .is-win { color: #2f6be6; font-weight: 800; }
+
+/* ---------------------------------------------------------------- B. 나이트 블루 — 어두운 남색 반투명 + 파란 제목 + 노랑 강조 */
+.cg-theme-night .cg-box { background: linear-gradient(180deg, rgba(14, 30, 66, .94), rgba(7, 16, 38, .94)); border: 1px solid rgba(85, 147, 255, .6);
+  border-right: 0; border-radius: 12px 0 0 0; box-shadow: 0 10px 30px rgba(0, 0, 0, .55); }
+.cg-theme-night .cg-title { background: linear-gradient(90deg, #2f6be6 0%, #5593ff 62%, #86b6ff 100%);
+  border-bottom: 4px solid; border-image: linear-gradient(90deg, #4285f4 0 25%, #ea4335 25% 50%, #fbbc04 50% 75%, #34a853 75%) 1; }
+.cg-theme-night .cg-title::after { background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0)); }
+.cg-theme-night .cg-title .cg-fit { font-style: normal; text-shadow: 0 2px 6px rgba(0, 20, 70, .6); }
+.cg-theme-night .cg-band { display: none; }
+.cg-theme-night .cg-head, .cg-theme-night .cg-sumbar { background: rgba(85, 147, 255, .18); border-bottom: 1px solid rgba(85, 147, 255, .4); }
+.cg-theme-night .cg-vs, .cg-theme-night .cg-sumbar small { color: #a9c4ff; }
+.cg-theme-night .cg-body { background: transparent; }
+.cg-theme-night .cg-rate, .cg-theme-night .cg-detail { color: #8fb6ff; }
+.cg-theme-night .cg-bars .cg-row { background: rgba(255, 255, 255, .03); border-left: 4px solid transparent; }
+.cg-theme-night .cg-ranking .cg-bar:nth-child(odd), .cg-theme-night .cg-prediction .cg-bar:nth-child(odd) { background: rgba(85, 147, 255, .13); }
+.cg-theme-night .cg-ranking .cg-bar:first-child, .cg-theme-night .cg-prediction .cg-bar.is-top { background: rgba(251, 188, 4, .14); border-left-color: #fbbc04; }
+.cg-theme-night .c-rank { color: #8fb6ff; font-weight: 700; }
+.cg-theme-night .cg-bar:first-child .c-rank, .cg-theme-night .cg-bar.is-top .c-rank { color: #fbbc04; }
+.cg-theme-night .c-name small, .cg-theme-night .c-period { color: #9cbcff; }
+.cg-theme-night .is-win { color: #fbbc04; }
+
+/* ---------------------------------------------------------------- C. 블루 그라데이션 — ASL형: 어두운 제목 + 1위 파란 그라데이션 + 흰 줄 */
+.cg-theme-pop .cg-box { background: #fff; color: #111a2e; border: 0; border-radius: 0; box-shadow: 0 12px 30px rgba(0, 0, 0, .55); }
+.cg-theme-pop .cg-box * { text-shadow: none; }
+.cg-theme-pop .cg-title { background: #0e1830; border-bottom: 4px solid #5593ff; }
+.cg-theme-pop .cg-title::after { top: 0; height: 100%;
+  background: linear-gradient(115deg, transparent 0 63%, rgba(85, 147, 255, .45) 63% 69%, transparent 69% 72%, rgba(85, 147, 255, .25) 72% 76%, transparent 76%); }
+.cg-theme-pop .cg-title .cg-fit { color: #fff; font-style: normal; letter-spacing: -.5px; }
+.cg-theme-pop .cg-band { display: none; }
+.cg-theme-pop .cg-head, .cg-theme-pop .cg-sumbar { background: #f1f4fa; border-bottom: 1px solid #dfe5f0; color: #111a2e; }
+.cg-theme-pop .cg-vs, .cg-theme-pop .cg-sumbar small { color: #5d6b85; }
+.cg-theme-pop .cg-body { background: #fff; }
+.cg-theme-pop .cg-rate, .cg-theme-pop .cg-detail { color: #2f6be6; }
+.cg-theme-pop .cg-bars { gap: 0; }
+.cg-theme-pop .cg-bars .cg-row { background: #fff; border-bottom: 1px solid #e6ebf3; }
+.cg-theme-pop .cg-ranking .cg-bar:nth-child(odd), .cg-theme-pop .cg-prediction .cg-bar:nth-child(odd) { background: #f4f6fb; }
+.cg-theme-pop .cg-ranking .cg-bar:first-child, .cg-theme-pop .cg-prediction .cg-bar.is-top {
+  background: linear-gradient(90deg, #2f6be6 0%, #5593ff 60%, #8bb8ff 100%); color: #fff; }
+.cg-theme-pop .c-rank { font-size: 27px; font-weight: 800; }
+.cg-theme-pop .c-name small, .cg-theme-pop .c-period { color: #5593ff; }
+.cg-theme-pop .cg-bar:first-child .c-name small, .cg-theme-pop .cg-bar.is-top .c-name small,
+.cg-theme-pop .cg-bar:first-child .c-period { color: rgba(255, 255, 255, .85); }
+.cg-theme-pop .c-rate { font-weight: 700; }
+.cg-theme-pop .is-win { color: #2f6be6; font-weight: 800; }
+
+/* ---------------------------------------------------------------- D. 구글 4색 — 흰 줄 + 왼쪽 4색 막대 + 차콜 제목 */
+.cg-theme-four .cg-box { background: #fff; color: #202124; border: 0; border-radius: 10px 0 0 0; box-shadow: 0 10px 28px rgba(0, 0, 0, .5); }
+.cg-theme-four .cg-box * { text-shadow: none; }
+.cg-theme-four .cg-title { background: #202124;
+  border-bottom: 5px solid; border-image: linear-gradient(90deg, #4285f4 0 25%, #ea4335 25% 50%, #fbbc04 50% 75%, #34a853 75%) 1; }
+.cg-theme-four .cg-title::after { display: none; }
+.cg-theme-four .cg-title .cg-fit { color: #fff; font-style: normal; }
+.cg-theme-four .cg-band { display: none; }
+.cg-theme-four .cg-head { background: #f8f9fa; border-bottom: 1px solid #e3e5e8; color: #202124; }
+.cg-theme-four .cg-head .cg-cell:first-child { box-shadow: inset 0 5px 0 #4285f4; }
+.cg-theme-four .cg-head .cg-cell:last-child { box-shadow: inset 0 5px 0 #34a853; }
+.cg-theme-four .cg-sumbar { background: #f8f9fa; border-bottom: 1px solid #e3e5e8; color: #202124; }
+.cg-theme-four .cg-vs, .cg-theme-four .cg-sumbar small { color: #5f6368; }
+.cg-theme-four .cg-body { background: #fff; }
+.cg-theme-four .cg-rate, .cg-theme-four .cg-detail { color: #1a73e8; }
+.cg-theme-four .cg-bars { gap: 0; }
+.cg-theme-four .cg-bars .cg-row { background: #fff; border-left: 8px solid #4285f4; border-bottom: 1px solid #eceef1; }
+.cg-theme-four .cg-bars .cg-row:nth-child(4n+2) { border-left-color: #ea4335; }
+.cg-theme-four .cg-bars .cg-row:nth-child(4n+3) { border-left-color: #fbbc04; }
+.cg-theme-four .cg-bars .cg-row:nth-child(4n+4) { border-left-color: #34a853; }
+.cg-theme-four .cg-ranking .cg-bar:nth-child(odd), .cg-theme-four .cg-prediction .cg-bar:nth-child(odd) { background: #f8f9fa; }
+.cg-theme-four .cg-prediction .cg-bar.is-top { background: #e8f0fe; }
+.cg-theme-four .c-rank { font-weight: 800; }
+.cg-theme-four .c-name small, .cg-theme-four .c-period { color: #5f6368; }
+.cg-theme-four .c-rate { font-weight: 700; color: #1a73e8; }
+.cg-theme-four .is-win { color: #1a73e8; font-weight: 800; }
+
+/* ---------------------------------------------------------------- E. 스카이 볼드 — 남색 제목 + 밝은 파란 막대 + 1위 노랑 */
+.cg-theme-sky .cg-box { background: #0b2a6f; border: 0; border-radius: 14px 0 0 0; box-shadow: 0 10px 28px rgba(0, 0, 0, .5); }
+.cg-theme-sky .cg-title { background: linear-gradient(90deg, #0b2a6f, #163f9e); border-bottom: 5px solid #5593ff; }
+.cg-theme-sky .cg-title::after { background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0)); }
+.cg-theme-sky .cg-title .cg-fit { text-shadow: 0 2px 0 #06173f, 0 0 8px rgba(85, 147, 255, .6); }
+.cg-theme-sky .cg-band { display: none; }
+.cg-theme-sky .cg-head, .cg-theme-sky .cg-sumbar { background: #5593ff; border-bottom: 1px solid #3c76e6; }
+.cg-theme-sky .cg-vs, .cg-theme-sky .cg-sumbar small { color: #e6efff; }
+.cg-theme-sky .cg-body { background: #0b2a6f; }
+.cg-theme-sky .cg-rate, .cg-theme-sky .cg-detail { color: #9cc2ff; }
+.cg-theme-sky .cg-bars .cg-row { background: #3f7ef5; }
+.cg-theme-sky .cg-list .cg-row > span { text-shadow: 0 1px 2px rgba(0, 25, 80, .55); }
+.cg-theme-sky .cg-ranking .cg-bar:nth-child(odd), .cg-theme-sky .cg-prediction .cg-bar:nth-child(odd) { background: #5593ff; }
+.cg-theme-sky .cg-ranking .cg-bar:first-child, .cg-theme-sky .cg-prediction .cg-bar.is-top { background: linear-gradient(90deg, #fbbc04, #ffd54a); color: #0b2a6f; }
+.cg-theme-sky .cg-bar:first-child > span, .cg-theme-sky .cg-bar.is-top > span { text-shadow: none; }
+.cg-theme-sky .c-rank { font-weight: 700; }
+.cg-theme-sky .c-name small, .cg-theme-sky .c-period { color: #e3edff; }
+.cg-theme-sky .cg-bar:first-child .c-name small, .cg-theme-sky .cg-bar:first-child .c-period,
+.cg-theme-sky .cg-bar.is-top .c-name small { color: #163f9e; }
+.cg-theme-sky .is-win { color: #ffd54a; }

@@ -107,6 +107,13 @@
 .c-period { width: 150px; flex: none; text-align: right; font-size: 16px; color: var(--cg-muted); margin-left: 8px; }
 .c-period .cg-fit { display: inline-block; }
 
+/* 5줄: 한 줄 높이는 4줄일 때와 같게 두고 박스가 위로 한 줄만큼 커진다 (오른쪽 아래 기준 배치라 아래 위치는 그대로).
+   이전에는 높이 250px 안에 5줄을 넣느라 줄이 낮아져 글자 아래가 잘렸다 */
+.cg-box.cg-n5 { height: auto; }
+.cg-n5 .cg-rows { flex: none; }
+.cg-n5 .cg-row { flex: none; height: 38px; }
+.cg-n5 .cg-bars .cg-row { height: 44px; }
+
 /* MOCK 데이터 표시 (실제 데이터 연결 시 사라짐). 제목바 왼쪽 위 — 본문 숫자를 가리지 않게 */
 .cg-mock {
   position: absolute; z-index: 2; left: 12px; top: 5px; padding: 2px 5px; border-radius: 2px;

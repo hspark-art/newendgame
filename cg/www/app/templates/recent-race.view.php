@@ -1,5 +1,5 @@
 <?php /** 최근 종족전 — $view: {title, rows[{date, a, sa, sb, b, a_win, b_win}], mock} */ ?>
-<div class="cg-box cg-list cg-recent-race">
+<div class="cg-box cg-list cg-recent-race cg-n<?= count($view['rows']) ?>">
   <div class="cg-title"><span class="cg-fit"><?= h($view['title']) ?></span></div>
   <div class="cg-band"></div>
   <div class="cg-rows">
