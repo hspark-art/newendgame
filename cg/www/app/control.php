@@ -118,7 +118,7 @@ function instance_state(array $inst, int $sessionId): array
     $raw = ov_final($merged);
     $hidden = hidden_keys($tpl, $inst['hidden']);
     $final = hidden_apply($raw, $hidden);
-    $problems = template_problems($inst['template'], $final, $inst['params'], $inst['issues'], manual_keys($merged), $hidden);
+    $problems = template_problems($inst['template'], $raw, $inst['params'], $inst['issues'], manual_keys($merged), $hidden);
     $mock = $inst['auto_source'] === 'mock';
     return [
         'tpl' => $tpl,
@@ -128,7 +128,7 @@ function instance_state(array $inst, int $sessionId): array
         'hidden' => $hidden,
         'problems' => $problems,
         'mock' => $mock,
-        'view' => $problems ? null : template_present($inst['template'], $final, $inst['params'], $mock, $hidden),
+        'view' => $problems ? null : template_present($inst['template'], $raw, $inst['params'], $mock, $hidden),
     ];
 }
 
@@ -760,10 +760,13 @@ function program_update_live(int $instanceId, int $expectedTakeId, int $expected
         $raw = ov_apply_to_final($st['tpl']['fields'], $base, $apply, $manualDerived);
         $final = hidden_apply($raw, $st['hidden']);
         $changed = array_keys(array_filter($final, static fn($v, $k) => ($snap['final'][$k] ?? null) !== $v, ARRAY_FILTER_USE_BOTH));
+        // 값이 원래 비어 있던 항목('자료 없음')을 빼거나 다시 넣은 것도 바뀐 것 (값은 그대로 null이어도 화면이 바뀜)
+        $snapHidden = $snap['hidden'] ?? [];
+        $changed = array_values(array_unique(array_merge($changed, array_diff($st['hidden'], $snapHidden), array_diff($snapHidden, $st['hidden']))));
         if (!$changed) {
             throw new ActionError('NO_CHANGE', '송출 중인 값과 같아서 바꿀 내용이 없습니다. (자동값 변경은 TAKE로 반영됩니다)', 409);
         }
-        $problems = template_problems($inst['template'], $final, $inst['params'], $inst['issues'], manual_keys($st['merged']),
+        $problems = template_problems($inst['template'], $raw, $inst['params'], $inst['issues'], manual_keys($st['merged']),
             $st['hidden']);
         if ($problems) {
             throw new ActionError('NOT_SENDABLE', '값이 비어 있어 송출할 수 없습니다: ' . implode(' ', $problems), 422);
@@ -771,7 +774,7 @@ function program_update_live(int $instanceId, int $expectedTakeId, int $expected
         $snap['final'] = $final;
         $snap['final_raw'] = $raw;
         $snap['hidden'] = $st['hidden'];
-        $snap['view'] = template_present($inst['template'], $final, $inst['params'], $st['mock'], $st['hidden']);
+        $snap['view'] = template_present($inst['template'], $raw, $inst['params'], $st['mock'], $st['hidden']);
         $snap['updated_live_at'] = now();
         db_exec("UPDATE cg_channels SET snapshot_json = ? WHERE layer = 1 AND kind = 'program'", [json_enc($snap)]);
         cg_log('broadcast', 'UPDATE_LIVE', $op, ['session_id' => $sid, 'instance_id' => $instanceId, 'template' => $inst['template'],

@@ -139,7 +139,11 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .ed tr.is-hidden td.label span { text-decoration: line-through; }
 .ed-tip { font-size: 12px; margin-right: 6px; }
 .ed tr.grp.is-hidden th { color: var(--dim); }
-.ed.fold tr.is-hidden:not(.grp) { display: none; }
+.ed.fold tr.grp.is-hidden th { padding-bottom: 0; }
+/* 접기: 뺀 항목은 이름과 + 만 남긴 얇은 줄로 (입력 칸은 감춤, + 로 바로 다시 넣을 수 있게) */
+.ed.fold tr.is-hidden:not(.grp) td { padding-top: 1px; padding-bottom: 1px; }
+.ed.fold tr.is-hidden:not(.grp) td:not(.label) { font-size: 0; }
+.ed.fold tr.is-hidden:not(.grp) td:not(.label) > * { display: none; }
 .ed td.num { font: 14px var(--mono); }
 .ed input.val { width: 170px; padding: 2px 6px; }
 .ed input.val.dirty { border-color: var(--manual); box-shadow: 0 0 0 1px var(--manual); }

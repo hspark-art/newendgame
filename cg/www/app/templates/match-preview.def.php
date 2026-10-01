@@ -125,8 +125,8 @@ return [
                 $vs && ($f["$s.vs"] ?? null) ? "vs {$f["$s.vs"]}" : '',
                 $f["$s.$rate"] === null ? '' : text_pct($f["$s.$rate"]),
             ]));
-            // 강조는 승률로, 승률을 뺐으면 승·패로 계산
-            $score = static fn(string $s) => $f["$s.$rate"] ?? stats_rate_tenths($f["$s.$w"], $f["$s.$l"]);
+            // 강조는 승률로 (승률·승·패를 빼도 원래 값으로)
+            $score = static fn(string $s) => raw_val($f, "$s.$rate");
             $a = $rec('a');
             $b = $rec('b');
             if ($a === null && $b === null) {
@@ -144,17 +144,18 @@ return [
             if (hid($f, 'h.a') && hid($f, 'h.b') && hid($f, 'h.sa') && hid($f, 'h.sb')) {
                 return null; // 맞대결 줄을 통째로 뺌
             }
-            $sh = !hid($f, 'h.a') && !hid($f, 'h.b'); // 승수를 둘 다 보여 줌
-            if ($sh && $f['h.a'] === null && $f['h.b'] === null) {
+            // 자료 없음·첫 맞대결은 빼기 전 값으로 판단 (승 하나만 빼도 '첫 맞대결'은 그대로)
+            [$ha, $hb] = [raw_val($f, 'h.a'), raw_val($f, 'h.b')];
+            if ($ha === null && $hb === null) {
                 return null;
             }
-            if ($sh && (int)$f['h.a'] + (int)$f['h.b'] === 0) {
+            if ((int)$ha + (int)$hb === 0) {
                 return ['kind' => 'note', 'key' => 'h2h', 'label' => '맞대결', 'text' => '첫 맞대결'];
             }
             $win = static fn(string $k) => hid($f, $k) ? '' : ($f[$k] === null ? '—' : $f[$k] . '승');
             $set = static fn(string $k) => $f[$k] === null ? '' : '세트 ' . $f[$k];
             return ['kind' => 'rec', 'key' => 'h2h', 'label' => '맞대결', 'a' => $win('h.a'), 'a_sub' => $set('h.sa'),
-                'b' => $win('h.b'), 'b_sub' => $set('h.sb'), 'lead' => $lead($f['h.a'], $f['h.b']) ?: $lead($f['h.sa'], $f['h.sb'])];
+                'b' => $win('h.b'), 'b_sub' => $set('h.sb'), 'lead' => $lead($ha, $hb)];
         };
         $rows = array_values(array_filter([
             $line('매치 전적', 'match', 'mw', 'ml', 'mrate'),

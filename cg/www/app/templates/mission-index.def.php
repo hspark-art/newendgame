@@ -60,7 +60,7 @@ return [
                 'index' => hid($f, "r$i.index") ? '' : ($r['index'] === null ? '기록 없음' : ($r['index'] > 0 ? '+' : '') . number_format($r['index']) . '개'),
                 'roi' => hid($f, "r$i.roi") ? '' : ($r['roi'] === null ? '—' : ($r['roi'] > 0 ? '+' : '') . fmt_srate($r['roi']) . '%'),
                 'index_sign' => $sign($r['index']), 'roi_sign' => $sign($r['roi']),
-                'top' => $r['rank'] === 1 || ($r['rank'] === null && hid($f, "r$i.rank") && $i === 1)];
+                'top' => raw_val($f, "r$i.rank") === 1]; // 순위를 빼도 1위 줄 강조는 원래 순위로
         }
         return ['title' => (string)$f['title'], 'rows' => $rows];
     },

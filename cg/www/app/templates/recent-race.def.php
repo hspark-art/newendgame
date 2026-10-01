@@ -38,8 +38,10 @@ return [
         for ($i = 1; $i <= 5; $i++) {
             $r = row_visible($f, $i, ['date', 'a', 'sa', 'sb', 'b']);
             if ($r !== null) {
-                $win = $r['sa'] !== null && $r['sb'] !== null;
-                $rows[] = $r + ['a_win' => $win && $r['sa'] > $r['sb'], 'b_win' => $win && $r['sb'] > $r['sa'],
+                // 이긴 쪽 강조는 점수를 빼도 원래 점수로
+                [$sa, $sb] = [raw_val($f, "r$i.sa"), raw_val($f, "r$i.sb")];
+                $win = $sa !== null && $sb !== null;
+                $rows[] = $r + ['a_win' => $win && $sa > $sb, 'b_win' => $win && $sb > $sa,
                     'score' => hid($f, "r$i.sa", "r$i.sb") ? '' : $r['sa'] . ' : ' . $r['sb']];
             }
         }

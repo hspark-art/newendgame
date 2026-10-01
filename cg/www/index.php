@@ -126,7 +126,7 @@ $op = guard_control();
       <div class="spacer"></div>
       <span class="muted ed-tip">빨간 − 로 항목 빼기 · Shift+클릭 = 줄 전체</span>
       <button type="button" id="btnShowAll" class="btn sm" disabled>모두 다시 넣기</button>
-      <label class="check" title="빨간 − 로 뺀 항목의 입력 줄을 에디터에서 감춥니다"><input type="checkbox" id="edFold"> 뺀 항목 접기</label>
+      <label class="check" title="뺀 항목은 이름과 + 만 남기고 입력 칸을 감춰 줄을 좁게 합니다"><input type="checkbox" id="edFold"> 뺀 항목 접기</label>
     </div>
     <div id="edNotice" class="notice" hidden></div>
     <div class="table-wrap">

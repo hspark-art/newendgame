@@ -67,8 +67,8 @@ return [
     'present' => static function (array $f): array {
         $cols = [];
         foreach (['a', 'b'] as $s) {
-            $vrec = hid($f, "$s.vw") || hid($f, "$s.vl") || ($f["$s.vw"] !== null && $f["$s.vl"] !== null)
-                ? text_record_hid($f, "$s.vw", "$s.vl") : '';
+            // 상대 종족전 기록이 원래 없으면(상대 주 종족 모름) 줄 없음. 있으면 뺀 쪽만 비움
+            $vrec = raw_val($f, "$s.vw") !== null && raw_val($f, "$s.vl") !== null ? text_record_hid($f, "$s.vw", "$s.vl") : '';
             $detail = $vrec === '' ? '' : trim(($f["$s.vs"] !== null ? "vs {$f["$s.vs"]} " : '') . $vrec);
             $cols[] = ['name' => (string)$f["$s.name"], 'race' => (string)($f["$s.race"] ?? ''),
                 'record' => text_record_hid($f, "$s.wins", "$s.losses"),

@@ -188,14 +188,16 @@ function manual_keys(array $merged): array
  * - 파라미터의 선수가 지금 데이터에 있어야 한다 (데이터 소스를 바꾸면 이전 선수 페이지는 막힘).
  * - 교차 검증 사유: 해당 필드 중 값이 표시되는 필드에 수동값이 모두 있어야 한다 (운영자가 직접 확인해 입력).
  * - 목록형 CG는 표시할 행이 1개 이상이어야 한다.
+ * $raw = 빼기 전 FINAL, $hidden = 타이틀 에디터에서 뺀 항목
  * @return list<string> 문제 목록 (비어 있으면 송출 가능)
  */
-function template_problems(string $slug, array $final, array $params, array $issues = [], array $manual = [],
+function template_problems(string $slug, array $raw, array $params, array $issues = [], array $manual = [],
     array $hidden = []): array
 {
     $tpl = template_get($slug);
-    // 뺀 항목은 비어 있어도 된다 (송출 화면에 나오지 않음)
-    $problems = ov_sendable(array_diff_key($tpl['fields'], array_flip($hidden)), $final);
+    // 뺀 항목은 비어 있어도 된다 (송출 화면에 나오지 않음).
+    // 승률 같은 계산 항목은 빼기 전 값으로 본다 — 0승 0패에서 승만 빼도 '빈 승률 허용'이 그대로 (뺀 승이 null이 되어 막히지 않게)
+    $problems = ov_sendable(array_diff_key($tpl['fields'], array_flip($hidden)), $raw);
     $players = players_cache();
     foreach ($tpl['params'] as $p) {
         $v = array_reduce(explode('.', $p['key']), static fn($c, $k) => is_array($c) ? ($c[$k] ?? null) : null, $params);
@@ -204,8 +206,8 @@ function template_problems(string $slug, array $final, array $params, array $iss
         }
     }
     foreach ($issues as $iss) {
-        $need = array_filter($iss['fields'], static fn($k) => !in_array($k, $manual, true) && ($final[$k] ?? null) !== null
-            && isset($tpl['fields'][$k]));
+        $need = array_filter($iss['fields'], static fn($k) => !in_array($k, $manual, true) && !in_array($k, $hidden, true)
+            && ($raw[$k] ?? null) !== null && isset($tpl['fields'][$k]));
         if ($need) {
             $labels = array_map(static fn($k) => field_label($tpl['fields'][$k]), array_values($need));
             $problems[] = $iss['msg'] . ' — 확인한 값을 직접 입력하면 송출할 수 있습니다: ' . implode(', ', array_slice($labels, 0, 4))
@@ -213,7 +215,7 @@ function template_problems(string $slug, array $final, array $params, array $iss
         }
     }
     if (!$problems) {
-        $view = $tpl['present']($final + ['@hidden' => $hidden], $params);
+        $view = $tpl['present'](present_input($raw, $hidden), $params);
         if (array_key_exists('rows', $view) && !$view['rows']) {
             $problems[] = '표시할 행이 없습니다. 행 값을 입력하거나 다른 조건을 고르세요.';
         }
@@ -222,14 +224,33 @@ function template_problems(string $slug, array $final, array $params, array $iss
 }
 
 /**
- * FINAL 값 → 송출 화면 문자열.
+ * FINAL 값(빼기 전 $raw) → 송출 화면 문자열.
  * $hidden = 타이틀 에디터에서 뺀 항목 — present가 $f['@hidden']으로 받아 그 자리를 비운다 (hid()).
  * 뺀 항목의 값은 null로 들어오므로 '자료 없음'과 구분하려면 hid()를 먼저 본다.
  */
-function template_present(string $slug, array $final, array $params, bool $mock, array $hidden = []): array
+function template_present(string $slug, array $raw, array $params, bool $mock, array $hidden = []): array
 {
-    $view = template_get($slug)['present']($final + ['@hidden' => $hidden], $params);
+    $view = template_get($slug)['present'](present_input($raw, $hidden), $params);
     return ['template' => $slug, 'mock' => $mock] + $view;
+}
+
+/**
+ * present에 넘기는 값: 뺀 항목은 null, '@hidden' = 뺀 항목 키,
+ * '@raw' = 빼기 전 값 (화면에 쓰지 않고 1위·앞선 쪽 강조, 첫 맞대결 판단에만 — raw_val())
+ */
+function present_input(array $raw, array $hidden): array
+{
+    $f = $raw;
+    foreach ($hidden as $k) {
+        $f[$k] = null;
+    }
+    return $f + ['@hidden' => $hidden, '@raw' => $raw];
+}
+
+/** 빼기 전 값 (뺀 항목이어도 원래 값). 강조·판단용 — 화면 글자에는 쓰지 않는다 */
+function raw_val(array $f, string $k): mixed
+{
+    return array_key_exists('@raw', $f) ? ($f['@raw'][$k] ?? null) : ($f[$k] ?? null);
 }
 
 /** HTML 조각 렌더링 */

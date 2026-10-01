@@ -55,7 +55,7 @@ return [
                 $rows[] = ['rank' => $r['rank'] === null ? '' : english_ordinal($r['rank']), 'name' => (string)$r['name'],
                     'nick' => (string)$r['nick'], 'streak' => hid($f, "r$i.streak") ? '' : ($r['streak'] ?? '-') . '연승',
                     'period' => trim(($r['start'] ?? '') . ' ~ ' . ($r['end'] ?? ''), ' ~'),
-                    'top' => $r['rank'] === 1 || ($r['rank'] === null && hid($f, "r$i.rank") && $i === 1)];
+                    'top' => raw_val($f, "r$i.rank") === 1]; // 순위를 빼도 1위 줄 강조는 원래 순위로
             }
         }
         return ['title' => (string)$f['title'], 'rows' => $rows];

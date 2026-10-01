@@ -52,7 +52,7 @@ return [
                     'nick' => (string)$r['nick'], 'record' => text_wl($r['wins'], $r['losses'], hid($f, "r$i.wins"), hid($f, "r$i.losses")),
                     'rate' => hid($f, "r$i.rate") ? '' : text_pct($r['rate']),
                     // 1위 줄 강조는 순위 글자를 빼도 유지
-                    'top' => $r['rank'] === 1 || ($r['rank'] === null && hid($f, "r$i.rank") && $i === 1)];
+                    'top' => raw_val($f, "r$i.rank") === 1]; // 순위를 빼도 1위 줄 강조는 원래 순위로
             }
         }
         return ['title' => (string)$f['title'], 'rows' => $rows];

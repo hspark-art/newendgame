@@ -5,6 +5,15 @@ declare(strict_types=1);
 // v0.6.1: 항목 빼기는 항목마다(빨간 −). 묶음 전체는 패널에서 Shift+클릭 = 묶음의 키를 모두 보냄 (hide_group)
 // 합성 시트(fx_tables): 가선수 Z, 나선수 P, 다선수 T, 라선수 Z / 맵 = 'Map 1'~'Map 9'
 
+/** 필드마다 그럴듯한 값 (14종 그리기 확인용) */
+function sample_final(string $slug): array
+{
+    return array_map(static fn(array $def) => match ($def['type']) {
+        'text' => ($def['max'] ?? 9) === 1 ? 'Z' : (($def['max'] ?? 9) === 5 ? 'WWLWL' : '값'),
+        'date' => '2026-01-02', 'rate' => 612, 'srate' => -35, 'sint' => -1200, default => 3,
+    }, template_get($slug)['fields']);
+}
+
 /** 패널의 Shift+클릭과 같음: 묶음(group)의 항목을 모두 빼기/다시 넣기 */
 function hide_group(int $iid, string $group, bool $hide): array
 {
@@ -111,17 +120,13 @@ test('항목 빼기(v0.6.1): 항목 하나만 빼면 그 자리만 비고 줄은
 });
 
 test('항목 빼기(v0.6.1): CG 14종 모두 — 어떤 항목 하나를 빼도, 모두 빼도 오류 없이 그려진다', function () {
-    $sample = static fn(array $def) => match ($def['type']) {
-        'text' => ($def['max'] ?? 9) === 1 ? 'Z' : (($def['max'] ?? 9) === 5 ? 'WWLWL' : '값'),
-        'date' => '2026-01-02', 'rate' => 612, 'srate' => -35, 'sint' => -1200, default => 3,
-    };
     $p = ['a' => ['player' => '가', 'vs' => 'P'], 'b' => ['player' => '나', 'vs' => 'T'], 'map' => 'Map 1', 'year' => 2026,
         'race' => '', 'count' => 3, 'seats' => []];
     foreach (cg_templates() as $slug => $tpl) {
-        $final = array_map($sample, $tpl['fields']);
+        $final = sample_final($slug);
         $keys = array_keys($tpl['fields']);
         foreach (array_merge([[]], array_map(static fn($k) => [$k], $keys), [$keys]) as $hidden) {
-            $view = template_present($slug, hidden_apply($final, $hidden), $p, false, $hidden);
+            $view = template_present($slug, $final, $p, false, $hidden);
             $html = cg_render($view);
             assert_true($html !== '', "$slug 빼기 " . implode(',', $hidden));
             if (in_array('title', $hidden, true)) {
@@ -248,3 +253,55 @@ test('리뷰 수정 (v0.6): 맵 칸이 빈 세트는 선수 맵 전적 불일치
     assert_true($ds['verify']['mission']['available'], '미션 대조 자체는 가능');
     assert_same(['김중계' => true, '이해설' => false], $ds['verify']['mission']['predictors']);
 });
+
+test('항목 빼기(v0.6.1 리뷰): 빈 승률 허용·1위/이긴 쪽 강조·첫 맞대결은 빼기 전 값으로, 빈 값 빼기도 UPDATE LIVE', function () {
+    setup_sheet();
+    $p2 = ['a' => ['player' => '가선수', 'vs' => 'P'], 'b' => ['player' => '나선수', 'vs' => 'T'], 'map' => 'Map 1'];
+    // 0승 0패(빈 승률 허용)에서 승만 빼도 송출이 막히지 않음
+    $raw = ['title' => '제목', 'a.name' => '가선수', 'a.wins' => 0, 'a.losses' => 0, 'a.rate' => null,
+        'b.name' => '나선수', 'b.wins' => 3, 'b.losses' => 1, 'b.rate' => 750];
+    assert_same([], template_problems('race-win-rate', $raw, $p2));
+    assert_same([], template_problems('race-win-rate', $raw, $p2, [], [], ['a.wins']));
+    // 자리 순서로 1행 = 3위, 2행 = 1위: 어느 순위를 빼도 1위 강조는 2행만
+    foreach (['mission-index', 'prediction-ranking', 'win-ranking', 'win-streak'] as $slug) {
+        $f = sample_final($slug);
+        [$f['r1.rank'], $f['r2.rank']] = [3, 1];
+        foreach ([[], ['r1.rank'], ['r2.rank']] as $h) {
+            $tops = array_column(template_present($slug, $f, ['year' => 2026, 'race' => '', 'count' => 3, 'seats' => []], false, $h)['rows'], 'top');
+            assert_same([false, true], array_slice($tops, 0, 2), "$slug 1위 강조 (뺀 항목 " . implode(',', $h) . ')');
+        }
+    }
+    // 맞대결 기록: 점수를 빼도 이긴 쪽 강조 그대로
+    foreach (['head-to-head', 'recent-race'] as $slug) {
+        $f = sample_final($slug);
+        [$f['r1.sa'], $f['r1.sb']] = [5, 4];
+        $r = template_present($slug, $f, ['count' => 3], false, ['r1.sa'])['rows'][0];
+        assert_same([true, false, ''], [$r['a_win'], $r['b_win'], $r['score']], "$slug 이긴 쪽 강조");
+    }
+    // 매치 프리뷰 맞대결: 2:2 동률이면 세트가 달라도 강조 없음, 0:0은 승 하나를 빼도 '첫 맞대결'
+    $mp = sample_final('match-preview');
+    [$mp['h.a'], $mp['h.b'], $mp['h.sa'], $mp['h.sb']] = [2, 2, 9, 8];
+    $row = static fn(array $v, string $k) => array_column($v['rows'], null, 'key')[$k] ?? null;
+    assert_same('', $row(template_present('match-preview', $mp, $p2, false), 'h2h')['lead']);
+    [$mp['h.a'], $mp['h.b'], $mp['h.sa'], $mp['h.sb']] = [0, 0, 0, 0];
+    assert_same('note', $row(template_present('match-preview', $mp, $p2, false, ['h.a']), 'h2h')['kind']);
+    // 맵 전적: 상대 종족전 기록이 원래 없으면(null) 승을 빼도 아래 줄은 빈칸 ("-패"가 아님)
+    $mr = sample_final('map-record');
+    $mr['a.vs'] = $mr['a.vw'] = $mr['a.vl'] = null;
+    assert_same('', template_present('map-record', $mr, $p2, false, ['a.vw'])['cols'][0]['detail']);
+
+    // 송출 중 CG에서 원래 비어 있던 항목(닉네임 없음)을 빼도 '송출값과 다름' → UPDATE LIVE로 반영
+    type_state('match-preview', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'], 'map' => '']);
+    $iid = channel_get('preview')['instance_id'];
+    assert_same(null, instance_state(instance_get($iid), current_session_id())['final']['a.nick']);
+    program_take(channel_get('preview')['rev'], ['effect' => 'cut'], op());
+    instance_hide($iid, ['a.nick'], true, op());
+    $ps = panel_state(op());
+    $f = array_column($ps['preview']['fields'], null, 'key');
+    assert_true($ps['program']['pending_live'] && $ps['program']['live_manual'] && $f['a.nick']['live_differs']);
+    $r = program_update_live($iid, channel_get('program')['take_id'], channel_get('preview')['rev'], [], op());
+    assert_same(['a.nick'], $r['changed']);
+    assert_same(['a.nick'], channel_get('program')['snapshot']['hidden']);
+    assert_true(!panel_state(op())['program']['pending_live']);
+});
+

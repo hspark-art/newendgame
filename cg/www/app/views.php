@@ -30,6 +30,14 @@ function param_default_next(string $slug, array $p, array $rundown): array
     return $p;
 }
 
+/** 뺀 항목 목록이 같은지 (순서 무관) */
+function hidden_same(array $a, array $b): bool
+{
+    sort($a);
+    sort($b);
+    return $a === $b;
+}
+
 /** 송출값 비교: 키 순서와 관계없이 같은 값인지 (버전이 바뀌어 필드 순서가 달라져도 '송출값과 다름'으로 남지 않게) */
 function finals_same(?array $a, ?array $b): bool
 {
@@ -54,9 +62,11 @@ function panel_state(array $op): array
     foreach (db_all('SELECT instance_id, COUNT(*) AS c FROM cg_overrides WHERE session_id = ? GROUP BY instance_id', [$sid]) as $r) {
         $manual[(int)$r['instance_id']] = (int)$r['c'];
     }
-    $liveFinal = null;
+    // 송출 중인 CG의 현재 값이 송출값과 다름 (값 또는 뺀 항목) → TAKE 또는 UPDATE LIVE 필요
+    $livePending = false;
     if ($snap !== null) {
-        $liveFinal = instance_state(instance_get($snap['instance_id']), $sid)['final'];
+        $ls = instance_state(instance_get($snap['instance_id']), $sid);
+        $livePending = !finals_same($ls['final'], $snap['final']) || !hidden_same($ls['hidden'], $snap['hidden'] ?? []);
     }
     $rundown = [];
     foreach (rundown_rows() as $r) {
@@ -77,7 +87,7 @@ function panel_state(array $op): array
             'in_program' => $inProgram,
             'on_air' => $inProgram && $pg['visible'] === 1,
             // 같은 CG가 송출 중인데 현재 값(FINAL)이 송출값과 다름 → TAKE 또는 UPDATE LIVE 필요
-            'pending_live' => $snap !== null && $snap['instance_id'] === $iid && !finals_same($liveFinal, $snap['final']),
+            'pending_live' => $snap !== null && $snap['instance_id'] === $iid && $livePending,
         ];
     }
 
@@ -107,7 +117,7 @@ function panel_state(array $op): array
                 'calc_text' => isset($def['derived']) ? fmt_field($def, $f['calc']) : '',
                 'auto_at_set_text' => $f['auto_changed'] ? fmt_field($def, $f['auto_at_set']) : '',
                 'live_text' => $sameLive ? fmt_field($def, $live) : null,
-                'live_differs' => $sameLive && $live !== $st['final'][$key],
+                'live_differs' => $sameLive && ($live !== $st['final'][$key] || $hidden !== in_array($key, $snap['hidden'] ?? [], true)),
             ];
         }
         $preview = array_merge($preview, [
@@ -129,7 +139,7 @@ function panel_state(array $op): array
         'taken_at' => $snap['taken_at'] ?? null, 'taken_ts' => isset($snap['taken_at']) ? strtotime($snap['taken_at']) : null,
         'effect' => $snap['effect'] ?? null, 'dur_ms' => $snap['dur_ms'] ?? null,
         'same_target' => $snap !== null && $pv['instance_id'] === $snap['instance_id'],
-        'pending_live' => $snap !== null && !finals_same($liveFinal, $snap['final']),
+        'pending_live' => $livePending,
     ];
     // UPDATE LIVE로 보낼 수 있는 저장된 수정값·항목 빼기가 있는지 (자동값 변경은 TAKE로만)
     $program['live_manual'] = $program['same_target']

@@ -270,6 +270,8 @@
     if (!pv.instance_id) {
       $('edTarget').textContent = 'PREVIEW에 큐된 페이지가 없습니다.';
       notice.hidden = true;
+      $('btnShowAll').disabled = true;
+      $('btnShowAll').textContent = '모두 다시 넣기';
       return;
     }
     $('edTarget').textContent = pad3(pv.page_no) + ' · ' + pv.template_name + ' · ' + pv.summary;

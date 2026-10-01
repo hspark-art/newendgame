@@ -57,7 +57,7 @@ return [
                 $rows[] = ['rank' => hid($f, "r$i.rank") ? '' : ($r['rank'] === null ? '-' : (string)$r['rank']), 'name' => (string)$r['name'],
                     'record' => $r['wins'] === null && !hid($f, "r$i.wins") ? '기록 없음'
                         : text_wl($r['wins'], $r['losses'], hid($f, "r$i.wins"), hid($f, "r$i.losses")),
-                    'rate' => hid($f, "r$i.rate") ? '' : text_pct($r['rate']), 'top' => $r['rank'] === 1];
+                    'rate' => hid($f, "r$i.rate") ? '' : text_pct($r['rate']), 'top' => raw_val($f, "r$i.rank") === 1]; // 순위를 빼도 1위 줄 강조는 원래 순위로
             }
         }
         return ['title' => (string)$f['title'], 'rows' => $rows];
