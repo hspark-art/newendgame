@@ -18,6 +18,18 @@ function fmt_input(array $def, mixed $v): string
     };
 }
 
+/** default_next 파라미터(자유 입력의 양식 번호): 페이지 리스트에서 쓰지 않은 다음 번호를 기본값으로 */
+function param_default_next(string $slug, array $p, array $rundown): array
+{
+    if (empty($p['default_next'])) {
+        return $p;
+    }
+    $used = array_map(static fn($r) => (int)($r['params'][$p['key']] ?? 0),
+        array_filter($rundown, static fn($r) => $r['template'] === $slug));
+    $p['default'] = min($p['max'], max([0, ...$used]) + 1);
+    return $p;
+}
+
 function panel_state(array $op): array
 {
     $sid = current_session_id();
@@ -129,7 +141,7 @@ function panel_state(array $op): array
         'data' => ['source' => data_source(), 'check' => json_dec(setting_get('data_check', 'null')), 'ready' => data_ready()],
         // 페이지 추가 대화상자는 템플릿의 params 정의로 입력칸을 만든다
         'templates' => array_map(static fn($t) => ['slug' => $t['slug'], 'name' => $t['name'], 'short' => $t['short'],
-            'params' => array_map(static fn($p) => array_intersect_key($p,
+            'params' => array_map(static fn($p) => array_intersect_key(param_default_next($t['slug'], $p, $rundown),
                 array_flip(['key', 'label', 'type', 'auto_from', 'default_value', 'min', 'max', 'default'])), $t['params'])],
             array_values(cg_templates())),
         'players' => array_values($players),

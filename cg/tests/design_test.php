@@ -81,3 +81,15 @@ test('CG 폰트: 모든 폰트에 @font-face와 파일, 파일마다 OFL 라이�
     assert_true(!router_allowed('/assets/fonts/../app/config.php') && !router_allowed('/assets/fonts/licenses/jua-OFL.txt')
         && !router_allowed('/assets/fonts/x.php'));
 });
+
+test('배포 파일: 웹 폴더의 글자 파일은 줄바꿈이 LF만 (FileZilla 텍스트 모드로 올려도 배포본과 같게)', function () {
+    $bad = [];
+    $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(WWW_DIR, FilesystemIterator::SKIP_DOTS));
+    foreach ($it as $f) {
+        $name = $f->getFilename();
+        if (preg_match('/\.(php|js|css|txt|json|sha256|md|html)$|^\.htaccess$/D', $name) && str_contains((string)file_get_contents($f->getPathname()), "\r")) {
+            $bad[] = substr($f->getPathname(), strlen(WWW_DIR) + 1);
+        }
+    }
+    assert_same([], $bad);
+});

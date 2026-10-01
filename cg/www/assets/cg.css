@@ -33,6 +33,7 @@
   --c-accent: var(--cg-accent);/* 승자·강조 */
   --c-plus: #ff4d4d;           /* + 값 (지수·수익률) */
   --c-minus: #4d9bff;          /* − 값 */
+  /* --c-on-top: 1위 줄 글자. 기본은 정하지 않음(= 1위 줄도 위 항목별 색). 테마 C·E와 관리자 설정만 정한다 */
   --c-on-accent: #111111;      /* 강조색 칩(최근 경기 W) 위 글자 */
   /* 막대·칩 바탕 (맵 상성 막대, 최근 경기 L 칩, 프리뷰 줄 무늬) — 테마가 바꾼다 */
   --bar-l: #3d7bf2; --bar-r: #59606e; --bar-tl: #ffffff; --bar-tr: #ffffff;
@@ -142,6 +143,13 @@
 .c-period { width: calc(150px * var(--k-w)); flex: none; text-align: right; font-family: var(--cg-font-num);
   font-size: calc(16px * var(--k-num)); color: var(--c-sub); margin-left: 8px; }
 .c-period .cg-fit { display: inline-block; }
+/* 1위 줄(강조 줄): '1위 줄 글자'(--c-on-top)를 정했으면 그 줄 글자를 모두 그 색으로, 아니면 다른 줄과 같은 항목별 색 */
+.cg-bar.is-hl .c-rank { color: var(--c-on-top, var(--c-rank)); }
+.cg-bar.is-hl .c-name { color: var(--c-on-top, var(--c-text)); }
+.cg-bar.is-hl .c-name small { color: var(--c-on-top, var(--c-nick)); }
+.cg-bar.is-hl .c-record, .cg-bar.is-hl .c-rate, .cg-bar.is-hl .c-index, .cg-bar.is-hl .c-roi,
+.cg-bar.is-hl .c-streak { color: var(--c-on-top, var(--c-num)); }
+.cg-bar.is-hl .c-period { color: var(--c-on-top, var(--c-sub)); }
 /* + / − 값 (미션 지수·수익률) */
 .is-plus { color: var(--c-plus) !important; }
 .is-minus { color: var(--c-minus) !important; }
@@ -206,6 +214,18 @@
 .mu-bar.is-empty .mu-pct.mu-r { right: auto; left: 50%; transform: translateX(-50%); }
 .cg-sumbar.mu-foot { height: calc(34px * var(--k-h)); font-size: calc(18px * var(--k-num)); font-weight: 500; color: var(--c-sub);
   border-bottom: 0; border-top: 2px solid #0c0e12; }
+
+/* 자유 입력: 제목 + 1~5줄 ([글자] 가운데, 또는 [글자 … 오른쪽 값]). 줄이 적으면 다른 CG와 같은 높이, 5줄이면 위로 커짐.
+   제목만 넣으면 제목 띠만 */
+.cg-free { height: auto; }
+.fr-lines { display: flex; flex-direction: column; justify-content: center; min-height: calc(172px * var(--k-h)); padding: 6px 0 10px; box-sizing: border-box; }
+.fr-line { display: flex; align-items: center; gap: 16px; height: calc(42px * var(--k-h)); padding: 0 24px; }
+.fr-line:nth-child(even) { background: var(--row-alt); }
+.fr-text { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; font-family: var(--cg-font-name); color: var(--c-text);
+  font-size: calc(27px * var(--k-name)); font-weight: 600; text-shadow: 0 2px 2px rgba(0, 0, 0, .75); }
+.fr-line.is-center .fr-text { text-align: center; }
+.fr-sub { flex: none; max-width: 45%; overflow: hidden; white-space: nowrap; text-align: right; font-family: var(--cg-font-num);
+  color: var(--c-num); font-size: calc(27px * var(--k-num)); font-weight: 700; text-shadow: 0 2px 2px rgba(0, 0, 0, .75); }
 
 /* 5줄: 한 줄 높이는 4줄일 때와 같게 두고 박스가 위로 한 줄만큼 커진다 (오른쪽 아래 기준 배치라 아래 위치는 그대로).
    이전에는 높이 250px 안에 5줄을 넣느라 줄이 낮아져 글자 아래가 잘렸다 */

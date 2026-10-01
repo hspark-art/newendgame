@@ -113,16 +113,18 @@
       inp.value = v;
       inp.nextElementSibling.textContent = v + '%';
     });
-    // 지정하지 않은 글자색은 지금 테마의 색을 보여 준다
+    // 지정하지 않은 글자색은 지금 테마의 색을 보여 준다.
+    // 1위 줄 글자는 테마에 기본값이 없으면 "항목별"(1위 줄도 다른 줄과 같은 색) — 고르면 그때부터 1위 줄 전체가 그 색
     var probe = document.createElement('span');
     $('stage').appendChild(probe);
     Object.keys(V.colors).forEach(function (k) {
-      probe.style.color = 'var(--c-' + k + ')';
+      var themeHas = window.getComputedStyle($('stage')).getPropertyValue('--c-' + k).trim() !== '';
+      probe.style.color = 'var(--c-' + k + ', var(--c-text))';
       var val = draft.colors[k] || hex(window.getComputedStyle(probe).color);
       var row = document.querySelector('.dz-color[data-c="' + k + '"]');
       row.querySelector('input').value = val;
       var code = row.querySelector('code');
-      code.textContent = val.toUpperCase();
+      code.textContent = draft.colors[k] || themeHas ? val.toUpperCase() : '항목별';
       code.className = draft.colors[k] ? '' : 'is-theme';
       row.querySelector('button').disabled = !V.admin || !draft.colors[k];
     });
@@ -211,10 +213,13 @@
     if (v === 100) { delete draft.k[k]; } else { draft.k[k] = v; }
     apply();
   });
-  $('colors').addEventListener('input', function (e) {
+  // 색 고르기: 끄는 동안(input)과 고른 뒤(change) 모두 반영 — 브라우저마다 보내는 이벤트가 달라 둘 다 받는다
+  var pickColor = function (e) {
     var row = e.target.closest('.dz-color');
-    if (row && e.target.type === 'color') { draft.colors[row.getAttribute('data-c')] = e.target.value; apply(); }
-  });
+    if (row && e.target.type === 'color' && V.admin) { draft.colors[row.getAttribute('data-c')] = e.target.value.toLowerCase(); apply(); }
+  };
+  $('colors').addEventListener('input', pickColor);
+  $('colors').addEventListener('change', pickColor);
   $('colors').addEventListener('click', function (e) {
     var row = e.target.closest('.dz-color');
     if (row && e.target.tagName === 'BUTTON') { delete draft.colors[row.getAttribute('data-c')]; apply(); }

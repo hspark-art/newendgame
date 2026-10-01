@@ -2,9 +2,8 @@
    테마는 글자색 변수(--c-*)와 바탕·선만 바꾼다. 관리자가 정한 글자색·폰트·크기는 body의 변수로 덮어쓴다.
    기준 색: #5593FF + 구글 플레이 4색(파랑 #4285F4, 빨강 #EA4335, 노랑 #FBBC04, 초록 #34A853). */
 
-/* 강조 줄(1위 등) 위의 글자색은 --c-on-top. 테마가 강조 줄 바탕을 진하게 칠할 때 쓴다 */
-.cg-theme-play, .cg-theme-night, .cg-theme-pop, .cg-theme-four, .cg-theme-sky { --c-on-top: var(--c-text); }
-.cg-bar.is-hl { --c-text: var(--c-on-top); --c-num: var(--c-on-top); --c-rank: var(--c-on-top); }
+/* 글자색은 모두 --c-* 변수로만 정한다 (CG 디자인 화면의 글자색 표와 1:1). 테마는 변수의 기본값만 바꾼다.
+   1위 줄(강조 줄)은 '1위 줄 글자'(--c-on-top)를 정했을 때만 그 색 — C·E 테마는 바탕이 진해 기본값이 있다 (cg.css) */
 
 /* ---------------------------------------------------------------- A. 플레이 화이트 — 흰 카드 + 파란 제목 + 4색 줄 */
 .cg-theme-play {
@@ -19,19 +18,17 @@
 .cg-theme-play .cg-title .cg-fit { font-style: normal; text-shadow: 0 1px 2px rgba(0, 30, 90, .35); }
 .cg-theme-play .cg-band { display: none; }
 .cg-theme-play .cg-head, .cg-theme-play .cg-sumbar { background: #eaf1ff; border-bottom: 1px solid #d5e2fb; }
-.cg-theme-play .cg-vs, .cg-theme-play .cg-sumbar small { color: #5b6b8c; }
 .cg-theme-play .cg-body { background: #fff; }
 .cg-theme-play .cg-bars { gap: 0; }
 .cg-theme-play .cg-bars .cg-row { background: #fff; border-bottom: 1px solid #e3eaf7; }
 .cg-theme-play .cg-bars .cg-bar:nth-child(odd) { background: #f2f6ff; }
 .cg-theme-play .cg-bars .cg-bar.is-hl { background: linear-gradient(90deg, #dbe8ff, #f2f6ff); }
 .cg-theme-play .c-rank { font-weight: 800; }
-.cg-theme-play .c-rate { font-weight: 700; color: var(--c-sub); }
+.cg-theme-play .c-rate { font-weight: 700; }
 .cg-theme-play .is-win { font-weight: 800; }
 
 .cg-theme-play { --c-on-accent: #ffffff; --bar-l: #5593ff; --bar-r: #dfe7f7; --bar-tl: #ffffff; --bar-tr: #2a3a5c;
   --chip-l: #e3e9f5; --row-alt: #f2f6ff; }
-.cg-theme-play .cg-race { color: #2f6be6; }
 .cg-theme-play .mu-pct { text-shadow: none; }
 .cg-theme-play .cg-sumbar.mu-foot { border-top: 1px solid #d5e2fb; }
 
@@ -48,12 +45,10 @@
 .cg-theme-night .cg-title .cg-fit { font-style: normal; text-shadow: 0 2px 6px rgba(0, 20, 70, .6); }
 .cg-theme-night .cg-band { display: none; }
 .cg-theme-night .cg-head, .cg-theme-night .cg-sumbar { background: rgba(85, 147, 255, .18); border-bottom: 1px solid rgba(85, 147, 255, .4); }
-.cg-theme-night .cg-vs, .cg-theme-night .cg-sumbar small { color: #a9c4ff; }
 .cg-theme-night .cg-body { background: transparent; }
 .cg-theme-night .cg-bars .cg-row { background: rgba(255, 255, 255, .03); border-left: 4px solid transparent; }
 .cg-theme-night .cg-bars .cg-bar:nth-child(odd) { background: rgba(85, 147, 255, .13); }
 .cg-theme-night .cg-bars .cg-bar.is-hl { background: rgba(251, 188, 4, .14); border-left-color: #fbbc04; }
-.cg-theme-night .cg-bar.is-hl .c-rank { color: var(--c-accent); }
 .cg-theme-night .c-rank { font-weight: 700; }
 
 .cg-theme-night { --c-on-accent: #0e1e42; --bar-l: #5593ff; --bar-r: rgba(255, 255, 255, .16); --chip-l: rgba(255, 255, 255, .14);
@@ -73,13 +68,14 @@
 .cg-theme-pop .cg-title .cg-fit { font-style: normal; }
 .cg-theme-pop .cg-band { display: none; }
 .cg-theme-pop .cg-head, .cg-theme-pop .cg-sumbar { background: #f1f4fa; border-bottom: 1px solid #dfe5f0; }
-.cg-theme-pop .cg-vs, .cg-theme-pop .cg-sumbar small { color: #5d6b85; }
 .cg-theme-pop .cg-body { background: #fff; }
 .cg-theme-pop .cg-bars { gap: 0; }
 .cg-theme-pop .cg-bars .cg-row { background: #fff; border-bottom: 1px solid #e6ebf3; }
 .cg-theme-pop .cg-bars .cg-bar:nth-child(odd) { background: #f4f6fb; }
 .cg-theme-pop .cg-bars .cg-bar.is-hl { background: linear-gradient(90deg, #2f6be6 0%, #5593ff 60%, #8bb8ff 100%); }
-.cg-theme-pop .cg-bar.is-hl { --c-nick: rgba(255, 255, 255, .85); --c-sub: rgba(255, 255, 255, .9); }
+.cg-theme-pop .cg-bar.is-hl .c-name small, .cg-theme-pop .cg-bar.is-hl .c-period { opacity: .85; }
+/* 1위 줄 바탕이 진해서 수익률(+ 빨강 / − 파랑)이 묻히지 않게 테두리 빛 — 어떤 색을 골라도 읽힌다 */
+.cg-theme-pop .cg-bar.is-hl .c-roi { text-shadow: 0 0 2px #fff, 0 0 5px #fff; }
 .cg-theme-pop .c-rank { font-weight: 800; }
 .cg-theme-pop .c-rate { font-weight: 700; }
 .cg-theme-pop .is-win { font-weight: 800; }
@@ -105,7 +101,6 @@
 .cg-theme-four .cg-head .cg-cell:first-child { box-shadow: inset 0 5px 0 #4285f4; }
 .cg-theme-four .cg-head .cg-cell:last-child { box-shadow: inset 0 5px 0 #34a853; }
 .cg-theme-four .cg-sumbar { background: #f8f9fa; border-bottom: 1px solid #e3e5e8; }
-.cg-theme-four .cg-vs, .cg-theme-four .cg-sumbar small { color: #5f6368; }
 .cg-theme-four .cg-body { background: #fff; }
 .cg-theme-four .cg-bars { gap: 0; }
 .cg-theme-four .cg-bars .cg-row { background: #fff; border-left: 8px solid #4285f4; border-bottom: 1px solid #eceef1; }
@@ -115,7 +110,7 @@
 .cg-theme-four .cg-bars .cg-bar:nth-child(odd) { background: #f8f9fa; }
 .cg-theme-four .cg-bars .cg-bar.is-hl { background: #e8f0fe; }
 .cg-theme-four .c-rank { font-weight: 800; }
-.cg-theme-four .c-rate { font-weight: 700; color: var(--c-sub); }
+.cg-theme-four .c-rate { font-weight: 700; }
 .cg-theme-four .is-win { font-weight: 800; }
 
 .cg-theme-four { --c-on-accent: #ffffff; --bar-l: #4285f4; --bar-r: #ea4335; --chip-l: #e8eaed; --row-alt: #f8f9fa; }
@@ -124,8 +119,8 @@
 
 /* ---------------------------------------------------------------- E. 스카이 볼드 — 남색 제목 + 밝은 파란 막대 + 1위 노랑 */
 .cg-theme-sky {
-  --c-title: #ffffff; --c-text: #ffffff; --c-nick: #e3edff; --c-num: #ffffff; --c-sub: #9cc2ff; --c-rank: #ffffff;
-  --c-accent: #ffd54a; --c-on-top: #0b2a6f; --c-plus: #ffd54a; --c-minus: #b9d3ff;
+  --c-title: #ffffff; --c-text: #ffffff; --c-nick: #e3edff; --c-num: #ffffff; --c-sub: #dce9ff; --c-rank: #ffffff;
+  --c-accent: #ffd54a; --c-on-top: #0b2a6f; --c-plus: #ff5c5c; --c-minus: #b9d3ff;
 }
 .cg-theme-sky .cg-box { background: #0b2a6f; border: 0; border-radius: 14px 0 0 0; box-shadow: 0 10px 28px rgba(0, 0, 0, .5); }
 .cg-theme-sky .cg-title { background: linear-gradient(90deg, #0b2a6f, #163f9e); border-bottom: 5px solid #5593ff; }
@@ -133,17 +128,15 @@
 .cg-theme-sky .cg-title .cg-fit { text-shadow: 0 2px 0 #06173f, 0 0 8px rgba(85, 147, 255, .6); }
 .cg-theme-sky .cg-band { display: none; }
 .cg-theme-sky .cg-head, .cg-theme-sky .cg-sumbar { background: #5593ff; border-bottom: 1px solid #3c76e6; }
-.cg-theme-sky .cg-vs, .cg-theme-sky .cg-sumbar small { color: #e6efff; }
 .cg-theme-sky .cg-body { background: #0b2a6f; }
 .cg-theme-sky .cg-bars .cg-row { background: #3f7ef5; }
 .cg-theme-sky .cg-list .cg-row > span { text-shadow: 0 1px 2px rgba(0, 25, 80, .55); }
 .cg-theme-sky .cg-bars .cg-bar:nth-child(odd) { background: #5593ff; }
 .cg-theme-sky .cg-bars .cg-bar.is-hl { background: linear-gradient(90deg, #fbbc04, #ffd54a); }
-.cg-theme-sky .cg-bar.is-hl { --c-nick: #163f9e; --c-sub: #163f9e; }
 .cg-theme-sky .cg-bar.is-hl > span { text-shadow: none; }
+.cg-theme-sky .cg-bar.is-hl .c-roi { text-shadow: 0 0 2px #0b2a6f, 0 0 5px #0b2a6f; }
 .cg-theme-sky .c-rank { font-weight: 700; }
 .cg-theme-sky { --c-on-accent: #0b2a6f; --bar-l: #ffd54a; --bar-r: #3f7ef5; --bar-tl: #0b2a6f; --bar-tr: #ffffff;
   --chip-l: rgba(255, 255, 255, .2); --row-alt: rgba(85, 147, 255, .25); }
 .cg-theme-sky .mu-pct.mu-l { text-shadow: none; }
-.cg-theme-sky .cg-race { color: #e6efff; }
-.cg-theme-sky .cg-sumbar.mu-foot { color: #e6efff; border-top: 1px solid #3c76e6; }
+.cg-theme-sky .cg-sumbar.mu-foot { border-top: 1px solid #3c76e6; }
