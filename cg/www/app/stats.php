@@ -449,7 +449,7 @@ function stats_maps(array $games): array
 /**
  * 중계진 미션 성공 지수: 예측마다 걸린 갯수를 성공이면 더하고 실패면 뺀 합. 수익률 = 지수 ÷ 건 갯수 합계.
  * (2026-10-01 실제 시트로 확인: 예측 탭 "지수·수익률" 열과 3명 모두 일치)
- * 순위는 지수 → 적중 수. 갯수가 없는 기록은 이 순위에 쓰지 않는다 (sheet_dataset이 미리 막음).
+ * 순위는 지수 순 (같은 지수는 공동 순위, 표시 순서만 적중 수 많은 쪽 먼저). 갯수가 없는 기록은 쓰지 않는다 (sheet_dataset이 미리 막음).
  * @return list<array{predictor:string, index:int, staked:int, roi:?int, correct:int, wrong:int, rank:int}> roi = 0.1% 단위
  */
 function stats_mission_ranking(array $predictions, string $year): array

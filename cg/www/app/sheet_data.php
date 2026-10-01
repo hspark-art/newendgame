@@ -317,18 +317,20 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
             foreach ($calc as $id => [$index, $staked]) {
                 $id = (string)$id;
                 $s = $pred['mission'][$id] ?? null;
-                $ok = $s !== null && $s[0] === $index && $staked > 0 && abs($s[1] - $index / $staked) < 1e-6;
+                $ok = $s !== null && $s[0] !== null && $s[0] === $index && $staked > 0 && $s[1] !== null
+                    && abs($s[1] - $index / $staked) < 1e-6;
                 $verify['mission']['predictors'][$id] = $ok;
                 if (!$ok) {
                     $check['mismatches'][] = ['kind' => 'mission', 'who' => $id, 'item' => '미션 지수·수익률',
-                        'sheet' => $s === null ? '순위표에 없음' : sprintf('%+d · %.1f%%', $s[0], $s[1] * 100),
+                        'sheet' => $s === null ? '순위표에 없음' : ($s[0] === null ? '지수 읽을 수 없음' : sprintf('%+d', $s[0]))
+                            . ($s !== null ? ' · ' . ($s[1] === null ? '수익률 읽을 수 없음' : sprintf('%.1f%%', $s[1] * 100)) : ''),
                         'calc' => sprintf('%+d · %s', $index, $staked > 0 ? sprintf('%.1f%%', 100 * $index / $staked) : '-')];
                 }
             }
             $verify['mission']['extra'] = [];
             foreach ($pred['mission'] as $id => [$index]) {
                 $id = (string)$id;
-                if (!isset($calc[$id]) && $index !== 0) {
+                if (!isset($calc[$id]) && $index !== 0 && $index !== null) {
                     $verify['mission']['extra'][] = $id;
                     $check['mismatches'][] = ['kind' => 'mission', 'who' => $id, 'item' => '미션 지수·수익률',
                         'sheet' => sprintf('%+d', $index), 'calc' => '예측 기록 없음'];
@@ -371,6 +373,9 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         $verify['mapsets']['available'] = true;
         $calc = [];
         foreach ($games as $g) {
+            if ($g['map'] === '') {
+                continue; // 맵 칸이 빈 세트는 시트 집계(MAP 선수별 전적)에도 없다
+            }
             $calc[$g['winner']][$g['map']][0] = ($calc[$g['winner']][$g['map']][0] ?? 0) + 1;
             $calc[$g['loser']][$g['map']][1] = ($calc[$g['loser']][$g['map']][1] ?? 0) + 1;
         }
@@ -1040,12 +1045,8 @@ function sheet_predictions_table(array $rows, bool $serialDates): array
                 if ($mission !== null) {
                     $idx = sint_norm($r[$idxCol] ?? null);
                     $roi = $r[$roiCol] ?? null;
-                    if ($idx === null || !(is_int($roi) || is_float($roi))) {
-                        $mission = null;
-                        $missionError = '예측 순위표 ' . ($i + 1) . '행의 지수·수익률을 읽을 수 없음';
-                    } else {
-                        $mission[$rn] = [$idx, (float)$roi];
-                    }
+                    // 읽을 수 없는 칸(빈 칸·#DIV/0! 등)은 그 중계진만 대조 불가 (다른 중계진은 그대로 대조)
+                    $mission[$rn] = [$idx, is_int($roi) || is_float($roi) ? (float)$roi : null];
                 }
             }
         }

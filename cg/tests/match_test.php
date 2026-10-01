@@ -123,3 +123,41 @@ test('맵 고르기 순서: 최근 끝장전 20경기에서 쓴 맵을 많이 �
     $first = array_values(json_dec(setting_get('maps_cache')))[0];
     assert_true(isset($first['recent'], $first['last']) && $first['recent'] > 0, '패널 맵 목록에 최근 사용 정보');
 });
+
+test('리뷰 수정 (v0.6): 같은 매치로 바꾸면 고른 종족 유지, 매치 바꾸면 뺀 항목 유지, 빈 최근 경기, 송출값 비교는 키 순서 무관', function () {
+    setup_sheet();
+    match_exclude(['match' => '2025-01-04|다선수|라선수', 'on' => true], op());
+    // 운영자가 상대 종족을 직접 T로 고른 페이지 → 같은 매치로 '페이지 리스트 바꾸기'를 해도 그대로
+    page_add(['template' => 'race-win-rate', 'params' => ['a' => ['player' => '가선수', 'vs' => 'T'], 'b' => ['player' => '나선수', 'vs' => 'Z']]], op());
+    $r = match_pages_apply(['a' => '가선수', 'b' => '나선수'], op());
+    assert_same([], $r['changed']);
+    assert_same('T', json_dec(rundown_rows()[0]['params_json'])['a']['vs']);
+    // 다른 매치로 바꾸면 바뀐 선수를 상대로 하는 종족만 새로 (B 그대로 → A의 상대 종족 T 유지, A가 다선수 → B의 상대 종족 T),
+    // 그 페이지에서 뺀 항목은 새 CG에도 그대로
+    $r = page_add(['template' => 'match-preview', 'params' => ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'], 'map' => '']], op());
+    instance_hide((int)rundown_get($r['id'])['instance_id'], '최근 5경기', true, op());
+    match_pages_apply(['a' => '다선수', 'b' => '나선수'], op());
+    assert_same(['a.form', 'b.form'], instance_get((int)rundown_get($r['id'])['instance_id'])['hidden']);
+    $p = json_dec(rundown_rows()[0]['params_json']);
+    assert_same([['player' => '다선수', 'vs' => 'T'], ['player' => '나선수', 'vs' => 'T']], [$p['a'], $p['b']]);
+    // 최근 경기가 없는 쪽은 빈 칸 (빈 L 칩이 생기지 않음 — PHP 8.1 str_split(''))
+    $st = type_state('match-preview', ['a' => ['player' => '가선수'], 'b' => ['player' => '라선수'], 'map' => '']);
+    $form = array_column($st['view']['rows'], null, 'key')['form'];
+    assert_same([['W', 'W', 'L'], []], [$form['a'], $form['b']]);
+    assert_true(!str_contains(cg_render($st['view']), '<i class="is-l"></i>'));
+    assert_true(finals_same(['a' => 1, 'b' => 2], ['b' => 2, 'a' => 1]) && !finals_same(['a' => 1], ['a' => 2]) && finals_same(null, null));
+});
+
+test('리뷰 수정 (v0.6): 맵 칸이 빈 세트는 선수 맵 전적 불일치로 잡지 않음, 수익률 칸 하나가 이상하면 그 중계진만 대조 불가', function () {
+    $ds = sheet_dataset(fx_tables(static function (array &$t) {
+        $t['results'][1][4] = ''; // 맵 입력 전 세트
+    }), 'api');
+    // 빈 맵 이름(' 맵 전적: MAP 선수별 전적에 없음') 불일치가 생기지 않음
+    $mis = array_filter($ds['check']['mismatches'], static fn($m) => $m['kind'] === 'mapsets' && $m['item'] === ' 맵 전적');
+    assert_same([], array_values($mis), '빈 맵은 대조하지 않음');
+    $ds = sheet_dataset(fx_tables(static function (array &$t) {
+        $t['predictions'][3][16] = '#DIV/0!'; // 이해설 수익률 칸
+    }), 'api');
+    assert_true($ds['verify']['mission']['available'], '미션 대조 자체는 가능');
+    assert_same(['김중계' => true, '이해설' => false], $ds['verify']['mission']['predictors']);
+});

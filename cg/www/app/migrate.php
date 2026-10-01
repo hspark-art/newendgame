@@ -126,6 +126,12 @@ function migrations(): array
                     db()->exec('ALTER TABLE cg_instances ADD COLUMN hidden_json TEXT NULL');
                 }
             },
+            // 맵 이름은 대소문자를 구분한다 (KnockOut ≠ Knockout). MySQL·MariaDB 기본 비교는 구분하지 않아 따로 지정
+            static function (): void {
+                if (db_driver() === 'mysql') {
+                    db()->exec('ALTER TABLE cg_map_info MODIFY map VARCHAR(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL');
+                }
+            },
         ],
     ];
 }

@@ -114,7 +114,11 @@ return [
             return ['kind' => 'rec', 'key' => $k, 'label' => $label, 'a' => $a ?? '—', 'a_sub' => $a === null ? '' : $sub('a'),
                 'b' => $b ?? '—', 'b_sub' => $b === null ? '' : $sub('b'), 'lead' => $lead($f["a.$rate"], $f["b.$rate"])];
         };
-        $form = static fn(?string $s) => str_split((string)preg_replace('/[^WL]/', '', strtoupper((string)$s))) ?: [];
+        // str_split('')는 PHP 8.1에서 [''] (8.2부터 []) — 빈 값은 직접 []로
+        $form = static function (?string $s): array {
+            $t = (string)preg_replace('/[^WL]/', '', strtoupper((string)$s));
+            return $t === '' ? [] : str_split($t);
+        };
         $rows = array_values(array_filter([
             $line('매치 전적', 'match', 'mw', 'ml', 'mrate'),
             $line('세트 전적', 'set', 'sw', 'sl', 'srate'),

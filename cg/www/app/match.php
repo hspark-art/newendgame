@@ -80,9 +80,12 @@ function match_params(string $slug, array $base, string $a, string $b, ?string $
     $p['b']['player'] = $b;
     foreach (template_get($slug)['params'] as $def) {
         if (isset($def['auto_from'])) {
+            // 상대 선수가 그대로면 운영자가 고른 종족을 유지한다 (선수가 바뀐 경우·값이 없는 경우만 새로)
             [$side, $field] = explode('.', $def['key']) + [1 => ''];
             $src = explode('.', $def['auto_from'])[0];
-            $p[$side][$field] = $players[$p[$src]['player']]['race'] ?? '';
+            if (($base[$src]['player'] ?? null) !== $p[$src]['player'] || ($base[$side][$field] ?? '') === '') {
+                $p[$side][$field] = $players[$p[$src]['player']]['race'] ?? '';
+            }
         }
         if (in_array($def['type'], ['map', 'map_any'], true) && $map !== null) {
             $p[$def['key']] = $map;
@@ -130,7 +133,7 @@ function match_pages_add(array $in, array $op): array
 }
 
 /**
- * 페이지 리스트의 2인 CG를 모두 오늘 매치로 바꾼다 (페이지 번호·메모·경기 수·맵은 그대로).
+ * 페이지 리스트의 2인 CG를 모두 오늘 매치로 바꾼다 (페이지 번호·메모·경기 수·맵·뺀 항목은 그대로, 수정값은 새 선수라 새로 시작).
  * 송출 중(PROGRAM)인 페이지는 화면이 갑자기 바뀌지 않게 건너뛴다.
  * @return array{changed:list<string>, skipped:list<string>}
  */
@@ -161,6 +164,12 @@ function match_pages_apply(array $in, array $op): array
             continue;
         }
         page_update((int)$r['id'], ['params' => $params], $op);
+        // 그 페이지에서 뺀 항목(CG에서 빼기)은 새 선수 CG에도 그대로 (새 CG에 이미 정한 것이 없을 때)
+        $oldHidden = instance_get((int)$r['instance_id'])['hidden'];
+        $newInst = instance_get((int)rundown_get((int)$r['id'])['instance_id']);
+        if ($oldHidden && !$newInst['hidden']) {
+            db_exec('UPDATE cg_instances SET hidden_json = ? WHERE id = ?', [json_enc($oldHidden), $newInst['id']]);
+        }
         $changed[] = $label;
     }
     return ['changed' => $changed, 'skipped' => $skipped, 'match' => match_view()];

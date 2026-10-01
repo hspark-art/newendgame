@@ -103,6 +103,9 @@ function fx_tables(?callable $tamper = null): array
     // MAP 통계·MAP 선수별 전적 (시트 자동 집계 모양): Results에서 센다
     $ms = $mp = [];
     foreach (array_slice($results, 1) as [$w, $wr, $l, $lr, $map, $d]) {
+        if ($map === '') {
+            continue; // 시트 집계도 맵 칸이 빈 세트는 세지 않는다
+        }
         $ms[$map] ??= ['n' => 0, 'ZP' => [0, 0], 'TZ' => [0, 0], 'PT' => [0, 0], 'first' => $d, 'last' => $d];
         $ms[$map]['n']++;
         $ms[$map]['first'] = min($ms[$map]['first'], $d);

@@ -30,6 +30,17 @@ function param_default_next(string $slug, array $p, array $rundown): array
     return $p;
 }
 
+/** 송출값 비교: 키 순서와 관계없이 같은 값인지 (버전이 바뀌어 필드 순서가 달라져도 '송출값과 다름'으로 남지 않게) */
+function finals_same(?array $a, ?array $b): bool
+{
+    if ($a === null || $b === null) {
+        return $a === $b;
+    }
+    ksort($a);
+    ksort($b);
+    return $a === $b;
+}
+
 function panel_state(array $op): array
 {
     $sid = current_session_id();
@@ -66,7 +77,7 @@ function panel_state(array $op): array
             'in_program' => $inProgram,
             'on_air' => $inProgram && $pg['visible'] === 1,
             // 같은 CG가 송출 중인데 현재 값(FINAL)이 송출값과 다름 → TAKE 또는 UPDATE LIVE 필요
-            'pending_live' => $snap !== null && $snap['instance_id'] === $iid && $liveFinal !== $snap['final'],
+            'pending_live' => $snap !== null && $snap['instance_id'] === $iid && !finals_same($liveFinal, $snap['final']),
         ];
     }
 
@@ -118,7 +129,7 @@ function panel_state(array $op): array
         'taken_at' => $snap['taken_at'] ?? null, 'taken_ts' => isset($snap['taken_at']) ? strtotime($snap['taken_at']) : null,
         'effect' => $snap['effect'] ?? null, 'dur_ms' => $snap['dur_ms'] ?? null,
         'same_target' => $snap !== null && $pv['instance_id'] === $snap['instance_id'],
-        'pending_live' => $snap !== null && $liveFinal !== $snap['final'],
+        'pending_live' => $snap !== null && !finals_same($liveFinal, $snap['final']),
     ];
     // UPDATE LIVE로 보낼 수 있는 저장된 수정값·항목 빼기가 있는지 (자동값 변경은 TAKE로만)
     $program['live_manual'] = $program['same_target']
