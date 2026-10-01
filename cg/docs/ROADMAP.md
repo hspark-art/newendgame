@@ -44,10 +44,10 @@ CLAUDE.md → 아래 진행 기록 → 현재 단계 관련 문서·코드만 �
 
 | 항목 | 현재 기록 |
 |---|---|
-| 현재 단계 | v0.4.2 — 송출 화면 자동 맞춤, 위치·크기 송출에 바로 적용, 시트 '닉네임' 탭. v0.4.1 — MOCK 데이터 제거(배포본·기존 DB), Google 시트 전용. v0.4.0: 더블 찬스 자동값, 연승 종료일, 관리자 알림, 시트 입력 점검. PHASE 9 eloboard는 조건부 대기 |
+| 현재 단계 | v0.4.3 — 카페24 가상서버(웹) 운영 체계: 서버 점검 명령(app/cli.php), SERVER_KR.md, 바뀐 파일만 전달. 서버 정보(OS·웹 서버·DB) 확인 대기. v0.4.2 — 송출 화면 자동 맞춤, 위치·크기 송출에 바로 적용, 시트 '닉네임' 탭. v0.4.1 — MOCK 데이터 제거(배포본·기존 DB), Google 시트 전용. v0.4.0: 더블 찬스 자동값, 연승 종료일, 관리자 알림, 시트 입력 점검. PHASE 9 eloboard는 조건부 대기 |
 | 완료 단계 | 0~6 첫 MVP, W 웹 계정·관리자·비밀 송출 주소, R 배포·패치·무결성 검사, 7 CG 9종, 8 Google 시트(세트 단위 원천·끝장전 묶기·이상 경기 분리·시트 집계 교차 검증·마지막 정상 데이터 캐시·데이터 점검 창·선수 닉네임) |
-| 변경 파일 | v0.4.2: assets/output.*, control(preview_display live), sheet_data·sheets(닉네임 탭), data(player_info_view), index.php·panel.js, tests/nick_test.php(신규)·browser_check.cjs. v0.4.1: www/app/data/mock → tests/fixtures/mock(이동), data·provider·migrate(4)·views, assets/panel.js, tests/nomock_test.php·browser_check_fresh.cjs(신규), 설치 안내. v0.4.0: www/app/alerts.php(신규), sheet_data·sheets·xlsx·verify·data·control·views·actions·stats·migrate(3), templates/{double-chance,win-streak}.*, www/index.php·admin.php·assets/panel.*, tests/alerts_test.php(신규)·sheet·google·cg_types·http_test, browser_check.cjs |
-| 검증 결과 / 미검증 | 자동 테스트 90건 통과(SQLite·MySQL, v0.4.2), 브라우저 48항목 + 첫 실행 9항목. v0.4.1: 자동 테스트 87건. 배포 설정 첫 실행 브라우저 9항목, 실제 시트 xlsx로 선수 31명 전원 확인. 실제 시트 xlsx로 더블 찬스 31명 모두 선수별 통계와 일치, 알림 15건(행 번호 포함) 확인. 브라우저 확인은 VALIDATION 8절. **미검증**: 실제 Google 연결(키 없음), Windows openssl·zip, eloboard(접속 차단), OBS/vMix, 실제 호스팅 |
+| 변경 파일 | v0.4.3: www/app/cli.php(신규), web/SERVER_KR.md(신규), config.sample.php, tools/release_lib.php(패치 안내에 SSH 명령), CLAUDE.md(운영·수정 방식), tests/cli_test.php(신규). v0.4.2: assets/output.*, control(preview_display live), sheet_data·sheets(닉네임 탭), data(player_info_view), index.php·panel.js, tests/nick_test.php(신규)·browser_check.cjs. v0.4.1: www/app/data/mock → tests/fixtures/mock(이동), data·provider·migrate(4)·views, assets/panel.js, tests/nomock_test.php·browser_check_fresh.cjs(신규), 설치 안내. v0.4.0: www/app/alerts.php(신규), sheet_data·sheets·xlsx·verify·data·control·views·actions·stats·migrate(3), templates/{double-chance,win-streak}.*, www/index.php·admin.php·assets/panel.*, tests/alerts_test.php(신규)·sheet·google·cg_types·http_test, browser_check.cjs |
+| 검증 결과 / 미검증 | 자동 테스트 91건 통과(SQLite·MySQL, v0.4.3). 실제 카페24 가상서버는 미검증(서버 정보 대기). v0.4.2: 90건, 브라우저 48항목 + 첫 실행 9항목. v0.4.1: 자동 테스트 87건. 배포 설정 첫 실행 브라우저 9항목, 실제 시트 xlsx로 선수 31명 전원 확인. 실제 시트 xlsx로 더블 찬스 31명 모두 선수별 통계와 일치, 알림 15건(행 번호 포함) 확인. 브라우저 확인은 VALIDATION 8절. **미검증**: 실제 Google 연결(키 없음), Windows openssl·zip, eloboard(접속 차단), OBS/vMix, 실제 호스팅 |
 | 미확정·장애 | eloboard 약관·접속(이 환경에서 차단 — 사용자가 네트워크 허용 필요), 예측 순위 표시 순서, 방송 폰트, 웹 도메인·호스팅. 실제 시트 수정 필요: Results 236·281·454·497행 종족 칸 공백, 2110행 변현제 종족 |
 | 다음 작업 | 시트 수정 후 새로고침 → 알림 해결 확인 → (eloboard 접속 허용 시) 약관·robots 확인 → PHASE 9 또는 수동 입력 유지 |
 
@@ -97,3 +97,14 @@ CLAUDE.md → 아래 진행 기록 → 현재 단계 관련 문서·코드만 �
 - 위치·크기는 [적용](PREVIEW)과 별도로 [송출에도 바로 적용] 버튼으로 송출 중인 화면에 바로 반영한다. 수치는 바꾸지 않는 명시적 동작이며 로그에 DISPLAY_LIVE로 남는다.
 - 닉네임은 시트 '닉네임' 탭(선택)과 프로그램 입력 두 가지로 받는다. 프로그램 입력이 우선한다.
   - 템플릿에는 레퍼런스 04에 보이는 4명(박상현 soma, 이재호 Light, 장윤철 SnOw, 도재욱 Best)만 채웠다. 나머지는 추측하지 않고 비웠다.
+
+### v0.4.3 결정 (2026-10-01)
+- 운영을 카페24 가상서버의 웹 버전으로 바꾼다. 파일은 FileZilla로 올리고, 확인·추가 작업은 SSH로 서버에서 한다. GitHub·다른 PC로 배포하지 않는다.
+- 이후 수정은 필요한 파일만 고쳐서 아래 세 가지로 전달한다(CLAUDE.md "운영·수정 방식").
+  - 바뀐 파일 목록.
+  - 그 파일만 담은 zip.
+  - SSH 명령.
+- 서버 점검은 `php app/cli.php check`로 한다(관리자 화면의 무결성 검사와 같은 대조). 범위: PHP·확장·설정·DB·DB 구조·폴더 권한·install.php·파일 무결성. 옵션으로 Google 접속과 웹 보호도 확인한다.
+- 데이터·키·세션 폴더는 웹 폴더 밖(/var/lib/endgame-cg 권장)에 둔다. Nginx는 .htaccess가 동작하지 않으므로 app/ 차단 설정이 필수다.
+- OS별 설치 명령은 사용자가 SSH 진단 결과를 보내 준 뒤 확정한다.
+

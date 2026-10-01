@@ -35,7 +35,7 @@ test('release: PC·웹 zip 구성과 MANIFEST 일치', function () {
     assert_true(str_contains($pcFiles['시작.bat'], "\r\n"), '.bat은 CRLF 유지');
     $webFiles = zip_entries($web['zip']);
     foreach (['www/install.php', 'www/admin.php', 'www/.htaccess', 'www/app/.htaccess', 'www/app/config.sample.php',
-        'www/app/manifest.sha256', 'INSTALL_KR.md', 'PATCHING_KR.md', 'GOOGLE_SHEET_KR.md', 'VERSION.json'] as $f) {
+        'www/app/manifest.sha256', 'www/app/cli.php', 'SERVER_KR.md', 'INSTALL_KR.md', 'PATCHING_KR.md', 'GOOGLE_SHEET_KR.md', 'VERSION.json'] as $f) {
         assert_true(isset($webFiles[$f]), "웹 zip에 $f");
     }
     foreach (['www/app/config.php', '시작.bat', 'router.php'] as $f) {
@@ -43,6 +43,16 @@ test('release: PC·웹 zip 구성과 MANIFEST 일치', function () {
     }
     assert_true(!array_filter(array_keys($webFiles), fn($k) => str_starts_with($k, 'www/app/storage/')), 'storage 제외');
     assert_true(!array_filter(array_keys($webFiles), static fn($f) => stripos($f, 'mock') !== false), '웹 zip에도 MOCK 데이터 없음');
+    // 서버에서 unzip으로 풀어도 다른 계정이 고칠 수 없는 권한(0644)
+    $z = new ZipArchive();
+    $z->open($web['zip']);
+    for ($i = 0; $i < $z->numFiles; $i++) {
+        $z->getExternalAttributesIndex($i, $os, $attr);
+        if ((($attr >> 16) & 0777) !== 0644) {
+            fail('zip 항목 권한이 0644가 아님: ' . $z->getNameIndex($i) . ' ' . decoct(($attr >> 16) & 0777));
+        }
+    }
+    $z->close();
     foreach ([$pcFiles, $webFiles] as $files) {
         assert_true(!array_filter(array_keys($files), fn($k) => str_contains($k, 'secrets') || str_ends_with($k, '.xlsx')), '키·시트 파일 없음');
         assert_true(!array_filter($files, fn($d) => str_contains($d, 'PRIVATE KEY-----')), '개인 키 없음');
@@ -98,6 +108,8 @@ test('release: 패치 zip은 바뀐 파일만, 버전 파일은 마지막', func
     $meta = json_decode($p['patch.json'], true);
     assert_same([APP_VERSION, APP_VERSION . '-next'], [$meta['from'], $meta['to']]);
     assert_true(str_contains($p['PATCH_INFO.txt'], 'config.php 는 절대 덮어쓰지'), '안내문');
+    assert_true(str_contains($p['PATCH_INFO.txt'], 'php app/cli.php check') && !str_contains($p['PATCH_INFO.txt'], 'cli.php migrate'),
+        '서버 점검 명령 안내 (DB 구조가 같으면 migrate 없음)');
     $pc = release_build(dirname(__DIR__), 'pc', $out);
     assert_throws(RuntimeException::class, fn() => patch_build($pc['zip'], $new, "$out/bad.zip"));
 });

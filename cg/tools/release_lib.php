@@ -58,12 +58,19 @@ function release_collect(string $cg, string $kind): array
         }
         $files['GOOGLE_SHEET_KR.md'] = "$cg/web/GOOGLE_SHEET_KR.md";
     } else {
-        foreach (['INSTALL_KR.md', 'PATCHING_KR.md', 'GOOGLE_SHEET_KR.md'] as $doc) {
+        foreach (['SERVER_KR.md', 'INSTALL_KR.md', 'PATCHING_KR.md', 'GOOGLE_SHEET_KR.md'] as $doc) {
             $files[$doc] = "$cg/web/$doc";
         }
     }
     ksort($files, SORT_STRING);
     return $files;
+}
+
+/** zip에 파일 추가. 권한은 0644 — 서버에서 unzip으로 풀어도 다른 계정이 고칠 수 없게 (.bat 등 실행 파일도 같음) */
+function zip_add(ZipArchive $zip, string $path, string $data): void
+{
+    $zip->addFromString($path, $data, ZipArchive::FL_ENC_UTF_8);
+    $zip->setExternalAttributesName($path, ZipArchive::OPSYS_UNIX, (0100644 << 16));
 }
 
 function manifest_text(array $hashes): string
@@ -107,7 +114,7 @@ function release_build(string $cg, string $kind, string $outDir): array
         throw new RuntimeException("zip을 만들 수 없습니다: $zipPath");
     }
     foreach ($contents as $rel => $data) {
-        $zip->addFromString("$name/$rel", $data, ZipArchive::FL_ENC_UTF_8);
+        zip_add($zip, "$name/$rel", $data);
     }
     $zip->close();
     return ['zip' => $zipPath, 'name' => $name, 'count' => count($contents)];
@@ -171,9 +178,14 @@ function patch_build(string $oldZip, string $newZip, string $outZip): array
     $name = sprintf('EndgameCG_%s_patch_%s_to_%s', $kind === 'pc' ? 'PC' : 'Web', $vOld['version'] ?? '?', $vNew['version'] ?? '?');
     $info = "끝장전 CG 패치 {$vOld['version']} → {$vNew['version']} (" . ($kind === 'pc' ? 'PC' : '웹') . ")\n\n";
     if ($kind === 'web') {
-        $info .= "웹: 아래 파일을 순서대로 FTP 업로드하세요. www/ 안의 파일은 서버 웹 폴더 기준 경로입니다.\n"
-            . "버전 파일(app/version.json)은 반드시 마지막에 올리고, 관리자 화면에서 '파일 무결성 검사'로 확인하세요.\n"
-            . "app/config.php 는 절대 덮어쓰지 마세요. www/ 밖의 파일(VERSION.json 등)은 서버에 올리지 않습니다.\n\n";
+        $info .= "웹: files/www/ 안의 파일을 서버 문서 루트(예: /var/www/endgame-cg)의 같은 위치에 FileZilla로 덮어쓰세요.\n"
+            . "버전 파일(app/version.json)은 반드시 마지막에 올립니다. app/config.php 는 절대 덮어쓰지 마세요.\n"
+            . "www/ 밖의 파일(VERSION.json·안내 문서)은 서버에 올리지 않습니다.\n\n"
+            . "[SSH 명령] 올린 뒤 서버에서 실행 (웹서버계정: Ubuntu는 www-data 등, SERVER_KR.md 참고)\n"
+            . "cd 문서루트\n"
+            . ((int)($vNew['db_schema'] ?? 0) > (int)($vOld['db_schema'] ?? 0)
+                ? "sudo -u 웹서버계정 php app/cli.php migrate     # DB 구조 {$vOld['db_schema']} → {$vNew['db_schema']}\n" : '')
+            . "sudo -u 웹서버계정 php app/cli.php check       # [실패] 0건이면 완료 (관리자 화면의 '파일 무결성 검사'와 같음)\n\n";
     } else {
         $info .= "PC: 전체 배포 zip을 새 폴더에 푸는 방법을 권장합니다 (작업 데이터는 %LOCALAPPDATA%\\EndgameCG 에 그대로 있음).\n"
             . "이 패치로 덮어쓸 때는 프로그램을 종료한 뒤 아래 파일을 같은 위치에 복사하세요.\n\n";
@@ -194,10 +206,10 @@ function patch_build(string $oldZip, string $newZip, string $outZip): array
     if ($zip->open($outZip, ZipArchive::CREATE | ZipArchive::EXCL) !== true) {
         throw new RuntimeException("패치 zip을 만들 수 없습니다: $outZip");
     }
-    $zip->addFromString("$name/PATCH_INFO.txt", $info, ZipArchive::FL_ENC_UTF_8);
-    $zip->addFromString("$name/patch.json", json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n", ZipArchive::FL_ENC_UTF_8);
+    zip_add($zip, "$name/PATCH_INFO.txt", $info);
+    zip_add($zip, "$name/patch.json", json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n");
     foreach (array_merge($added, $changed) as $rel) {
-        $zip->addFromString("$name/files/$rel", $new[$rel], ZipArchive::FL_ENC_UTF_8);
+        zip_add($zip, "$name/files/$rel", $new[$rel]);
     }
     $zip->close();
     return ['zip' => $outZip, 'added' => $added, 'changed' => $changed, 'removed' => $removed];

@@ -12,8 +12,9 @@ return [
         'pass' => '',                 // DB 비밀번호
         // 'path' => __DIR__ . '/storage/cg.sqlite',
     ],
-    'session_path' => '',             // 로그아웃이 잦으면 웹 폴더 밖의 쓰기 가능한 폴더 지정
-    'secrets_dir' => '',              // Google 서비스 계정 키 보관 폴더. 가능하면 웹 폴더 밖 (예: /home/아이디/cg_secrets)
-                                      // 비워 두면 app/storage/secrets (웹 접근 차단)
+    // 아래 세 폴더는 웹 폴더 밖을 권장합니다 (가상서버 예: /var/lib/endgame-cg/…, SERVER_KR.md 참고)
+    'storage_dir' => '',              // 데이터·오류 기록. 비워 두면 app/storage (웹 접근 차단)
+    'session_path' => '',             // 로그인 세션. 비워 두면 PHP 기본값. 로그아웃이 잦으면 지정
+    'secrets_dir' => '',              // Google 서비스 계정 키 보관 폴더. 비워 두면 storage_dir/secrets
     'debug' => false,                 // true면 오류 내용을 화면에 표시 (점검할 때만)
 ];
