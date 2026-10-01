@@ -474,6 +474,12 @@
         return S.years.length
           ? '<select' + attr + '>' + options(withValue(S.years.map(function (y) { return [y, y + '년']; }), v, v + '년 (기록 없음)'), v || S.years[0]) + '</select>'
           : '<input type="text"' + attr + ' maxlength="4" placeholder="예: 2026" value="' + esc(v || '') + '">';
+      case 'map':
+      case 'map_any':
+        var maps = (p.type === 'map_any' ? [['', '고르지 않음']] : [['', '선택']]).concat((S.maps || []).map(function (m) {
+          return [m.id, m.name + (m.name !== m.id ? ' (' + m.id + ')' : '') + ' · ' + m.sets + '세트'];
+        }));
+        return '<select' + attr + '>' + options(withValue(maps, v, v + ' (목록에 없음)'), v || '') + '</select>';
       case 'predictor_slots':
         var list = [['', '—']].concat(S.predictors.map(function (x) { return [x.id, x.name]; }));
         (v || []).forEach(function (id) { list = withValue(list, id, id + ' (목록에 없음)'); });
@@ -583,15 +589,17 @@
         html = '<p><b>Google 시트' + (s.method === 'xlsx' ? ' (xlsx 파일)' : '') + '</b> · ' + esc(s.at) + '</p>'
           + '<p>세트 ' + c.games + ' · 끝장전 ' + c.matches + ' (통계 사용 ' + c.valid_matches + ') · 선수 ' + c.players
           + (c.nicknames ? ' (닉네임 ' + c.nicknames + '명)' : '')
-          + ' · 예측 ' + c.predictions + ' · 기간 ' + esc(c.first_date) + ' ~ ' + esc(c.last_date) + '</p>'
+          + ' · 예측 ' + c.predictions + (c.maps ? ' · 맵 ' + c.maps + (c.map_names ? ' (한글 ' + c.map_names + ')' : '') : '') + ' · 기간 ' + esc(c.first_date) + ' ~ ' + esc(c.last_date) + '</p>'
           + '<p>' + v(s.verified.sets, '세트 전적') + v(s.verified.matches, '끝장전 목록') + v(s.verified.predictions, '승자 예측')
-          + v(s.verified.double, '더블 찬스') + '</p>'
+          + v(s.verified.double, '더블 찬스') + v(s.verified.mission, '미션 지수') + v(s.verified.maps, '맵 상성')
+          + v(s.verified.mapsets, '선수 맵 전적') + '</p>'
           + s.unavailable.map(function (u) { return '<p class="notice err">' + esc(u) + '</p>'; }).join('');
       }
       $('dcSummary').innerHTML = html;
       $('dcMisCount').textContent = r.mismatches.length + '건';
       $('dcAnoCount').textContent = r.anomalies.length + '건';
-      var kinds = { sets: '세트 전적', matches: '끝장전', predictions: '승자 예측', double: '더블 찬스' };
+      var kinds = { sets: '세트 전적', matches: '끝장전', predictions: '승자 예측', double: '더블 찬스', mission: '미션 지수',
+        maps: '맵 상성', mapsets: '선수 맵 전적' };
       $('dcMismatch').innerHTML = r.mismatches.map(function (m) {
         return '<tr><td>' + esc(kinds[m.kind] || m.kind) + '</td><td>' + esc(m.who) + '</td><td>' + esc(m.item) + '</td><td>'
           + esc(m.sheet) + '</td><td>' + esc(m.calc) + '</td></tr>';

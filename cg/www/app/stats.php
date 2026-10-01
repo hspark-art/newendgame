@@ -310,3 +310,136 @@ function stats_online_h2h(array $games, string $a, string $b): array
     }
     return $r;
 }
+
+// ---------------------------------------------------------------- 매치 프리뷰·맵 (v0.5)
+
+/**
+ * 끝장전 전체 전적: 매치 승패(끝장전 통계용 경기) + 세트 합계(모든 세트).
+ * @return array{match_wins:int, match_losses:int, set_wins:int, set_losses:int}
+ */
+function stats_player_record(array $matches, array $games, string $pid): array
+{
+    $r = ['match_wins' => 0, 'match_losses' => 0, 'set_wins' => 0, 'set_losses' => 0];
+    foreach ($matches as $m) {
+        $x = match_for($m, $pid);
+        if ($x !== null) {
+            $x['my'] > $x['their'] ? $r['match_wins']++ : $r['match_losses']++;
+        }
+    }
+    foreach ($games as $g) {
+        if ($g['winner'] === $pid) {
+            $r['set_wins']++;
+        } elseif ($g['loser'] === $pid) {
+            $r['set_losses']++;
+        }
+    }
+    return $r;
+}
+
+/** 최근 limit경기 흐름 (오래된 순): 'W' / 'L' 문자열. 예: "LWWLW" */
+function stats_recent_form(array $matches, string $pid, int $limit): string
+{
+    $form = '';
+    foreach (matches_sorted($matches) as $m) {
+        $x = match_for($m, $pid);
+        if ($x !== null) {
+            $form .= $x['my'] > $x['their'] ? 'W' : 'L';
+        }
+    }
+    return substr($form, -$limit);
+}
+
+/**
+ * 선수의 맵 세트 전적. vsRace가 있으면 그 종족 상대 세트만.
+ * (2026-10-01 실제 시트로 확인: "MAP 선수별 전적" 탭 1,081행과 모두 일치)
+ * @return array{wins:int, losses:int}
+ */
+function stats_map_sets(array $games, string $pid, string $map, ?string $vsRace = null): array
+{
+    $r = ['wins' => 0, 'losses' => 0];
+    foreach ($games as $g) {
+        if ($g['map'] !== $map) {
+            continue;
+        }
+        if ($g['winner'] === $pid && ($vsRace === null || $g['lrace'] === $vsRace)) {
+            $r['wins']++;
+        } elseif ($g['loser'] === $pid && ($vsRace === null || $g['wrace'] === $vsRace)) {
+            $r['losses']++;
+        }
+    }
+    return $r;
+}
+
+/**
+ * 맵 종족 상성: 저그 vs 프로토스(ZP), 테란 vs 저그(TZ), 프로토스 vs 테란(PT)의 세트 승수.
+ * sets = 그 맵의 모든 세트(동족전 포함), first/last = 처음·마지막 사용일, days = 사용한 날 수.
+ * (2026-10-01 실제 시트로 확인: "MAP 통계" 탭 83개 맵 모두 일치)
+ * @return array{sets:int, mirror:int, first:?string, last:?string, days:int, ZP:array{0:int,1:int}, TZ:array{0:int,1:int}, PT:array{0:int,1:int}}
+ */
+function stats_map_matchup(array $games, string $map): array
+{
+    $r = ['sets' => 0, 'mirror' => 0, 'first' => null, 'last' => null, 'days' => 0, 'ZP' => [0, 0], 'TZ' => [0, 0], 'PT' => [0, 0]];
+    $days = [];
+    foreach ($games as $g) {
+        if ($g['map'] !== $map) {
+            continue;
+        }
+        $r['sets']++;
+        $days[$g['date']] = true;
+        $r['first'] = $r['first'] === null ? $g['date'] : min($r['first'], $g['date']);
+        $r['last'] = $r['last'] === null ? $g['date'] : max($r['last'], $g['date']);
+        if ($g['wrace'] === $g['lrace']) {
+            $r['mirror']++;
+            continue;
+        }
+        foreach (['ZP', 'TZ', 'PT'] as $k) {
+            if (str_contains($k, $g['wrace']) && str_contains($k, $g['lrace'])) {
+                $r[$k][$k[0] === $g['wrace'] ? 0 : 1]++;
+            }
+        }
+    }
+    $r['days'] = count($days);
+    return $r;
+}
+
+/** 맵 목록: 사용 세트 수 많은 순 (같으면 이름순). @return array<string, int> 맵 => 세트 수 */
+function stats_maps(array $games): array
+{
+    $n = [];
+    foreach ($games as $g) {
+        if ($g['map'] !== '') {
+            $n[$g['map']] = ($n[$g['map']] ?? 0) + 1;
+        }
+    }
+    uksort($n, static fn($a, $b) => [$n[$b], (string)$a] <=> [$n[$a], (string)$b]);
+    return $n;
+}
+
+/**
+ * 중계진 미션 성공 지수: 예측마다 걸린 갯수를 성공이면 더하고 실패면 뺀 합. 수익률 = 지수 ÷ 건 갯수 합계.
+ * (2026-10-01 실제 시트로 확인: 예측 탭 "지수·수익률" 열과 3명 모두 일치)
+ * 순위는 지수 → 적중 수. 갯수가 없는 기록은 이 순위에 쓰지 않는다 (sheet_dataset이 미리 막음).
+ * @return list<array{predictor:string, index:int, staked:int, roi:?int, correct:int, wrong:int, rank:int}> roi = 0.1% 단위
+ */
+function stats_mission_ranking(array $predictions, string $year): array
+{
+    $t = [];
+    foreach ($predictions as $p) {
+        if (substr($p['date'], 0, 4) !== $year || !isset($p['amount'])) {
+            continue;
+        }
+        $t[$p['predictor']] ??= ['predictor' => $p['predictor'], 'index' => 0, 'staked' => 0, 'correct' => 0, 'wrong' => 0];
+        $row = &$t[$p['predictor']];
+        $row['index'] += $p['correct'] ? $p['amount'] : -$p['amount'];
+        $row['staked'] += $p['amount'];
+        $p['correct'] ? $row['correct']++ : $row['wrong']++;
+        unset($row);
+    }
+    $rows = array_map(static function ($r) {
+        // 반올림(0에서 먼 쪽): -1.55% → -1.6%
+        $r['roi'] = $r['staked'] > 0 ? (int)round(1000 * $r['index'] / $r['staked']) : null;
+        return $r;
+    }, array_values($t));
+    usort($rows, static fn($x, $y) => [$y['index'], $y['correct'], $x['predictor']] <=> [$x['index'], $x['correct'], $y['predictor']]);
+    return stats_rank($rows, static fn($r) => $r['index']);
+}

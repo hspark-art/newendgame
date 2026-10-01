@@ -177,11 +177,12 @@ test('google: 서명한 JWT로 토큰 → 탭 목록 → 필요한 열만 batchG
         $r = data_refresh(op());
         assert_same(0, $r['changed']);
         assert_same(3, count($log), '토큰·탭 목록·batchGet 3번');
-        assert_same(['sets' => true, 'matches' => true, 'predictions' => true, 'double' => true],
-            panel_state(op())['data']['check']['verified'], '가져온 표로 4가지 대조 모두 가능');
+        assert_same(['sets' => true, 'matches' => true, 'predictions' => true, 'double' => true, 'mission' => true, 'maps' => true,
+            'mapsets' => true], panel_state(op())['data']['check']['verified'], '가져온 표로 7가지 대조 모두 가능');
         $batch = rawurldecode($log[2][1]);
         foreach (["'Results'!A:F", "'Results'!H:H", "'Players'!A:O", "'상대전적조회NEW'!A:I", "'중계진 예측 현황입력용'!A:Q",
-            "'상금 보정'!A:B", "'상금 보정'!E:E", "'선수별 통계'!B:B", "'선수별 통계'!M:N", "'닉네임'!A:B"] as $range) {
+            "'상금 보정'!A:B", "'상금 보정'!E:E", "'선수별 통계'!B:B", "'선수별 통계'!M:N", "'닉네임'!A:B", "'MAP 통계'!A:O",
+            "'MAP 선수별 전적'!A:G", "'맵 이름'!A:B"] as $range) {
             assert_true(str_contains($batch, $range), "요청 범위 $range");
         }
         assert_true(!str_contains($batch, "'Results'!G") && !str_contains($batch, '!C:') && !str_contains($batch, 'Global'),
@@ -189,7 +190,8 @@ test('google: 서명한 JWT로 토큰 → 탭 목록 → 필요한 열만 batchG
         assert_true(str_contains($batch, 'TESTsheetID_0123456789abc/values:batchGet'));
         $sum = panel_state(op())['data']['check'];
         assert_same(['games' => 40, 'matches' => 5], array_intersect_key($sum['counts'], ['games' => 1, 'matches' => 1]));
-        assert_same(['sets' => true, 'matches' => true, 'predictions' => true, 'double' => true], $sum['verified']);
+        assert_same(['sets' => true, 'matches' => true, 'predictions' => true, 'double' => true, 'mission' => true, 'maps' => true,
+            'mapsets' => true], $sum['verified']);
         assert_same('OK', source_status()['status']);
         assert_same('Google 시트', source_status()['label']);
         // 연결 테스트는 반영하지 않고 결과만

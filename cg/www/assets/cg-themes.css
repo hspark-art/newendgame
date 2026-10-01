@@ -29,6 +29,12 @@
 .cg-theme-play .c-rate { font-weight: 700; color: var(--c-sub); }
 .cg-theme-play .is-win { font-weight: 800; }
 
+.cg-theme-play { --c-on-accent: #ffffff; --bar-l: #5593ff; --bar-r: #dfe7f7; --bar-tl: #ffffff; --bar-tr: #2a3a5c;
+  --chip-l: #e3e9f5; --row-alt: #f2f6ff; }
+.cg-theme-play .cg-race { color: #2f6be6; }
+.cg-theme-play .mu-pct { text-shadow: none; }
+.cg-theme-play .cg-sumbar.mu-foot { border-top: 1px solid #d5e2fb; }
+
 /* ---------------------------------------------------------------- B. 나이트 블루 — 어두운 남색 반투명 + 파란 제목 + 노랑 강조 */
 .cg-theme-night {
   --c-title: #ffffff; --c-text: #ffffff; --c-nick: #9cbcff; --c-num: #ffffff; --c-sub: #8fb6ff; --c-rank: #8fb6ff;
@@ -49,6 +55,10 @@
 .cg-theme-night .cg-bars .cg-bar.is-hl { background: rgba(251, 188, 4, .14); border-left-color: #fbbc04; }
 .cg-theme-night .cg-bar.is-hl .c-rank { color: var(--c-accent); }
 .cg-theme-night .c-rank { font-weight: 700; }
+
+.cg-theme-night { --c-on-accent: #0e1e42; --bar-l: #5593ff; --bar-r: rgba(255, 255, 255, .16); --chip-l: rgba(255, 255, 255, .14);
+  --row-alt: rgba(85, 147, 255, .12); }
+.cg-theme-night .cg-sumbar.mu-foot { border-top: 1px solid rgba(85, 147, 255, .4); }
 
 /* ---------------------------------------------------------------- C. 블루 그라데이션 — ASL형: 어두운 제목 + 1위 파란 그라데이션 + 흰 줄 */
 .cg-theme-pop {
@@ -73,6 +83,11 @@
 .cg-theme-pop .c-rank { font-weight: 800; }
 .cg-theme-pop .c-rate { font-weight: 700; }
 .cg-theme-pop .is-win { font-weight: 800; }
+
+.cg-theme-pop { --c-on-accent: #ffffff; --bar-l: #2f6be6; --bar-r: #d5dcea; --bar-tl: #ffffff; --bar-tr: #26324a;
+  --chip-l: #e4e8f1; --row-alt: #f4f6fb; }
+.cg-theme-pop .mu-pct { text-shadow: none; }
+.cg-theme-pop .cg-sumbar.mu-foot { border-top: 1px solid #dfe5f0; }
 
 /* ---------------------------------------------------------------- D. 구글 4색 — 흰 줄 + 왼쪽 4색 막대 + 차콜 제목 */
 .cg-theme-four {
@@ -103,6 +118,10 @@
 .cg-theme-four .c-rate { font-weight: 700; color: var(--c-sub); }
 .cg-theme-four .is-win { font-weight: 800; }
 
+.cg-theme-four { --c-on-accent: #ffffff; --bar-l: #4285f4; --bar-r: #ea4335; --chip-l: #e8eaed; --row-alt: #f8f9fa; }
+.cg-theme-four .mu-pct { text-shadow: none; }
+.cg-theme-four .cg-sumbar.mu-foot { border-top: 1px solid #e3e5e8; }
+
 /* ---------------------------------------------------------------- E. 스카이 볼드 — 남색 제목 + 밝은 파란 막대 + 1위 노랑 */
 .cg-theme-sky {
   --c-title: #ffffff; --c-text: #ffffff; --c-nick: #e3edff; --c-num: #ffffff; --c-sub: #9cc2ff; --c-rank: #ffffff;
@@ -123,3 +142,8 @@
 .cg-theme-sky .cg-bar.is-hl { --c-nick: #163f9e; --c-sub: #163f9e; }
 .cg-theme-sky .cg-bar.is-hl > span { text-shadow: none; }
 .cg-theme-sky .c-rank { font-weight: 700; }
+.cg-theme-sky { --c-on-accent: #0b2a6f; --bar-l: #ffd54a; --bar-r: #3f7ef5; --bar-tl: #0b2a6f; --bar-tr: #ffffff;
+  --chip-l: rgba(255, 255, 255, .2); --row-alt: rgba(85, 147, 255, .25); }
+.cg-theme-sky .mu-pct.mu-l { text-shadow: none; }
+.cg-theme-sky .cg-race { color: #e6efff; }
+.cg-theme-sky .cg-sumbar.mu-foot { color: #e6efff; border-top: 1px solid #3c76e6; }

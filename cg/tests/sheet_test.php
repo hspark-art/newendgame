@@ -86,11 +86,12 @@ function fx_tables(?callable $tamper = null): array
         ['날짜', '선수1', '선수2', '세트', '맵', '갯수', '중계진', '선택', '성공/실패', '', '순위', '이름', '전체', '승', '승률', '지수', '수익률']];
     $recs = [['김중계 캐스터', '성공'], ['김중계 캐스터', '성공'], ['이해설 해설', '실패'], ['김중계 캐스터', '실패'],
         ['이해설 해설', '성공'], ['김중계 캐스터', '성공'], ['이해설 해설', '실패'], ['김중계 캐스터', '']];
-    $rank = [[1, '김중계', 4, 3], [2, '이해설', 3, 1]];
+    // 지수 = 성공 갯수 − 실패 갯수 (갯수 100씩), 수익률 = 지수 ÷ 건 갯수 합계
+    $rank = [[1, '김중계', 4, 3, 0.75, 200, 0.5], [2, '이해설', 3, 1, 1 / 3, -100, -1 / 3]];
     foreach ($recs as $i => [$who, $res]) {
         $row = ['2026-01-' . sprintf('%02d', 5 + $i), '가선수(Z)', '나선수(P)', 'SET ' . ($i + 1), 'Map', 100, $who, '가선수(Z)', $res, ''];
         if (isset($rank[$i])) {
-            $row = array_merge($row, $rank[$i], ['75%', '+1', '+1%']);
+            $row = array_merge($row, $rank[$i]);
         }
         $pred[] = $row;
     }
@@ -99,8 +100,37 @@ function fx_tables(?callable $tamper = null): array
     $pred[] = array_merge(array_fill(0, 11, ''), [1, 19, 0.4211]);
     // 닉네임 탭 (선택): 나선수만 입력, 다선수는 닉네임 칸이 비어 있음
     $nicks = [['선수명', '닉네임'], ['나선수', 'Na'], ['다선수', '']];
+    // MAP 통계·MAP 선수별 전적 (시트 자동 집계 모양): Results에서 센다
+    $ms = $mp = [];
+    foreach (array_slice($results, 1) as [$w, $wr, $l, $lr, $map, $d]) {
+        $ms[$map] ??= ['n' => 0, 'ZP' => [0, 0], 'TZ' => [0, 0], 'PT' => [0, 0], 'first' => $d, 'last' => $d];
+        $ms[$map]['n']++;
+        $ms[$map]['first'] = min($ms[$map]['first'], $d);
+        $ms[$map]['last'] = max($ms[$map]['last'], $d);
+        foreach (['ZP', 'TZ', 'PT'] as $k) {
+            if ($wr !== $lr && str_contains($k, $wr) && str_contains($k, $lr)) {
+                $ms[$map][$k][$k[0] === $wr ? 0 : 1]++;
+            }
+        }
+        $mp[$w][$map][0] = ($mp[$w][$map][0] ?? 0) + 1;
+        $mp[$l][$map][1] = ($mp[$l][$map][1] ?? 0) + 1;
+    }
+    $mapStats = [['🗺  맵별 통계  |  Results 시트 자동 집계'], ['⚙  직접 수정하지 마세요.'], ['', '', '', '⚔ 저그 vs 프로토스'],
+        ['#', '맵 이름', '총 세트', 'Z 승', 'P 승', 'Z 승률', 'T 승', 'Z 승', 'T 승률', 'P 승', 'T 승', 'P 승률', '최초 사용일', '최종 사용일', '사용 경기일수']];
+    $n = 0;
+    foreach ($ms as $map => $x) {
+        $mapStats[] = [++$n, $map, $x['n'], ...$x['ZP'], 0.5, ...$x['TZ'], 0.5, ...$x['PT'], 0.5, $x['first'], $x['last'], 1];
+    }
+    $mapPlayers = [['🎯  선수 × 맵 전적'], ['선수명', '종족', '맵 이름', '세트', '승', '패', '승률']];
+    foreach ($mp as $p => $maps) {
+        foreach ($maps as $map => $wl) {
+            $mapPlayers[] = [$p, $race[$p], $map, ($wl[0] ?? 0) + ($wl[1] ?? 0), $wl[0] ?? 0, $wl[1] ?? 0, 0.5];
+        }
+    }
+    $mapNames = [['영문', '한글'], ['Map 1', '맵 하나']];
     $t = ['results' => $results, 'players' => $players, 'matches' => $matchList, 'predictions' => $pred,
-        'adjust' => $adjust, 'stats' => $stats, 'nicks' => $nicks];
+        'adjust' => $adjust, 'stats' => $stats, 'nicks' => $nicks, 'mapstats' => $mapStats, 'mapplayers' => $mapPlayers,
+        'mapnames' => $mapNames];
     if ($tamper) {
         $tamper($t);
     }

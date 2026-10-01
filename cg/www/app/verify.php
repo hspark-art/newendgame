@@ -95,10 +95,58 @@ function verify_predictor(array $ds, string $id, array $fields): array
     return [];
 }
 
+/** 미션 성공 지수·수익률 (예측 탭 지수표) */
+function verify_mission(array $ds, string $id, array $fields): array
+{
+    $v = $ds['verify'] ?? null;
+    if ($v === null) {
+        return [];
+    }
+    if (!($v['mission']['available'] ?? false)) {
+        return [verify_issue($fields, '미션 지수를 시트 순위표(지수·수익률)와 대조할 수 없습니다')];
+    }
+    if (($v['mission']['predictors'][$id] ?? false) !== true) {
+        return [verify_issue($fields, "$id 미션 지수가 시트 순위표와 다릅니다")];
+    }
+    return [];
+}
+
+/** 맵 종족 상성·사용 기간 (MAP 통계 탭) */
+function verify_map(array $ds, string $map, array $fields): array
+{
+    $v = $ds['verify'] ?? null;
+    if ($v === null) {
+        return [];
+    }
+    if (!($v['maps']['available'] ?? false)) {
+        return [verify_issue($fields, '맵 상성을 시트 집계(MAP 통계 탭)와 대조할 수 없습니다')];
+    }
+    if (isset($v['maps']['bad'][$map])) {
+        return [verify_issue($fields, "$map 맵 상성이 시트 집계와 다릅니다")];
+    }
+    return [];
+}
+
+/** 선수의 맵 세트 전적 (MAP 선수별 전적 탭). 기록이 없는 맵(0승 0패)도 탭을 대조할 수 있으면 확인된 것으로 본다 */
+function verify_map_sets(array $ds, string $pid, string $map, array $fields): array
+{
+    $v = $ds['verify'] ?? null;
+    if ($v === null) {
+        return [];
+    }
+    if (!($v['mapsets']['available'] ?? false)) {
+        return [verify_issue($fields, '선수 맵 전적을 시트 집계(MAP 선수별 전적 탭)와 대조할 수 없습니다')];
+    }
+    if (isset($v['mapsets']['bad']["$pid|$map"])) {
+        return [verify_issue($fields, pname($ds['players'], $pid) . " $map 맵 전적이 시트 집계와 다릅니다")];
+    }
+    return [];
+}
+
 /**
  * 순위형 CG: 순위는 후보 전체로 정해지므로 후보 중 하나라도 확실하지 않으면 행 전체(순위·이름·기록)를 막는다.
  * 시트 집계에만 있는 선수(Results에 기록 없음)가 있어도 모집단이 확실하지 않은 것으로 본다.
- * @param string $kind sets | matches | predictions
+ * @param string $kind sets | matches | predictions | mission
  */
 function verify_population(array $ds, string $kind, array $ids, array $fields): array
 {
@@ -106,7 +154,7 @@ function verify_population(array $ds, string $kind, array $ids, array $fields): 
     if ($v === null) {
         return [];
     }
-    if (!$v[$kind]['available']) {
+    if (!($v[$kind]['available'] ?? false)) {
         return [verify_issue($fields, '순위를 시트 집계와 대조할 수 없습니다')];
     }
     $bad = [];
@@ -115,6 +163,7 @@ function verify_population(array $ds, string $kind, array $ids, array $fields): 
             'sets' => ($v['sets']['players'][$id]['all'] ?? false) === true,
             'matches' => ($v['matches']['players'][$id] ?? false) === true,
             'predictions' => ($v['predictions']['predictors'][$id] ?? false) === true,
+            'mission' => ($v['mission']['predictors'][$id] ?? false) === true,
         };
         if (!$ok) {
             $bad[] = (string)$id;

@@ -33,6 +33,11 @@
   --c-accent: var(--cg-accent);/* 승자·강조 */
   --c-plus: #ff4d4d;           /* + 값 (지수·수익률) */
   --c-minus: #4d9bff;          /* − 값 */
+  --c-on-accent: #111111;      /* 강조색 칩(최근 경기 W) 위 글자 */
+  /* 막대·칩 바탕 (맵 상성 막대, 최근 경기 L 칩, 프리뷰 줄 무늬) — 테마가 바꾼다 */
+  --bar-l: #3d7bf2; --bar-r: #59606e; --bar-tl: #ffffff; --bar-tr: #ffffff;
+  --chip-l: rgba(255, 255, 255, .18);
+  --row-alt: rgba(255, 255, 255, .05);
 }
 
 .cg-box {
@@ -140,6 +145,67 @@
 /* + / − 값 (미션 지수·수익률) */
 .is-plus { color: var(--c-plus) !important; }
 .is-minus { color: var(--c-minus) !important; }
+
+/* 선수 이름 옆 종족·닉네임 (매치 프리뷰·맵 전적 머리) */
+.cg-race { display: inline-block; font-family: var(--cg-font-num); font-size: .6em; font-weight: 700; line-height: 1; padding: .18em .36em;
+  border: 1px solid currentColor; border-radius: 4px; color: var(--c-sub); vertical-align: .2em; margin-left: .25em; }
+.cg-nick { font-size: .6em; font-weight: 400; color: var(--c-nick); }
+
+/* 미션 성공 지수: 순위·이름·지수(개)·수익률 (+ 빨강, − 파랑) */
+.c-index { width: calc(176px * var(--k-w)); flex: none; text-align: right; font-family: var(--cg-font-num); color: var(--c-num);
+  font-size: calc(28px * var(--k-num)); font-weight: 700; letter-spacing: -.5px; }
+.c-roi { width: calc(112px * var(--k-w)); flex: none; text-align: right; font-family: var(--cg-font-num); color: var(--c-num);
+  font-size: calc(28px * var(--k-num)); font-weight: 700; }
+
+/* 매치 프리뷰: [A 값] [가운데 항목] [B 값] 줄. 줄 수만큼 높이가 늘어난다 (아래 기준이라 위로 커짐) */
+.cg-preview { width: calc(680px * var(--k-w)); height: auto; }
+.cg-preview .cg-head { height: calc(50px * var(--k-h)); }
+.cg-preview .cg-head .cg-cell { font-size: calc(28px * var(--k-name)); padding: 0 14px; }
+.pv-rows { flex: none; display: flex; flex-direction: column; padding: 4px 0 8px; }
+.pv-row { display: flex; align-items: center; height: calc(42px * var(--k-h)); }
+.pv-row:nth-child(even) { background: var(--row-alt); }
+.pv-side { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; padding: 0 18px; font-family: var(--cg-font-num); color: var(--c-num);
+  font-size: calc(26px * var(--k-num)); text-shadow: 0 2px 2px rgba(0, 0, 0, .75); }
+.pv-side.pv-a { text-align: right; }
+.pv-side.pv-b { text-align: left; }
+.pv-side b { font-weight: 700; }
+.pv-side small { font-size: .7em; color: var(--c-sub); margin-left: .35em; }
+.pv-side.is-lead b { color: var(--c-accent); }
+.pv-label { width: calc(150px * var(--k-w)); flex: none; text-align: center; overflow: hidden; white-space: nowrap;
+  font-family: var(--cg-font-name); font-size: calc(19px * var(--k-name)); font-weight: 600; color: var(--c-sub); }
+.pv-label.is-note { color: var(--c-accent); font-size: calc(22px * var(--k-name)); font-weight: 700; }
+.pv-form { display: inline-flex; gap: 4px; vertical-align: middle; text-shadow: none; }
+.pv-form i { font-style: normal; width: 1.3em; height: 1.3em; line-height: 1.3em; text-align: center; border-radius: 4px;
+  font-size: calc(19px * var(--k-num)); font-weight: 800; }
+.pv-form .is-w { background: var(--c-accent); color: var(--c-on-accent); }
+.pv-form .is-l { background: var(--chip-l); color: var(--c-sub); }
+
+/* 맵 전적: 상대 종족 승률과 같은 모양 + 아래 줄(그 맵 상대 종족전) */
+.cg-map-record .cg-record { font-size: calc(40px * var(--k-num)); }
+.cg-map-record .cg-rate { font-size: calc(22px * var(--k-num)); line-height: 1.2; }
+
+/* 맵 종족 상성: Z 27 [57.4% ▬▬▬|▬▬ 42.6%] 20 P × 3줄 + 아래 총 세트·사용 기간 */
+.mu-rows { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: calc(6px * var(--k-h)); padding: 6px 18px; }
+.mu-row { display: flex; align-items: center; gap: 10px; height: calc(38px * var(--k-h)); }
+.mu-race { width: calc(30px * var(--k-w)); flex: none; text-align: center; font-family: var(--cg-font-title); color: var(--c-text);
+  font-size: calc(26px * var(--k-name)); font-weight: 800; text-shadow: 0 2px 2px rgba(0, 0, 0, .6); }
+.mu-win { width: calc(48px * var(--k-w)); flex: none; font-family: var(--cg-font-num); color: var(--c-num); font-size: calc(26px * var(--k-num));
+  font-weight: 700; text-shadow: 0 2px 2px rgba(0, 0, 0, .6); }
+.mu-win.mu-l { text-align: right; }
+.mu-win.mu-r { text-align: left; }
+.mu-win.is-lead { color: var(--c-accent); }
+.mu-bar { position: relative; flex: 1; min-width: 0; height: calc(28px * var(--k-h)); border-radius: 4px; overflow: hidden; background: var(--bar-r); }
+.mu-bar svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+.mu-fill-l { fill: var(--bar-l); }
+.mu-fill-r { fill: var(--bar-r); }
+.mu-bar.is-empty .mu-fill-l { fill: transparent; }
+.mu-pct { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; font-family: var(--cg-font-num);
+  font-size: calc(17px * var(--k-num)); font-weight: 700; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
+.mu-pct.mu-l { left: 8px; color: var(--bar-tl); }
+.mu-pct.mu-r { right: 8px; color: var(--bar-tr); }
+.mu-bar.is-empty .mu-pct.mu-r { right: auto; left: 50%; transform: translateX(-50%); }
+.cg-sumbar.mu-foot { height: calc(34px * var(--k-h)); font-size: calc(18px * var(--k-num)); font-weight: 500; color: var(--c-sub);
+  border-bottom: 0; border-top: 2px solid #0c0e12; }
 
 /* 5줄: 한 줄 높이는 4줄일 때와 같게 두고 박스가 위로 한 줄만큼 커진다 (오른쪽 아래 기준 배치라 아래 위치는 그대로).
    이전에는 높이 250px 안에 5줄을 넣느라 줄이 낮아져 글자 아래가 잘렸다 */

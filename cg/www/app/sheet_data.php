@@ -14,6 +14,9 @@ declare(strict_types=1);
  *   상대전적조회NEW 탭 → 선수별 끝장전 목록 (날짜·상대·세트 승·패)
  *   예측 탭 순위표     → 중계진별 전체·적중 수
  *   선수별 통계 탭     → 더블 찬스 성공·시도 (상금 보정 탭의 보정값을 반영해 계산한 값과 비교)
+ *   예측 탭 지수표     → 중계진별 미션 성공 지수·수익률
+ *   MAP 통계 탭        → 맵별 세트 수·종족 상성·사용 기간
+ *   MAP 선수별 전적 탭 → 선수×맵 세트 승·패
  * 검증 탭을 찾지 못하거나 값이 다르면 해당 수치를 쓰는 CG 필드를 송출 차단 대상으로 표시한다.
  */
 
@@ -25,6 +28,9 @@ const SHEET_TABS_DEFAULT = [
     'adjust' => '상금 보정',      // 더블 찬스 횟수 보정 (날짜·선수명·더블 찬스 횟수만 읽음)
     'stats' => '선수별 통계',     // 더블 찬스 검증 (선수명·더블 성공 횟수·더블 시도만 읽음)
     'nicks' => '닉네임',          // 선택: A열 선수명, B열 닉네임 (프로그램에서 입력한 닉네임이 우선)
+    'mapstats' => 'MAP 통계',     // 맵 종족 상성 검증 (시트 자동 집계)
+    'mapplayers' => 'MAP 선수별 전적', // 선수 맵 전적 검증 (시트 자동 집계)
+    'mapnames' => '맵 이름',      // 선택: A열 영문(Results 표기), B열 한글 (프로그램에서 입력한 이름이 우선)
 ];
 
 /** 예측 탭의 중계진 표기 "박상현 캐스터"에서 떼어 낼 직책 */
@@ -90,6 +96,21 @@ function int_norm(mixed $v): ?int
     return null;
 }
 
+/** 부호 있는 정수 (미션 지수 등). 그 밖은 null */
+function sint_norm(mixed $v): ?int
+{
+    if (is_int($v)) {
+        return $v;
+    }
+    if (is_float($v) && floor($v) == $v && abs($v) < 1e9) {
+        return (int)$v;
+    }
+    if (is_string($v) && preg_match('/^[+-]?\d{1,9}$/D', str_replace(',', '', trim($v)))) {
+        return (int)str_replace(',', '', trim($v));
+    }
+    return null;
+}
+
 /** 머리글 행 찾기: $expect = [열 번호 => 기대 글자(공백 무시)]. 처음 $scan행 안에서 찾는다 */
 function table_header_row(array $rows, array $expect, int $scan = 15): ?int
 {
@@ -134,7 +155,9 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
 
     $check = ['method' => $method, 'anomalies' => $anomalies, 'mismatches' => [], 'unavailable' => [], 'lint' => $lint];
     $verify = ['sets' => ['available' => false, 'players' => []], 'matches' => ['available' => false, 'players' => []],
-        'predictions' => ['available' => false, 'predictors' => []], 'double' => ['available' => false, 'players' => []]];
+        'predictions' => ['available' => false, 'predictors' => []], 'double' => ['available' => false, 'players' => []],
+        'mission' => ['available' => false, 'predictors' => []], 'maps' => ['available' => false, 'bad' => []],
+        'mapsets' => ['available' => false, 'bad' => []]];
 
     // 선수: Results에 나온 이름. 주 종족은 Players 탭의 Race, 없으면 가장 많이 쓴 종족(동률이면 정하지 않음)
     $sheetPlayers = isset($tables['players']) ? sheet_players_table($tables['players']) : null;
@@ -277,6 +300,113 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         }
     }
 
+    // 미션 성공 지수 (예측 탭 F열 갯수 + 순위표 지수·수익률). 탭에 문제가 있으면 미션 지수 CG만 쓸 수 없다.
+    if ($pred !== null && $pred['error'] === null) {
+        if ($pred['amount_error'] !== null) {
+            $check['unavailable'][] = '미션 지수 사용 불가: ' . $pred['amount_error'];
+        } elseif ($pred['mission'] === null) {
+            $check['unavailable'][] = '미션 지수 검증 불가: ' . $pred['mission_error'];
+        } else {
+            $verify['mission']['available'] = true;
+            $calc = [];
+            foreach ($predictions as $r) {
+                $calc[$r['predictor']] ??= [0, 0];
+                $calc[$r['predictor']][0] += $r['correct'] ? $r['amount'] : -$r['amount'];
+                $calc[$r['predictor']][1] += $r['amount'];
+            }
+            foreach ($calc as $id => [$index, $staked]) {
+                $id = (string)$id;
+                $s = $pred['mission'][$id] ?? null;
+                $ok = $s !== null && $s[0] === $index && $staked > 0 && abs($s[1] - $index / $staked) < 1e-6;
+                $verify['mission']['predictors'][$id] = $ok;
+                if (!$ok) {
+                    $check['mismatches'][] = ['kind' => 'mission', 'who' => $id, 'item' => '미션 지수·수익률',
+                        'sheet' => $s === null ? '순위표에 없음' : sprintf('%+d · %.1f%%', $s[0], $s[1] * 100),
+                        'calc' => sprintf('%+d · %s', $index, $staked > 0 ? sprintf('%.1f%%', 100 * $index / $staked) : '-')];
+                }
+            }
+            $verify['mission']['extra'] = [];
+            foreach ($pred['mission'] as $id => [$index]) {
+                $id = (string)$id;
+                if (!isset($calc[$id]) && $index !== 0) {
+                    $verify['mission']['extra'][] = $id;
+                    $check['mismatches'][] = ['kind' => 'mission', 'who' => $id, 'item' => '미션 지수·수익률',
+                        'sheet' => sprintf('%+d', $index), 'calc' => '예측 기록 없음'];
+                }
+            }
+        }
+    }
+
+    // 맵 (MAP 통계·MAP 선수별 전적 탭 = 시트가 Results에서 자동 집계한 표)
+    $mapStats = isset($tables['mapstats']) ? sheet_map_stats_table($tables['mapstats']) : null;
+    if ($mapStats === null || $mapStats['error'] !== null) {
+        $check['unavailable'][] = '맵 종족 상성 검증 불가: ' . ($mapStats['error'] ?? 'MAP 통계 탭 없음');
+    } else {
+        $verify['maps']['available'] = true;
+        foreach (array_keys(stats_maps($games)) as $map) {
+            $map = (string)$map;
+            $c = stats_map_matchup($games, $map);
+            $calc = ['sets' => $c['sets'], 'ZP' => $c['ZP'], 'TZ' => $c['TZ'], 'PT' => $c['PT'], 'first' => $c['first'], 'last' => $c['last']];
+            $s = $mapStats['rows'][$map] ?? null;
+            if ($s !== $calc) {
+                $verify['maps']['bad'][$map] = true;
+                $fmt = static fn(array $x) => sprintf('%d세트 ZvP %d:%d TvZ %d:%d PvT %d:%d', $x['sets'], ...$x['ZP'], ...$x['TZ'], ...$x['PT']);
+                $check['mismatches'][] = ['kind' => 'maps', 'who' => $map, 'item' => '맵 종족 상성',
+                    'sheet' => $s === null ? 'MAP 통계에 없음' : $fmt($s) . " ({$s['first']}~{$s['last']})",
+                    'calc' => $fmt($calc) . " ({$calc['first']}~{$calc['last']})"];
+            }
+        }
+        foreach (array_diff_key($mapStats['rows'], stats_maps($games)) as $map => $s) {
+            if ($s['sets'] > 0) {
+                $verify['maps']['bad'][(string)$map] = true;
+                $check['mismatches'][] = ['kind' => 'maps', 'who' => (string)$map, 'item' => '맵 종족 상성',
+                    'sheet' => $s['sets'] . '세트', 'calc' => 'Results에 기록 없음'];
+            }
+        }
+    }
+    $mapPlayers = isset($tables['mapplayers']) ? sheet_map_players_table($tables['mapplayers']) : null;
+    if ($mapPlayers === null || $mapPlayers['error'] !== null) {
+        $check['unavailable'][] = '선수 맵 전적 검증 불가: ' . ($mapPlayers['error'] ?? 'MAP 선수별 전적 탭 없음');
+    } else {
+        $verify['mapsets']['available'] = true;
+        $calc = [];
+        foreach ($games as $g) {
+            $calc[$g['winner']][$g['map']][0] = ($calc[$g['winner']][$g['map']][0] ?? 0) + 1;
+            $calc[$g['loser']][$g['map']][1] = ($calc[$g['loser']][$g['map']][1] ?? 0) + 1;
+        }
+        $pairs = [];
+        foreach ([$calc, $mapPlayers['rows']] as $t) {
+            foreach ($t as $pid => $maps) {
+                foreach (array_keys($maps) as $map) {
+                    $pairs["$pid|$map"] = [(string)$pid, (string)$map];
+                }
+            }
+        }
+        foreach ($pairs as $key => [$pid, $map]) {
+            $c = [$calc[$pid][$map][0] ?? 0, $calc[$pid][$map][1] ?? 0];
+            $s = $mapPlayers['rows'][$pid][$map] ?? null;
+            if ($s !== $c) {
+                $verify['mapsets']['bad'][$key] = true;
+                $check['mismatches'][] = ['kind' => 'mapsets', 'who' => $pid, 'item' => "$map 맵 전적",
+                    'sheet' => $s === null ? 'MAP 선수별 전적에 없음' : "{$s[0]}승 {$s[1]}패", 'calc' => "{$c[0]}승 {$c[1]}패"];
+            }
+        }
+    }
+    // 맵 한글 이름 (선택 탭). 프로그램에서 입력한 이름이 있으면 그쪽이 우선한다 (data.php)
+    $mapNames = [];
+    if (isset($tables['mapnames'])) {
+        $mn = sheet_map_names_table($tables['mapnames']);
+        array_push($check['lint'], ...$mn['lint']);
+        $used = stats_maps($games);
+        foreach ($mn['rows'] as $en => [$row, $ko]) {
+            if (isset($used[$en])) {
+                $mapNames[(string)$en] = $ko;
+            } else {
+                $check['lint'][] = ['row' => $row, 'text' => "맵 이름 {$row}행 '$en'은(는) Results에 없는 맵 이름입니다. 영문 표기를 확인하세요."];
+            }
+        }
+    }
+
     // 더블 찬스: 승 = 더블 찬스 세트(H열 금액 > 0)의 A열 승자 수 + 상금 보정 탭의 보정값, 패 = 경기당 2회 − 승
     // (2026-10-01 실제 시트로 확인: 시트 공식 집계 "선수별 통계"의 더블 성공 횟수·시도와 31명 모두 일치)
     $double = [];
@@ -309,7 +439,7 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
 
     $check['anomalies_all'] = $check['anomalies'];
     $check['counts'] = ['games' => count($games), 'matches' => count($matches), 'players' => count($players),
-        'predictions' => count($predictions), 'nicknames' => $nickCount,
+        'predictions' => count($predictions), 'nicknames' => $nickCount, 'maps' => count(stats_maps($games)), 'map_names' => count($mapNames),
         'first_date' => $games ? min(array_column($games, 'date')) : null, 'last_date' => $games ? max(array_column($games, 'date')) : null];
 
     return dataset_finalize([
@@ -324,6 +454,7 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         'online' => [],
         'online_available' => false,  // 온라인 기록은 시트에 없음 (eloboard 연동 전까지 수동 입력)
         'double_chance' => $double,   // 선수 => {wins, losses}
+        'map_names' => $mapNames,     // 영문 => 한글 (맵 이름 탭)
         'verify' => $verify,
         'check' => $check,
     ], []);
@@ -435,6 +566,97 @@ function sheet_nick_table(array $rows): array
             $lint[] = ['row' => $n, 'text' => "닉네임 {$n}행 '$name'이(가) 위({$out[$name][0]}행)에 이미 있습니다. 한 줄만 남기세요."];
         } else {
             $out[$name] = [$n, $nick];
+        }
+    }
+    return ['rows' => $out, 'lint' => $lint];
+}
+
+/**
+ * MAP 통계 탭 (시트 자동 집계): #, 맵 이름, 총 세트, [Z 승, P 승, Z 승률], [T 승, Z 승, T 승률], [P 승, T 승, P 승률],
+ * 최초 사용일, 최종 사용일 — 승률 열은 읽지 않는다 (승 수로 다시 계산).
+ * @return array{error:?string, rows:array<string, array>} 맵 => {sets, ZP:[Z,P], TZ:[T,Z], PT:[P,T], first, last}
+ */
+function sheet_map_stats_table(array $rows): array
+{
+    $h = table_header_row($rows, [1 => '맵 이름', 2 => '총 세트', 3 => 'Z 승', 4 => 'P 승', 6 => 'T 승', 7 => 'Z 승', 9 => 'P 승',
+        10 => 'T 승', 12 => '최초 사용일', 13 => '최종 사용일']);
+    if ($h === null) {
+        return ['error' => 'MAP 통계 탭의 머리글(맵 이름, 총 세트, Z 승 … 최종 사용일)을 찾을 수 없음', 'rows' => []];
+    }
+    $out = [];
+    foreach ($rows as $i => $r) {
+        $map = cell_str($r[1] ?? '');
+        if ($i <= $h || $map === '') {
+            continue;
+        }
+        $n = array_map(static fn($c) => int_norm($r[$c] ?? null), [2, 3, 4, 6, 7, 9, 10]);
+        $first = date_norm($r[12] ?? null, true);
+        $last = date_norm($r[13] ?? null, true);
+        if (in_array(null, $n, true) || $first === null || $last === null || isset($out[$map])) {
+            return ['error' => 'MAP 통계 ' . ($i + 1) . '행을 읽을 수 없음', 'rows' => []];
+        }
+        $out[$map] = ['sets' => $n[0], 'ZP' => [$n[1], $n[2]], 'TZ' => [$n[3], $n[4]], 'PT' => [$n[5], $n[6]], 'first' => $first, 'last' => $last];
+    }
+    return ['error' => $out ? null : 'MAP 통계 탭에 맵이 없음', 'rows' => $out];
+}
+
+/**
+ * MAP 선수별 전적 탭 (시트 자동 집계): 선수명, 종족, 맵 이름, 세트, 승, 패, 승률.
+ * @return array{error:?string, rows:array<string, array<string, array{0:int,1:int}>>} 선수 => 맵 => [승, 패]
+ */
+function sheet_map_players_table(array $rows): array
+{
+    $h = table_header_row($rows, [0 => '선수명', 2 => '맵 이름', 3 => '세트', 4 => '승', 5 => '패']);
+    if ($h === null) {
+        return ['error' => 'MAP 선수별 전적 탭의 머리글(선수명, 종족, 맵 이름, 세트, 승, 패)을 찾을 수 없음', 'rows' => []];
+    }
+    $out = [];
+    foreach ($rows as $i => $r) {
+        if ($i <= $h || row_blank($r)) {
+            continue;
+        }
+        $p = name_norm($r[0] ?? '');
+        $map = cell_str($r[2] ?? '');
+        $w = int_norm($r[4] ?? null);
+        $l = int_norm($r[5] ?? null);
+        if ($p === null || $map === '' || $w === null || $l === null || isset($out[$p][$map])) {
+            return ['error' => 'MAP 선수별 전적 ' . ($i + 1) . '행을 읽을 수 없음', 'rows' => []];
+        }
+        $out[$p][$map] = [$w, $l];
+    }
+    return ['error' => $out ? null : 'MAP 선수별 전적 탭에 기록이 없음', 'rows' => $out];
+}
+
+/**
+ * 맵 이름 탭 (선택): A열 영문(Results의 맵 표기), B열 한글. 한글이 빈 행은 건너뛴다.
+ * 읽을 수 없는 행은 건너뛰고 점검 목록(lint)에 알린다 — 맵 이름 때문에 다른 데이터를 막지 않는다.
+ * @return array{rows:array<string, array{0:int, 1:string}>, lint:list<array>} 영문 => [시트 행 번호, 한글]
+ */
+function sheet_map_names_table(array $rows): array
+{
+    $h = table_header_row($rows, [0 => '영문', 1 => '한글']);
+    if ($h === null) {
+        return ['rows' => [], 'lint' => [['row' => 1, 'text' => '맵 이름 탭의 머리글(A열 "영문", B열 "한글")을 찾을 수 없습니다.']]];
+    }
+    $out = $lint = [];
+    foreach ($rows as $i => $r) {
+        if ($i <= $h || row_blank($r)) {
+            continue;
+        }
+        $n = $i + 1;
+        $en = cell_str($r[0] ?? '');
+        $ko = trim((string)preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', cell_str($r[1] ?? '')));
+        if ($ko === '') {
+            continue;
+        }
+        if ($en === '') {
+            $lint[] = ['row' => $n, 'text' => "맵 이름 {$n}행 영문 이름이 비어 있습니다."];
+        } elseif (mb_strlen($ko) > 20 || preg_match('/[\x00-\x1F\x7F<>"]/u', $ko)) {
+            $lint[] = ['row' => $n, 'text' => "맵 이름 {$n}행 '$en'의 한글 이름은 20자 이내 글자로 입력하세요."];
+        } elseif (isset($out[$en])) {
+            $lint[] = ['row' => $n, 'text' => "맵 이름 {$n}행 '$en'이(가) 위({$out[$en][0]}행)에 이미 있습니다. 한 줄만 남기세요."];
+        } else {
+            $out[$en] = [$n, $ko];
         }
     }
     return ['rows' => $out, 'lint' => $lint];
@@ -761,28 +983,43 @@ function sheet_list_diff(array $calc, array $sheet): ?array
 }
 
 /**
- * 예측 탭: 왼쪽 기록(날짜, 선수1, 선수2, 세트, 맵, 갯수, 중계진, 선택, 성공/실패), 오른쪽 순위표(순위, 이름, 전체, 승 …).
+ * 예측 탭: 왼쪽 기록(날짜, 선수1, 선수2, 세트, 맵, 갯수, 중계진, 선택, 성공/실패), 오른쪽 순위표(순위, 이름, 전체, 승, 승률, 지수, 수익률).
  * 성공/실패가 비어 있으면 아직 결과가 없는 예측으로 보고 건너뛴다. 다른 값이 있으면 예측 전체를 쓰지 않는다.
- * @return array{error:?string, records:list<array>, ranking:?array<string, array{0:int,1:int}>}
+ * 갯수(미션 지수용)는 F열 머리글이 "갯수"일 때만 읽는다. 결과가 있는 기록에 갯수가 없으면 미션 지수만 쓰지 않는다.
+ * @return array{error:?string, records:list<array>, ranking:?array<string, array{0:int,1:int}>,
+ *   amount_error:?string, mission:?array<string, array{0:int,1:float}>, mission_error:?string}
+ *   records = [{date, predictor, correct, row, amount?}], mission = 이름 => [지수, 수익률(비율)]
  */
 function sheet_predictions_table(array $rows, bool $serialDates): array
 {
+    $fail = static fn(string $e) => ['error' => $e, 'records' => [], 'ranking' => null, 'amount_error' => null, 'mission' => null,
+        'mission_error' => null];
     $h = table_header_row($rows, [0 => '날짜', 6 => '중계진', 7 => '선택', 8 => '성공/실패']);
     if ($h === null) {
-        return ['error' => '예측 탭의 머리글(날짜 … 중계진, 선택, 성공/실패)을 찾을 수 없음', 'records' => [], 'ranking' => null];
+        return $fail('예측 탭의 머리글(날짜 … 중계진, 선택, 성공/실패)을 찾을 수 없음');
     }
     $head = array_map('cell_key', $rows[$h]);
-    $nameCol = $totalCol = $winCol = null;
+    $amountCol = ($head[5] ?? '') === '갯수' ? 5 : null;
+    $nameCol = $totalCol = $winCol = $idxCol = $roiCol = null;
     foreach ($head as $c => $k) {
         if ($c > 8 && $k === '이름') {
             $nameCol = $c;
             $totalCol = ($head[$c + 1] ?? '') === '전체' ? $c + 1 : null;
             $winCol = ($head[$c + 2] ?? '') === '승' ? $c + 2 : null;
+            foreach ($head as $c2 => $k2) {
+                if ($c2 > $c && $c2 <= $c + 8) {
+                    $idxCol ??= $k2 === '지수' ? $c2 : null;
+                    $roiCol ??= $k2 === '수익률' ? $c2 : null;
+                }
+            }
             break;
         }
     }
     $records = [];
     $ranking = $nameCol !== null && $totalCol !== null && $winCol !== null ? [] : null;
+    $mission = $ranking !== null && $idxCol !== null && $roiCol !== null ? [] : null;
+    $missionError = $mission === null ? '예측 탭 순위표의 지수·수익률 열을 찾을 수 없음' : null;
+    $amountError = $amountCol === null ? '예측 탭 F열 머리글 "갯수"를 찾을 수 없음' : null;
     $rankingDone = false;
     foreach ($rows as $i => $r) {
         if ($i <= $h) {
@@ -797,9 +1034,19 @@ function sheet_predictions_table(array $rows, bool $serialDates): array
                 $t = int_norm($r[$totalCol] ?? null);
                 $w = int_norm($r[$winCol] ?? null);
                 if ($t === null || $w === null || isset($ranking[$rn])) {
-                    return ['error' => '예측 순위표 ' . ($i + 1) . '행을 읽을 수 없음', 'records' => [], 'ranking' => null];
+                    return $fail('예측 순위표 ' . ($i + 1) . '행을 읽을 수 없음');
                 }
                 $ranking[$rn] = [$t, $w];
+                if ($mission !== null) {
+                    $idx = sint_norm($r[$idxCol] ?? null);
+                    $roi = $r[$roiCol] ?? null;
+                    if ($idx === null || !(is_int($roi) || is_float($roi))) {
+                        $mission = null;
+                        $missionError = '예측 순위표 ' . ($i + 1) . '행의 지수·수익률을 읽을 수 없음';
+                    } else {
+                        $mission[$rn] = [$idx, (float)$roi];
+                    }
+                }
             }
         }
         $date = date_norm($r[0] ?? null, $serialDates);
@@ -813,11 +1060,24 @@ function sheet_predictions_table(array $rows, bool $serialDates): array
         }
         $pid = predictor_name($who);
         if ($date === null || $pid === null || !in_array($res, ['성공', '실패'], true)) {
-            return ['error' => '예측 탭 ' . ($i + 1) . '행을 읽을 수 없음 (날짜·중계진·성공/실패)', 'records' => [], 'ranking' => null];
+            return $fail('예측 탭 ' . ($i + 1) . '행을 읽을 수 없음 (날짜·중계진·성공/실패)');
         }
-        $records[] = ['date' => $date, 'predictor' => $pid, 'correct' => $res === '성공', 'row' => $i + 1];
+        $rec = ['date' => $date, 'predictor' => $pid, 'correct' => $res === '성공', 'row' => $i + 1];
+        if ($amountCol !== null) {
+            $amt = int_norm($r[$amountCol] ?? null);
+            if ($amt === null) {
+                $amountError ??= '예측 탭 ' . ($i + 1) . '행의 갯수를 읽을 수 없음';
+            } else {
+                $rec['amount'] = $amt;
+            }
+        }
+        $records[] = $rec;
     }
-    return ['error' => $records ? null : '예측 기록이 없음', 'records' => $records, 'ranking' => $ranking];
+    if ($amountError !== null) {
+        $records = array_map(static fn($x) => array_diff_key($x, ['amount' => 0]), $records); // 일부만 있으면 지수가 틀린다
+    }
+    return ['error' => $records ? null : '예측 기록이 없음', 'records' => $records, 'ranking' => $ranking,
+        'amount_error' => $amountError, 'mission' => $mission, 'mission_error' => $missionError];
 }
 
 /** "박상현 캐스터" → "박상현". 끝말이 알려진 직책이 아니면 전체를 이름으로 본다 (추측하지 않음) */

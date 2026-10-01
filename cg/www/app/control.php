@@ -509,6 +509,12 @@ function data_apply(array $ds, array $op, bool $fetched): array
         setting_set('predictors_cache', json_enc(array_map(static fn($p) => ['id' => (string)$p['id'], 'name' => $p['name']],
             $ds['predictors'] ?? [])));
         setting_set('years_cache', json_enc(stats_prediction_years($ds['predictions'] ?? [])));
+        // 맵 목록 (사용 세트 많은 순): 맵 => {id, name(표시 이름), sets}
+        $maps = [];
+        foreach (stats_maps($ds['games'] ?? []) as $map => $n) {
+            $maps[(string)$map] = ['id' => (string)$map, 'name' => map_label($ds, (string)$map), 'sets' => $n];
+        }
+        setting_set('maps_cache', json_enc($maps));
         $pv = channel_get('preview');
         $changed = [];
         foreach (db_all('SELECT id FROM cg_instances ORDER BY id') as $r) {

@@ -42,6 +42,20 @@ function field_parse(array $def, mixed $raw): array
                 return ['ok' => false, 'error' => '승률은 0.0~100.0 사이여야 합니다.'];
             }
             return ['ok' => true, 'value' => $t];
+        case 'sint':
+            // 부호 있는 정수 (미션 지수): 12609, +12,609, -4031
+            $t = str_replace(',', '', $s);
+            if (!preg_match('/^[+-]?\d{1,7}$/D', $t)) {
+                return ['ok' => false, 'error' => '정수만 입력할 수 있습니다 (예: 12609, -4031).'];
+            }
+            return ['ok' => true, 'value' => (int)$t];
+        case 'srate':
+            // 부호 있는 비율 (수익률): 8.6, -19.3
+            if (!preg_match('/^([+-]?)(\d{1,4})(?:\.(\d))?$/D', $s, $m)) {
+                return ['ok' => false, 'error' => '비율은 -1.6처럼 소수 첫째 자리까지 입력하세요.'];
+            }
+            $t = (int)$m[2] * 10 + (int)($m[3] ?? 0);
+            return ['ok' => true, 'value' => $m[1] === '-' ? -$t : $t];
         case 'text':
             if (preg_match('/[\x00-\x1F\x7F]/u', $s) || !mb_check_encoding($s, 'UTF-8')) {
                 return ['ok' => false, 'error' => '사용할 수 없는 문자가 있습니다.'];

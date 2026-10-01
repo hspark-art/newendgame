@@ -40,7 +40,7 @@ function template_get(string $slug): array
 function template_ctx(): array
 {
     return ['players' => players_cache(), 'predictors' => json_dec(setting_get('predictors_cache', '{}')) ?: [],
-        'years' => json_dec(setting_get('years_cache', '[]')) ?: []];
+        'years' => json_dec(setting_get('years_cache', '[]')) ?: [], 'maps' => json_dec(setting_get('maps_cache', '{}')) ?: []];
 }
 
 /**
@@ -50,7 +50,7 @@ function template_ctx(): array
 function template_params(string $slug, array $in, array $players, array $ctx = []): array
 {
     $tpl = template_get($slug);
-    $ctx += ['players' => $players, 'predictors' => [], 'years' => []];
+    $ctx += ['players' => $players, 'predictors' => [], 'years' => [], 'maps' => []];
     $out = [];
     foreach ($tpl['params'] as $p) {
         $raw = array_reduce(explode('.', $p['key']), static fn($c, $k) => is_array($c) ? ($c[$k] ?? null) : null, $in);
@@ -106,6 +106,16 @@ function param_value(array $p, mixed $raw, array $ctx): mixed
             }
             if (!preg_match('/^(19|20)\d{2}$/D', $s)) {
                 throw new ActionError('BAD_PARAMS', "$label: 연도를 선택하세요.", 422);
+            }
+            return $s;
+        case 'map':
+        case 'map_any':
+            // map_any: 빈 값 = 맵 고르지 않음. 맵 이름은 Results 표기 그대로 (대소문자 구분)
+            if ($s === '' && $p['type'] === 'map_any') {
+                return '';
+            }
+            if (!isset($ctx['maps'][$s])) {
+                throw new ActionError('BAD_PARAMS', "$label: 맵을 선택하세요.", 422);
             }
             return $s;
         case 'predictor_slots':
@@ -239,6 +249,18 @@ function fmt_rate(?int $tenths): string
     return $tenths === null ? '' : intdiv($tenths, 10) . '.' . ($tenths % 10);
 }
 
+/** 부호 있는 0.1% 단위: -16 → "-1.6", 86 → "8.6" (부호 붙이기는 호출하는 쪽) */
+function fmt_srate(?int $tenths): string
+{
+    return $tenths === null ? '' : ($tenths < 0 ? '-' : '') . fmt_rate(abs($tenths));
+}
+
+/** 맵 표시 이름: 프로그램·맵 이름 탭의 한글 이름, 없으면 Results 표기 그대로 */
+function map_label(array $ds, string $map): string
+{
+    return (string)($ds['map_names'][$map] ?? $map);
+}
+
 /** 패널 표에 보여 줄 값 */
 function fmt_field(array $def, mixed $v): string
 {
@@ -247,6 +269,8 @@ function fmt_field(array $def, mixed $v): string
     }
     return match ($def['type']) {
         'rate' => fmt_rate((int)$v) . '%',
+        'srate' => fmt_srate((int)$v) . '%',
+        'sint' => number_format((int)$v),
         default => (string)$v,
     };
 }
