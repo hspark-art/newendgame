@@ -1,7 +1,19 @@
-/* CG 테마. 색·폰트는 이 변수만 바꾸면 전체에 반영된다.
-   폰트: 방송 폰트 미확정(NEEDS CONFIRMATION) → Windows 기본 맑은 고딕으로 시작. 라이선스 확인된 폰트로 교체 가능. */
+/* CG 기본 스타일. 크기·폰트·글자색은 아래 변수로만 정한다.
+   - 테마(cg-themes.css)는 이 변수와 배경을 바꾼다.
+   - CG 디자인 설정(관리자)은 송출 화면 body에 변수 값을 덮어쓴다 (테마보다 우선).
+   기본값은 v0.4 디자인과 같다. 폰트: 기본은 Windows 맑은 고딕, 서버에 올린 OFL 폰트로 바꿀 수 있다(cg-fonts.css). */
 :root {
   --cg-font: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", "Noto Sans CJK KR", sans-serif;
+  --cg-font-title: var(--cg-font);    /* 제목 */
+  --cg-font-name: var(--cg-font);     /* 이름·글자 */
+  --cg-font-num: var(--cg-font);      /* 숫자(전적·승률·날짜·순위) */
+  /* 크기 배율 (1 = 기본) */
+  --k-w: 1;       /* 박스 폭과 칸 폭 */
+  --k-h: 1;       /* 박스·줄 높이 */
+  --k-title: 1;   /* 제목 글자 */
+  --k-name: 1;    /* 이름 글자 */
+  --k-num: 1;     /* 숫자 글자 */
+  /* 바탕 */
   --cg-text: #ffffff;
   --cg-muted: #d7dbe2;
   --cg-accent: #f2e500;
@@ -11,19 +23,29 @@
   --cg-body-bg: linear-gradient(180deg, #30353e 0%, #1d2128 52%, #282d35 100%);
   --cg-border: rgba(255, 255, 255, .16);
   --cg-shadow: 0 6px 18px rgba(0, 0, 0, .45);
+  /* 글자색 (역할별) */
+  --c-title: var(--cg-text);   /* 제목 */
+  --c-text: var(--cg-text);    /* 이름·일반 글자 */
+  --c-nick: var(--cg-muted);   /* 닉네임 */
+  --c-num: var(--cg-text);     /* 전적·스코어 숫자 */
+  --c-sub: var(--cg-muted);    /* 승률(괄호)·보조 글자 */
+  --c-rank: var(--cg-text);    /* 순위 */
+  --c-accent: var(--cg-accent);/* 승자·강조 */
+  --c-plus: #ff4d4d;           /* + 값 (지수·수익률) */
+  --c-minus: #4d9bff;          /* − 값 */
 }
 
 .cg-box {
   position: relative; display: flex; flex-direction: column; overflow: hidden;
-  width: 560px; height: 250px; border-radius: 14px 0 0 0;
+  width: calc(560px * var(--k-w)); height: calc(250px * var(--k-h)); border-radius: 14px 0 0 0;
   background: var(--cg-body-bg); box-shadow: var(--cg-shadow); border: 1px solid var(--cg-border); border-right: 0;
-  font-family: var(--cg-font); color: var(--cg-text); box-sizing: border-box;
+  font-family: var(--cg-font-name); color: var(--c-text); box-sizing: border-box;
 }
 .cg-fit { display: inline-block; white-space: nowrap; }
 
 /* 제목바: 적갈색→차콜→청회색 그라데이션 + 윗부분 광택 */
 .cg-title {
-  position: relative; flex: none; height: 66px; padding: 0 20px;
+  position: relative; flex: none; height: calc(66px * var(--k-h)); padding: 0 20px;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
   background: var(--cg-title-bg);
 }
@@ -32,87 +54,99 @@
   background: linear-gradient(180deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .02));
 }
 .cg-title .cg-fit {
-  position: relative; z-index: 1; font-size: 31px; font-weight: 800; font-style: italic; letter-spacing: -.5px;
+  position: relative; z-index: 1; font-family: var(--cg-font-title); color: var(--c-title);
+  font-size: calc(31px * var(--k-title)); font-weight: 800; font-style: italic; letter-spacing: -.5px;
   text-shadow: 0 2px 2px rgba(0, 0, 0, .85), 0 0 6px rgba(0, 0, 0, .5);
 }
-.cg-band { flex: none; height: 12px; background: var(--cg-band); }
+.cg-band { flex: none; height: calc(12px * var(--k-h)); background: var(--cg-band); }
 
 /* 상대 종족 승률 */
-.cg-head { flex: none; display: flex; height: 46px; background: var(--cg-head-bg); border-bottom: 2px solid #0c0e12; }
+.cg-head { flex: none; display: flex; height: calc(46px * var(--k-h)); background: var(--cg-head-bg); border-bottom: 2px solid #0c0e12; }
 .cg-head .cg-cell {
   flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; overflow: hidden;
-  font-size: 27px; text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
+  font-size: calc(27px * var(--k-name)); text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
 }
-.cg-name { font-weight: 600; }
-.cg-vs { font-weight: 400; color: var(--cg-muted); }
+.cg-name { font-weight: 600; color: var(--c-text); }
+.cg-vs { font-weight: 400; color: var(--c-sub); }
 .cg-body { flex: 1; display: flex; }
 .cg-body .cg-cell {
   flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden;
 }
-.cg-record { font-size: 42px; font-weight: 700; line-height: 1.1; letter-spacing: -1px; text-shadow: 0 2px 3px rgba(0, 0, 0, .7); }
-.cg-rate { font-size: 24px; line-height: 1.25; color: var(--cg-muted); }
+.cg-record { font-family: var(--cg-font-num); color: var(--c-num); font-size: calc(42px * var(--k-num)); font-weight: 700; line-height: 1.1;
+  letter-spacing: -1px; text-shadow: 0 2px 3px rgba(0, 0, 0, .7); }
+.cg-rate { font-family: var(--cg-font-num); font-size: calc(24px * var(--k-num)); line-height: 1.25; color: var(--c-sub); }
 
 /* 온라인 상대 전적: 제목 아래 맞대결 요약 바, 종족 헤더·본문은 상대 종족 승률과 같은 모양 */
-.cg-online .cg-head { height: 40px; }
-.cg-online .cg-head .cg-cell { font-size: 25px; }
-.cg-online .cg-record { font-size: 38px; }
+.cg-online .cg-head { height: calc(40px * var(--k-h)); }
+.cg-online .cg-head .cg-cell { font-size: calc(25px * var(--k-name)); }
+.cg-online .cg-record { font-size: calc(38px * var(--k-num)); }
 /* 풀세트 비율: 큰 비율 + 경기 수 + 5:4/4:5 내역 */
 .cg-full-set .cg-vs { font-size: .7em; }
-.cg-full-set .cg-rate { font-size: 21px; line-height: 1.2; }
-.cg-detail { font-size: 17px; line-height: 1.25; color: var(--cg-muted); opacity: .85; }
+.cg-full-set .cg-rate { font-size: calc(21px * var(--k-num)); line-height: 1.2; }
+.cg-detail { font-size: calc(17px * var(--k-num)); line-height: 1.25; color: var(--c-sub); opacity: .85; }
 .cg-body .cg-cell > div { max-width: 100%; text-align: center; }
 
 /* 요약 바 (맞대결 "조일장 0 : 4 김지성", 온라인 맞대결) */
 .cg-sumbar {
-  flex: none; height: 38px; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 0 16px;
-  background: var(--cg-head-bg); border-bottom: 2px solid #0c0e12; font-size: 23px; font-weight: 600;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
+  flex: none; height: calc(38px * var(--k-h)); display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 0 16px;
+  background: var(--cg-head-bg); border-bottom: 2px solid #0c0e12; font-size: calc(23px * var(--k-name)); font-weight: 600;
+  color: var(--c-text); text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
 }
-.cg-sumbar b { font-weight: 800; margin: 0 .3em; }
-.cg-sumbar small { font-size: .7em; font-weight: 400; color: var(--cg-muted); margin-right: .6em; }
+.cg-sumbar b { font-family: var(--cg-font-num); color: var(--c-num); font-weight: 800; margin: 0 .3em; }
+.cg-sumbar small { font-size: .7em; font-weight: 400; color: var(--c-sub); margin-right: .6em; }
 
 /* 목록형 (최근 전적·맞대결): 줄마다 날짜·선수·스코어·상대, 승자 노랑 */
 .cg-rows { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding: 4px 16px 8px; }
-.cg-row { display: flex; align-items: center; justify-content: center; flex: 1 1 0; max-height: 38px; min-width: 0; }
+.cg-row { display: flex; align-items: center; justify-content: center; flex: 1 1 0; max-height: calc(38px * var(--k-h)); min-width: 0; }
 .cg-list .cg-row > span { overflow: hidden; white-space: nowrap; min-width: 0; text-shadow: 0 2px 2px rgba(0, 0, 0, .75); }
-.c-date { width: 178px; flex: none; font-size: 26px; font-style: italic; letter-spacing: -.5px; text-align: right; padding-right: 14px; }
-.c-a, .c-b { width: 104px; flex: none; font-size: 26px; font-weight: 600; }
+.c-date { width: calc(178px * var(--k-w)); flex: none; font-family: var(--cg-font-num); color: var(--c-num); font-size: calc(26px * var(--k-num));
+  font-style: italic; letter-spacing: -.5px; text-align: right; padding-right: 14px; }
+.c-a, .c-b { width: calc(104px * var(--k-w)); flex: none; font-size: calc(26px * var(--k-name)); font-weight: 600; color: var(--c-text); }
 .c-a { text-align: right; }
 .c-b { text-align: left; }
-.c-score { width: 76px; flex: none; text-align: center; font-size: 25px; font-weight: 600; }
-.is-win { color: var(--cg-accent); }
-.cg-head-to-head .c-date { width: 196px; font-size: 22px; padding-right: 40px; }
-.cg-head-to-head .c-a, .cg-head-to-head .c-b { width: 92px; font-size: 22px; }
-.cg-head-to-head .c-score { width: 64px; font-size: 22px; }
+.c-score { width: calc(76px * var(--k-w)); flex: none; text-align: center; font-family: var(--cg-font-num); color: var(--c-num);
+  font-size: calc(25px * var(--k-num)); font-weight: 600; }
+.is-win, .c-a.is-win, .c-b.is-win { color: var(--c-accent); }
+.cg-head-to-head .c-date { width: calc(196px * var(--k-w)); font-size: calc(22px * var(--k-num)); padding-right: 40px; }
+.cg-head-to-head .c-a, .cg-head-to-head .c-b { width: calc(92px * var(--k-w)); font-size: calc(22px * var(--k-name)); }
+.cg-head-to-head .c-score { width: calc(64px * var(--k-w)); font-size: calc(22px * var(--k-num)); }
 
 /* 순위형 (다승·승자 예측·연승): 줄마다 금속 바 */
 .cg-bars { padding: 0; gap: 2px; justify-content: flex-start; }
-.cg-bars .cg-row { justify-content: flex-start; max-height: 58px; padding: 0 14px 0 8px; background: var(--cg-body-bg); }
+.cg-bars .cg-row { justify-content: flex-start; max-height: calc(58px * var(--k-h)); padding: 0 14px 0 8px; background: var(--cg-body-bg); }
 .cg-ranking .cg-bar:nth-child(odd) { background: var(--cg-head-bg); }
 .cg-prediction .cg-bar:nth-child(odd) { background: var(--cg-body-bg); }
 .cg-prediction .cg-bar.is-top { background: var(--cg-head-bg); }
-.c-rank { width: 88px; flex: none; text-align: center; font-size: 24px; }
-.c-name { flex: 1; min-width: 0; font-size: 30px; }
+.c-rank { width: calc(88px * var(--k-w)); flex: none; text-align: center; font-family: var(--cg-font-num); color: var(--c-rank);
+  font-size: calc(24px * var(--k-num)); }
+.c-name { flex: 1; min-width: 0; font-size: calc(30px * var(--k-name)); color: var(--c-text); }
 /* 안쪽 글자는 em — 긴 이름을 줄일 때(fit) 닉네임도 함께 줄어든다 */
 .c-name b { font-weight: 700; }
-.c-name small { font-size: .63em; color: var(--cg-muted); margin-left: .35em; }
-.c-record { width: 132px; flex: none; text-align: right; font-size: 25px; letter-spacing: -.5px; }
-.c-rate { width: 104px; flex: none; text-align: right; font-size: 25px; }
-.cg-prediction .c-rank { width: 76px; font-size: 28px; }
-.cg-prediction .c-name { font-size: 27px; }
+.c-name small { font-size: .63em; color: var(--c-nick); margin-left: .35em; }
+.c-record { width: calc(132px * var(--k-w)); flex: none; text-align: right; font-family: var(--cg-font-num); color: var(--c-num);
+  font-size: calc(25px * var(--k-num)); letter-spacing: -.5px; }
+.c-rate { width: calc(104px * var(--k-w)); flex: none; text-align: right; font-family: var(--cg-font-num); color: var(--c-num);
+  font-size: calc(25px * var(--k-num)); }
+.cg-prediction .c-rank { width: calc(76px * var(--k-w)); font-size: calc(28px * var(--k-num)); }
+.cg-prediction .c-name { font-size: calc(27px * var(--k-name)); }
 .cg-prediction .c-name b { font-weight: 600; }
-.cg-prediction .c-record { width: 150px; font-size: 29px; }
-.cg-prediction .c-rate { width: 118px; font-size: 29px; }
-.c-streak { width: 96px; flex: none; text-align: right; font-size: 26px; font-weight: 700; }
-.c-period { width: 150px; flex: none; text-align: right; font-size: 16px; color: var(--cg-muted); margin-left: 8px; }
+.cg-prediction .c-record { width: calc(150px * var(--k-w)); font-size: calc(29px * var(--k-num)); }
+.cg-prediction .c-rate { width: calc(118px * var(--k-w)); font-size: calc(29px * var(--k-num)); }
+.c-streak { width: calc(96px * var(--k-w)); flex: none; text-align: right; font-family: var(--cg-font-num); color: var(--c-num);
+  font-size: calc(26px * var(--k-num)); font-weight: 700; }
+.c-period { width: calc(150px * var(--k-w)); flex: none; text-align: right; font-family: var(--cg-font-num);
+  font-size: calc(16px * var(--k-num)); color: var(--c-sub); margin-left: 8px; }
 .c-period .cg-fit { display: inline-block; }
+/* + / − 값 (미션 지수·수익률) */
+.is-plus { color: var(--c-plus) !important; }
+.is-minus { color: var(--c-minus) !important; }
 
 /* 5줄: 한 줄 높이는 4줄일 때와 같게 두고 박스가 위로 한 줄만큼 커진다 (오른쪽 아래 기준 배치라 아래 위치는 그대로).
    이전에는 높이 250px 안에 5줄을 넣느라 줄이 낮아져 글자 아래가 잘렸다 */
 .cg-box.cg-n5 { height: auto; }
 .cg-n5 .cg-rows { flex: none; }
-.cg-n5 .cg-row { flex: none; height: 38px; }
-.cg-n5 .cg-bars .cg-row { height: 44px; }
+.cg-n5 .cg-row { flex: none; height: calc(38px * var(--k-h)); }
+.cg-n5 .cg-bars .cg-row { height: calc(44px * var(--k-h)); }
 
 /* MOCK 데이터 표시 (실제 데이터 연결 시 사라짐). 제목바 왼쪽 위 — 본문 숫자를 가리지 않게 */
 .cg-mock {

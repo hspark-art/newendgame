@@ -4,7 +4,7 @@
   <div class="cg-band"></div>
   <div class="cg-rows cg-bars">
 <?php foreach ($view['rows'] as $r): ?>
-    <div class="cg-row cg-bar<?= $r['top'] ? ' is-top' : '' ?>">
+    <div class="cg-row cg-bar<?= $r['top'] ? ' is-top is-hl' : '' ?>">
       <span class="c-rank"><?= h($r['rank']) ?></span>
       <span class="c-name"><span class="cg-fit"><b><?= h($r['name']) ?></b></span></span>
       <span class="c-record"><?= h($r['record']) ?></span>

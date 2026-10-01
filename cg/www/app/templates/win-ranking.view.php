@@ -3,7 +3,7 @@
   <div class="cg-title"><span class="cg-fit"><?= h($view['title']) ?></span></div>
   <div class="cg-rows cg-bars">
 <?php foreach ($view['rows'] as $r): ?>
-    <div class="cg-row cg-bar">
+    <div class="cg-row cg-bar<?= $r['rank'] === '1st' ? ' is-hl' : '' ?>">
       <span class="c-rank"><?= h($r['rank']) ?></span>
       <span class="c-name"><span class="cg-fit"><b><?= h($r['name']) ?></b> <small><?= h($r['nick']) ?></small></span></span>
       <span class="c-record"><?= h($r['record']) ?></span>
