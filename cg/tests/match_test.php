@@ -121,7 +121,7 @@ test('항목 빼기(v0.6.1): 항목 하나만 빼면 그 자리만 비고 줄은
 
 test('항목 빼기(v0.6.1): CG 14종 모두 — 어떤 항목 하나를 빼도, 모두 빼도 오류 없이 그려진다', function () {
     $p = ['a' => ['player' => '가', 'vs' => 'P'], 'b' => ['player' => '나', 'vs' => 'T'], 'map' => 'Map 1', 'year' => 2026,
-        'race' => '', 'count' => 3, 'seats' => []];
+        'race' => '', 'count' => 3, 'seats' => [], 'date' => '2026-01-01', 'records' => ['a.win_streak'], 'part' => 1];
     foreach (cg_templates() as $slug => $tpl) {
         $final = sample_final($slug);
         $keys = array_keys($tpl['fields']);

@@ -182,10 +182,11 @@ $op = guard_control();
     <label>이번 맵 (매치 프리뷰·맵 전적, 선택) <select id="mMap"></select></label>
     <div class="dlg-btns left"><button type="button" id="mAdd" class="btn">고른 CG 페이지 추가</button></div>
     <h4>이 매치 주요 기록 (매치 시작 전 확인)</h4>
-    <p class="hint">경기일 이전에 확정된 끝장전으로 계산합니다. 근거(경기 날짜·결과)를 확인하고 최대 3개를 고르면 '매치 기록' CG 페이지가 추가됩니다.
+    <p class="hint">경기일 이전에 확정된 끝장전으로 계산합니다. 근거(경기 날짜·결과)를 확인하고 최대 3개를 고르면 '매치 기록'(요약) CG 페이지가 추가됩니다.
+      기록마다 [상세 CG 추가]를 누르면 그 기록의 경기 내역·스코어를 보여 주는 '기록 상세' 페이지가 추가됩니다 (요약 → 상세 순서로 큐·TAKE).
       확인이 필요한 기록과 해당 없는 기록은 고를 수 없습니다.</p>
     <div class="dlg-btns left"><button type="button" id="mRec" class="btn">기록 후보 보기</button></div>
-    <div id="mRecList" class="rec-pick"></div>
+    <div id="mRecList" class="rec-pick" data-max="3" data-detail-buttons></div>
     <div class="dlg-btns left"><button type="button" id="mRecAdd" class="btn" disabled>고른 기록으로 CG 페이지 추가</button></div>
     <h4>페이지 리스트를 이 매치로 바꾸기</h4>
     <p class="hint">선수 두 명을 쓰는 페이지(상대 종족 승률·매치 프리뷰·맞대결·풀세트·더블 찬스 등)의 선수를 오늘 매치로 바꿉니다.

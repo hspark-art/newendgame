@@ -39,7 +39,7 @@ test('매치 기록: 매치 연승·연패 — 최근 경기부터 같은 결과
     $r = stats_match_records(fx_rds($base), '갑', '을', '2022-06-01');
     assert_same(['ok', 3, true], [$r['items']['a.win_streak']['status'], $r['items']['a.win_streak']['value'], $r['items']['a.win_streak']['recommended']]);
     assert_same('현재 끝장전 매치', $r['items']['a.win_streak']['desc']);
-    assert_true(str_starts_with(end($r['items']['a.win_streak']['basis']), '끊긴 경기: 2020-01-01'), '끊긴 경기를 근거로');
+    assert_true(str_starts_with(end($r['items']['a.win_streak']['basis']), '끊긴 경기: 2020.01.01 vs 을 4–5 패'), '끊긴 경기를 근거로');
     assert_same(['none', null, false], fx_rec(fx_rds($base), '갑', '을', '2022-06-01', 'a.loss_streak'));
     // 을: 2020 승 · 2022 패 → 1연패 (후보 아님)
     assert_same(['none', null, false], fx_rec(fx_rds($base), '갑', '을', '2022-06-01', 'b.loss_streak'));
@@ -77,7 +77,7 @@ test('매치 기록: 출전·맞대결 간격은 경기일 - 마지막 경기일
     assert_same(31, $d('2024-01-31', '2024-03-02')['b.gap']['value']);
     $long = $d('2019-05-14', '2024-10-07');
     assert_same([1973, true, '만에 끝장전 출전'], [$long['a.gap']['value'], $long['a.gap']['recommended'], $long['a.gap']['desc']]);
-    assert_same('경기일 2024-10-07 → 1,973일 (5년 4개월 23일)', $long['a.gap']['basis'][1]);
+    assert_same('경기일 2024.10.07 → 1,973일 (5년 4개월 23일)', $long['a.gap']['basis'][1]);
     assert_same([1973, true, '만에 펼쳐지는 맞대결'], [$long['h.gap']['value'], $long['h.gap']['recommended'], $long['h.gap']['desc']]);
     assert_same(false, $d('2024-01-01', '2024-12-30')['a.gap']['recommended'], '364일은 추천 아님');
     assert_same(true, $d('2024-01-01', '2024-12-31')['a.gap']['recommended'], '365일부터 추천');
@@ -153,8 +153,10 @@ test('매치 기록 CG: 오늘 매치 창의 후보 → 고른 기록으로 페�
     cue_page($page['page_no']);
     $st = instance_state(instance_get(channel_get('preview')['instance_id']), current_session_id());
     assert_same([], $st['problems']);
-    assert_same([['name' => '가선수 vs 나선수', 'num' => '635', 'unit' => '일', 'desc' => '만에 펼쳐지는 맞대결'],
-        ['name' => '가선수', 'num' => '635', 'unit' => '일', 'desc' => '만에 끝장전 출전']], $st['view']['rows'], '고른 순서대로');
+    assert_same([['name' => '가선수 vs 나선수', 'num' => '635', 'unit' => '일', 'desc' => '만에 펼쳐지는 맞대결',
+        'note' => '마지막 맞대결 2024.04.06 · 가선수 4–5 나선수'],
+        ['name' => '가선수', 'num' => '635', 'unit' => '일', 'desc' => '만에 끝장전 출전', 'note' => '마지막 출전 2024.04.06 vs 나선수 4–5 패']],
+        $st['view']['rows'], '고른 순서대로 (근거 한 줄 포함)');
     $html = cg_render($st['view']);
     assert_true(str_contains($html, 'rec-rows') && !str_contains($html, 'rec-big') && str_contains($html, '<b>635</b><small>일</small>'));
     assert_same('가선수 vs 나선수 · 2026-01-01 · 맞대결 간격, A 출전 간격', template_summary('match-records', json_dec(rundown_rows()[0]['params_json'])));
@@ -241,17 +243,127 @@ test('매치 기록(리뷰): 맞대결 연승 근거는 이긴 선수 쪽 스코
     $all = [fx_rm('2020-01-01', '갑', '을', 5, 4), fx_rm('2021-01-01', '을', '갑', 5, 4), fx_rm('2022-01-01', '갑', '을', 3, 6),
         fx_rm('2023-01-01', '을', '갑', 7, 2)];
     $b = stats_match_records(fx_rds($all), '갑', '을', '2024-01-01')['items']['h.streak']['basis'];
-    assert_same(['2023-01-01 vs 갑 7:2 승', '2022-01-01 vs 갑 6:3 승', '2021-01-01 vs 갑 5:4 승', '끊긴 경기: 2020-01-01 vs 갑 4:5 패'], $b);
+    assert_same(['2023.01.01 vs 갑 7–2 승', '2022.01.01 vs 갑 6–3 승', '2021.01.01 vs 갑 5–4 승', '끊긴 경기: 2020.01.01 vs 갑 4–5 패'], $b);
     $long = [fx_rm('2010-01-01', '갑', '을', 4, 5)];
     for ($y = 2011; $y <= 2020; $y++) {
         $long[] = fx_rm("$y-01-01", '갑', '병', 5, 4);
     }
     $w = stats_match_records(fx_rds($long), '갑', '을', '2021-01-01')['items']['a.win_streak'];
-    assert_same([10, '… 외 2경기', '끊긴 경기: 2010-01-01 vs 을 4:5 패'], [$w['value'], $w['basis'][8], $w['basis'][9]]);
+    assert_same([10, '… 외 2경기', '끊긴 경기: 2010.01.01 vs 을 4–5 패'], [$w['value'], $w['basis'][8], $w['basis'][9]]);
 
     setup_sheet();
     assert_throws(ActionError::class, fn() => template_params('match-records', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'],
         'date' => '2026-01-01', 'records' => [['a.gap']]], players_cache(), template_ctx()), 'BAD_PARAMS');
     assert_throws(ActionError::class, fn() => match_records_view(['a' => ['가선수'], 'b' => '나선수', 'date' => '2026-01-01']), 'BAD_PARAMS');
     assert_throws(ActionError::class, fn() => match_today_save(['a' => ['가선수'], 'b' => '나선수'], op()), 'BAD_PARAMS');
+});
+
+test('기록 상세(v0.8): 연패 7경기 → 1쪽 최근 5경기·2쪽 6~7번째, 스코어는 그 선수 기준, 직전 마지막 승리는 마지막 쪽, 개인 최다 비교', function () {
+    // 갑: 3연패(2015) → 승 → 7연패(2016~2022). 갑이 B 자리인 경기도 있다
+    $all = [fx_rm('2014-01-01', '갑', '병', 5, 4)];
+    foreach (['2015-01-01', '2015-02-01', '2015-03-01'] as $d) {
+        $all[] = fx_rm($d, '정', '갑', 5, 4);
+    }
+    $all[] = fx_rm('2015-06-01', '갑', '무', 6, 3); // 연패 직전 마지막 승리
+    foreach (range(2016, 2022) as $i => $y) {
+        $all[] = $i % 2 ? fx_rm("$y-01-01", '갑', '을', 4, 5) : fx_rm("$y-01-01", '을', '갑', 7, 2);
+    }
+    $ds = fx_rds($all);
+    $it = stats_match_records($ds, '갑', '을', '2023-01-01')['items']['a.loss_streak'];
+    assert_same(['ok', 7], [$it['status'], $it['value']]);
+    assert_same('시트 기록(2014.01~) 기준 개인 최다 · 이전 최다 3연패', $it['best'] ?? $it['detail']['best']);
+    assert_same($it['detail']['best'], $it['note'], '요약 근거 한 줄 = 개인 최다 비교');
+    $p = static fn(int $part) => ['a' => ['player' => '갑'], 'b' => ['player' => '을'], 'date' => '2023-01-01', 'records' => ['a.loss_streak'], 'part' => $part];
+    $v1 = template_present('record-detail', template_auto('record-detail', $p(1), $ds), $p(1), false);
+    assert_same(['갑 · 끝장전 매치 연패', '7', '연패', '최근 5경기 · 전체 7경기', 'games', '', '갑 기준'],
+        [$v1['title'], $v1['num'], $v1['unit'], $v1['label'], $v1['layout'], $v1['foot'], $v1['head']]);
+    assert_same([['c1' => '2022.01.01', 'c2' => 'vs 을', 'c3' => '2–7', 'c4' => '패'], ['c1' => '2021.01.01', 'c2' => 'vs 을', 'c3' => '4–5', 'c4' => '패']],
+        array_slice($v1['rows'], 0, 2), '갑이 B 자리여도 갑 기준 스코어');
+    assert_same(5, count($v1['rows']));
+    $v2 = template_present('record-detail', template_auto('record-detail', $p(2), $ds), $p(2), false);
+    assert_same(['6~7번째 경기 · 전체 7경기', 2, '', '연패 직전 마지막 승리 · 2015.06.01 vs 무 6–3 승'],
+        [$v2['label'], count($v2['rows']), $v2['best'], $v2['foot']]);
+    $html = cg_render(['template' => 'record-detail', 'mock' => false] + $v2);
+    assert_true(str_contains($html, 'rd-table') && str_contains($html, 'is-l') && str_contains($html, '스코어 (갑 기준)'));
+
+    // 개인 최다와 같으면 타이, 적으면 '까지 N승'(연승). 이상 경기에서는 이어진 것으로 보지 않는다
+    $w = [fx_rm('2010-01-01', '갑', '을', 4, 5), fx_rm('2011-01-01', '갑', '을', 5, 4), fx_rm('2012-01-01', '갑', '을', 5, 4), fx_rm('2013-01-01', '갑', '을', 4, 5),
+        fx_rm('2014-01-01', '갑', '을', 5, 4), fx_rm('2015-01-01', '갑', '을', 5, 4)];
+    assert_same('시트 기록(2010.01~) 기준 개인 최다 타이 (2연승)', stats_match_records(fx_rds($w), '갑', '을', '2016-01-01')['items']['a.win_streak']['detail']['best']);
+    $w2 = [fx_rm('2009-01-01', '갑', '을', 4, 5), fx_rm('2009-02-01', '갑', '을', 5, 4), fx_rm('2009-03-01', '갑', '을', 5, 4), fx_rm('2009-04-01', '갑', '을', 5, 4),
+        fx_rm('2009-05-01', '갑', '을', 4, 5), fx_rm('2009-06-01', '갑', '을', 5, 4), fx_rm('2009-07-01', '갑', '을', 5, 4)];
+    assert_same('개인 최다 3연승까지 1승 · 시트 기록(2009.01~) 기준', stats_match_records(fx_rds($w2), '갑', '을', '2010-01-01')['items']['a.win_streak']['detail']['best']);
+    $odd = [fx_rm('2009-01-01', '갑', '을', 4, 5), fx_rm('2009-02-01', '갑', '을', 5, 4), fx_rm('2009-03-01', '갑', '무', 2, 1, '세트 수 3개'),
+        fx_rm('2009-04-01', '갑', '을', 5, 4), fx_rm('2009-05-01', '갑', '을', 4, 5), fx_rm('2009-06-01', '갑', '을', 5, 4)];
+    $it = stats_match_records(fx_rds($odd), '갑', '을', '2010-01-01')['items']['a.win_streak'];
+    assert_same(['none', null], [$it['status'], $it['value']], '1연승은 후보 아님');
+});
+
+test('기록 상세(v0.8): 맞대결 간격 = 마지막 맞대결·승자·이름과 함께 스코어·경과·경기일 이전 상대전적(매치/세트), 이상 경기가 끼면 상대전적 생략', function () {
+    $all = [fx_rm('2020-01-01', '갑', '을', 5, 4), fx_rm('2021-01-01', '을', '갑', 6, 3), fx_rm('2022-03-01', '갑', '을', 7, 2),
+        fx_rm('2024-01-01', '갑', '을', 9, 0)]; // 경기일 이후 → 넣지 않음
+    $ds = fx_rds($all);
+    $p = ['a' => ['player' => '갑'], 'b' => ['player' => '을'], 'date' => '2023-03-01', 'records' => ['h.gap'], 'part' => 1];
+    $v = template_present('record-detail', template_auto('record-detail', $p, $ds), $p, false);
+    assert_same(['갑 vs 을 · 끝장전 맞대결', '365', '일', '만에 펼쳐지는 맞대결', 'facts'], [$v['title'], $v['num'], $v['unit'], $v['label'], $v['layout']]);
+    assert_same([['마지막 맞대결', '2022.03.01 · 갑 승'], ['스코어', '갑 7–2 을'], ['이번 경기까지', '365일 (1년)'],
+        ['상대전적 (매치)', '갑 2승 · 을 1승 (3경기)'], ['상대전적 (세트)', '갑 15 · 을 12']],
+        array_map(static fn($r) => [$r['c1'], $r['c2']], $v['rows']), '경기일 이후 경기는 상대전적에 없음');
+    assert_true(str_contains(cg_render(['template' => 'record-detail', 'mock' => false] + $v), 'rd-facts'));
+    $odd = fx_rds(array_merge($all, [fx_rm('2020-06-01', '갑', '을', 2, 1, '세트 수 3개')]));
+    $it = stats_match_records($odd, '갑', '을', '2023-03-01')['items']['h.gap'];
+    assert_same(3, count($it['detail']['facts']), '확인 필요 맞대결이 있으면 상대전적 줄 없음');
+    assert_true(str_contains(end($it['basis']), '확인 필요 경기 1건'));
+    // 출전 간격: 마지막 출전·결과(그 선수 기준)·경과
+    $g = stats_match_records($ds, '을', '갑', '2023-03-01')['items']['a.gap']['detail']['facts'];
+    assert_same([['마지막 출전', '2022.03.01 · vs 갑'], ['결과 (을 기준)', '2–7 패'], ['이번 경기까지', '365일 (1년)']], $g);
+});
+
+test('기록 상세(v0.8): 최근 5매치(적으면 있는 만큼·경기 수 표시, 이상 경기 끼면 확인 필요), 같은 날 여러 경기는 Results 행 순서', function () {
+    $ds = fx_rds([fx_rm('2020-01-01', '갑', '을', 5, 4), fx_rm('2021-01-01', '병', '갑', 6, 3), fx_rm('2022-01-01', '갑', '정', 7, 2)]);
+    $it = stats_match_records($ds, '갑', '을', '2023-01-01')['items']['a.recent'];
+    assert_same(['ok', 2, '승', '최근 3경기 · 1패', '갑 최근 3경기 2승 1패'], [$it['status'], $it['value'], $it['unit'], $it['desc'], $it['text']]);
+    $p = ['a' => ['player' => '갑'], 'b' => ['player' => '을'], 'date' => '2023-01-01', 'records' => ['a.recent'], 'part' => 1];
+    $v = template_present('record-detail', template_auto('record-detail', $p, $ds), $p, false);
+    assert_same(['갑 · 최근 끝장전 3경기', '2', '승 1패', '최근 3경기', 3], [$v['title'], $v['num'], $v['unit'], $v['label'], count($v['rows'])]);
+    assert_same(['2021.01.01', 'vs 병', '3–6', '패'], array_values($v['rows'][1]));
+    $odd = fx_rds([fx_rm('2020-01-01', '갑', '을', 5, 4), fx_rm('2021-01-01', '갑', '무', 2, 1, '세트 수 3개')]);
+    assert_same('hold', stats_match_records($odd, '갑', '을', '2023-01-01')['items']['a.recent']['status']);
+    // 같은 날 두 경기: Results에서 뒤에 입력된 경기가 나중 (이름순이 아님)
+    $m1 = fx_rm('2020-05-05', '갑', '하', 4, 5);
+    $m1['rows'] = [20, 28];
+    $m2 = fx_rm('2020-05-05', '갑', '가', 5, 4);
+    $m2['rows'] = [30, 38];
+    $r = stats_match_records(fx_rds([$m2, $m1]), '갑', '을', '2021-01-01')['items']['a.recent']['detail']['games'];
+    assert_same(['vs 가', 'vs 하'], [$r[0]['opp'] === '가' ? 'vs 가' : 'x', 'vs ' . $r[1]['opp']], '최근 = 뒤 행(30행) 경기');
+});
+
+test('기록 상세(v0.8): 페이지 추가·송출, 0.7.0에 만든 매치 기록 페이지(근거 줄 없음)도 그대로 열리고 송출, 근거 줄은 1개일 때만', function () {
+    setup_sheet();
+    $st = type_state('record-detail', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'], 'date' => '2026-01-01', 'records' => ['h.gap'], 'part' => 1]);
+    assert_same([[], 'facts', 5], [$st['problems'], $st['view']['layout'], count($st['view']['rows'])]);
+    assert_same('가선수 vs 나선수 · 2026-01-01 · 맞대결 간격', template_summary('record-detail', json_dec(rundown_rows()[0]['params_json'])));
+    assert_true(!in_array('record-detail', match_templates(), true), '한 번에 추가·페이지 리스트 바꾸기 대상 아님');
+    // 해당 없는 기록(가선수 현재 연승 아님)은 이유와 함께 차단
+    $bad = type_state('record-detail', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'], 'date' => '2026-01-01', 'records' => ['a.win_streak'], 'part' => 1]);
+    assert_true((bool)array_filter($bad['problems'], static fn($p) => str_contains($p, '기록 없음: 현재 연승 중이 아닙니다')), implode(' / ', $bad['problems']));
+    // 2쪽(6~10번째 경기)은 연승·연패 기록에만
+    assert_throws(ActionError::class, fn() => template_params('record-detail', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'],
+        'date' => '2026-01-01', 'records' => ['h.gap'], 'part' => 2], players_cache(), template_ctx()), 'BAD_PARAMS');
+    assert_throws(ActionError::class, fn() => template_params('record-detail', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'],
+        'date' => '2026-01-01', 'records' => ['a.recent'], 'part' => 2], players_cache(), template_ctx()), 'BAD_PARAMS');
+    assert_throws(ActionError::class, fn() => template_params('record-detail', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'],
+        'date' => '2026-01-01', 'records' => ['a.gap', 'h.gap'], 'part' => 1], players_cache(), template_ctx()), 'BAD_PARAMS');
+
+    // 0.7.0에서 저장된 매치 기록: AUTO에 근거 줄 칸이 없음 → 오류 없이 열리고 송출 가능, 근거 줄만 없음
+    $one = type_state('match-records', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'], 'date' => '2026-01-01', 'records' => ['a.gap']]);
+    $iid = channel_get('preview')['instance_id'];
+    assert_true(str_contains(cg_render($one['view']), 'rec-note'), '1개면 근거 한 줄');
+    $old = array_filter(instance_get($iid)['auto'], static fn($k) => !str_ends_with($k, '.note'), ARRAY_FILTER_USE_KEY);
+    db_exec('UPDATE cg_instances SET auto_json = ? WHERE id = ?', [json_enc($old), $iid]);
+    $st = instance_state(instance_get($iid), current_session_id());
+    assert_same([[], ''], [$st['problems'], $st['view']['rows'][0]['note']]);
+    assert_true(!str_contains(cg_render($st['view']), 'rec-note'));
+    $two = type_state('match-records', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'], 'date' => '2026-01-01', 'records' => ['a.gap', 'h.gap']]);
+    assert_true(!str_contains(cg_render($two['view']), 'rec-note'), '2~3개면 근거 줄을 그리지 않음');
 });

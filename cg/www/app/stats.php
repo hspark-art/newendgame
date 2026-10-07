@@ -66,7 +66,8 @@ function stats_race_sets(array $games, string $pid, string $vsRace): array
 /** 날짜·id 순으로 정렬 (오래된 경기 먼저) */
 function matches_sorted(array $matches): array
 {
-    usort($matches, static fn($x, $y) => [$x['date'], $x['id']] <=> [$y['date'], $y['id']]);
+    // 같은 날 여러 경기는 Results 행 순서로 (시트에 시각이 없음 — 먼저 입력된 경기가 먼저)
+    usort($matches, static fn($x, $y) => [$x['date'], $x['rows'][0] ?? 0, $x['id']] <=> [$y['date'], $y['rows'][0] ?? 0, $y['id']]);
     return $matches;
 }
 
@@ -479,10 +480,18 @@ function stats_mission_ranking(array $predictions, string $year): array
 const RECORDS_FULL_HISTORY = false;
 /** 매치 기록 종류 (키 → 운영자용 이름). a·b = 선수, h = 두 선수 맞대결 */
 const MATCH_RECORD_KINDS = [
-    'a.win_streak' => 'A 매치 연승', 'a.loss_streak' => 'A 매치 연패', 'a.gap' => 'A 출전 간격',
-    'b.win_streak' => 'B 매치 연승', 'b.loss_streak' => 'B 매치 연패', 'b.gap' => 'B 출전 간격',
+    'a.win_streak' => 'A 매치 연승', 'a.loss_streak' => 'A 매치 연패', 'a.gap' => 'A 출전 간격', 'a.recent' => 'A 최근 5매치',
+    'b.win_streak' => 'B 매치 연승', 'b.loss_streak' => 'B 매치 연패', 'b.gap' => 'B 출전 간격', 'b.recent' => 'B 최근 5매치',
     'h.gap' => '맞대결 간격', 'h.streak' => '맞대결 연승',
 ];
+/** 최근 매치 흐름의 경기 수 */
+const RECORDS_RECENT = 5;
+
+/** '2026-09-30' → '2026.09.30' (방송·근거 표기) */
+function stats_dot_date(string $ymd): string
+{
+    return str_replace('-', '.', $ymd);
+}
 
 /** 두 날짜(Y-m-d)의 달력 날짜 차이 (한국 시간 — bootstrap의 Asia/Seoul) */
 function stats_days(string $from, string $to): int
@@ -504,8 +513,10 @@ function stats_days_text(string $from, string $to): string
  * - 이상 경기(확인 필요)는 기록을 확정하지 않는다(status hold). 운영자가 '통계 제외'를 확정한 경기는 끝장전이 아니므로 보지 않는다.
  * - 경기일 당일·이후에 입력된 세트·경기는 계산에서 빼고 notes로 알린다 (진행 중이거나 입력 중).
  * - 시트 첫 기록까지 이어지는 연승은 그 이전 기록을 알 수 없어 hold (RECORDS_FULL_HISTORY가 false일 때).
+ * - 스코어는 늘 기준 선수 쪽에서 본 값(내 세트–상대 세트). 맞대결 스코어는 이름과 함께.
  * @return array{date:string, from:?string, to:?string, notes:list<string>, items:array<string, array>}
- *   item = {key, kind, name, value:?int, unit, desc, text, recommended:bool, status: ok|hold|none, reason, basis:list<string>}
+ *   item = {key, kind, name, value:?int, unit, desc, text, recommended:bool, status: ok|hold|none, reason, basis:list<string>,
+ *           note:string (요약 CG 근거 한 줄), detail:?array (기록 상세 CG — type games|facts)}
  */
 function stats_match_records(array $ds, string $a, string $b, string $date): array
 {
@@ -514,6 +525,7 @@ function stats_match_records(array $ds, string $a, string $b, string $date): arr
     $all = $ds['matches_all'] ?? $ds['matches'] ?? [];
     $dates = array_column($all, 'date');
     $out = ['date' => $date, 'from' => $dates ? min($dates) : null, 'to' => $dates ? max($dates) : null, 'notes' => [], 'items' => []];
+    $since = $out['from'] === null ? '' : '시트 기록(' . substr(stats_dot_date($out['from']), 0, 7) . '~) 기준';
 
     // 경기일 이전 · 당일 · 이후 (통계 제외 확정 경기는 끝장전이 아니므로 뺀다)
     $before = $sameDay = $after = [];
@@ -538,55 +550,90 @@ function stats_match_records(array $ds, string $a, string $b, string $date): arr
     }
 
     $uncertain = static fn(array $m) => ($m['anomaly'] ?? null) !== null;
-    $line = static function (array $m, string $p) use ($nm): string {
+    // 기준 선수 $p 쪽에서 본 경기 한 줄 (CG 상세 표·운영 화면 근거가 같은 값을 쓴다)
+    $game = static function (array $m, string $p) use ($nm, $uncertain): array {
         $x = match_for($m, $p);
-        return sprintf('%s vs %s %d:%d %s%s', $m['date'], $nm($x['opp']), $x['my'], $x['their'], $x['my'] > $x['their'] ? '승' : '패',
-            ($m['anomaly'] ?? null) !== null ? ' (이상 경기: ' . $m['anomaly'] . ')' : '');
+        return ['date' => stats_dot_date($m['date']), 'opp' => $nm($x['opp']), 'my' => $x['my'], 'their' => $x['their'],
+            'win' => $x['my'] > $x['their'], 'anomaly' => $uncertain($m) ? (string)$m['anomaly'] : null];
     };
+    $gameText = static fn(array $g) => sprintf('%s vs %s %d–%d %s%s', $g['date'], $g['opp'], $g['my'], $g['their'], $g['win'] ? '승' : '패',
+        $g['anomaly'] !== null ? ' (이상 경기: ' . $g['anomaly'] . ')' : '');
+    $line = static fn(array $m, string $p) => $gameText($game($m, $p));
     $item = static fn(string $key, string $name, ?int $value, string $unit, string $desc, string $text, bool $rec, string $status,
-        string $reason, array $basis) => ['key' => $key, 'kind' => explode('.', $key)[1], 'name' => $name, 'value' => $value,
-        'unit' => $unit, 'desc' => $desc, 'text' => $text, 'recommended' => $rec && $status === 'ok', 'status' => $status,
-        'reason' => $reason, 'basis' => $basis];
+        string $reason, array $basis, string $note = '', ?array $detail = null) => ['key' => $key, 'kind' => explode('.', $key)[1],
+        'name' => $name, 'value' => $value, 'unit' => $unit, 'desc' => $desc, 'text' => $text, 'recommended' => $rec && $status === 'ok',
+        'status' => $status, 'reason' => $reason, 'basis' => $basis, 'note' => $note, 'detail' => $detail];
     $more = static fn(array $lines, int $n = 8) => count($lines) > $n
         ? array_merge(array_slice($lines, 0, $n), ['… 외 ' . (count($lines) - $n) . '경기']) : $lines;
 
     /*
      * 연승·연패: 가장 최근 경기부터 거꾸로, 같은 결과가 이어지는 수. 반대 결과(확정 경기)에서 끊긴다.
-     * $win(m) = 대상이 이긴 경기인지. 반환 [방향(true=연승), 수, 상태, 사유, 근거]
+     * $win(m) = 대상이 이긴 경기인지. 반환 [방향(true=연승), 수, 상태, 사유, 근거, 연승 경기(최근 순), 끊긴 경기]
      */
     $streak = static function (array $list, callable $win, string $who, callable $show) use ($uncertain, $more): array {
         if (!$list) {
-            return [null, 0, 'none', '', []];
+            return [null, 0, 'none', '', [], [], null];
         }
         $rev = array_reverse($list);
         $first = $rev[0];
         if ($uncertain($first)) {
-            return [null, 0, 'hold', "가장 최근 경기({$first['date']})가 이상 경기라 연승·연패를 확정할 수 없습니다.", [$show($first)]];
+            return [null, 0, 'hold', "가장 최근 경기({$first['date']})가 이상 경기라 연승·연패를 확정할 수 없습니다.", [$show($first)], [], null];
         }
         $dir = $win($first);
         $n = 0;
-        $basis = [];
+        $basis = $games = [];
         foreach ($rev as $m) {
             if ($uncertain($m)) {
-                return [$dir, $n, 'hold', "기록 사이에 이상 경기({$m['date']})가 있어 확정할 수 없습니다.", array_merge($more($basis), [$show($m)])];
+                return [$dir, $n, 'hold', "기록 사이에 이상 경기({$m['date']})가 있어 확정할 수 없습니다.", array_merge($more($basis), [$show($m)]), $games, null];
             }
             if ($win($m) !== $dir) {
-                return [$dir, $n, 'ok', '', array_merge($more($basis), ['끊긴 경기: ' . $show($m)])];
+                return [$dir, $n, 'ok', '', array_merge($more($basis), ['끊긴 경기: ' . $show($m)]), $games, $m];
             }
             $n++;
             $basis[] = $show($m);
+            $games[] = $m;
         }
         if (RECORDS_FULL_HISTORY || $n < 2) { // 1경기뿐이면 연승·연패 후보가 아니다
-            return [$dir, $n, 'ok', '', $more($basis)];
+            return [$dir, $n, 'ok', '', $more($basis), $games, null];
         }
-        return [$dir, $n, 'hold', "$who 시트 첫 기록({$list[0]['date']})부터 이어지는 기록이라 시트 이전 기록이 있으면 달라집니다.", $more($basis)];
+        return [$dir, $n, 'hold', "$who 시트 첫 기록({$list[0]['date']})부터 이어지는 기록이라 시트 이전 기록이 있으면 달라집니다.", $more($basis), $games, null];
+    };
+    /*
+     * 개인 최다(같은 방향) — 지금 이어지는 연승·연패를 뺀, 이전에 끝난 연승·연패 중 가장 긴 것.
+     * 이상 경기에서는 이어진 것으로 보지 않는다 (확정할 수 없으므로). 시트 기록 범위 안의 값이다.
+     */
+    $best = static function (array $list, callable $win, bool $want) use ($uncertain): int {
+        $runs = [];
+        $run = 0;
+        foreach ($list as $m) {
+            if (!$uncertain($m) && $win($m) === $want) {
+                $run++;
+                continue;
+            }
+            $runs[] = $run;
+            $run = 0;
+        }
+        return $runs ? max($runs) : 0; // 마지막(지금 이어지는) 연승·연패는 넣지 않는다
+    };
+    $bestText = static function (int $n, int $best, string $unit) use ($since): string {
+        if ($best === 0) {
+            return '';
+        }
+        if ($n > $best) {
+            return "$since 개인 최다 · 이전 최다 {$best}$unit";
+        }
+        if ($n === $best) {
+            return "$since 개인 최다 타이 ({$best}$unit)";
+        }
+        return $unit === '연승' ? "개인 최다 {$best}연승까지 " . ($best - $n) . "승 · $since" : "개인 최다 {$best}연패 · $since";
     };
 
     foreach (['a' => $a, 'b' => $b] as $s => $p) {
         $mine = array_values(array_filter($before, static fn($m) => in_array($p, [$m['playerA'], $m['playerB']], true)));
         $show = static fn(array $m) => $line($m, $p);
+        $winP = static fn($m) => match_for($m, $p)['my'] > match_for($m, $p)['their'];
         // 매치 연승 / 연패
-        [$dir, $n, $st, $why, $basis] = $streak($mine, static fn($m) => match_for($m, $p)['my'] > match_for($m, $p)['their'], $nm($p), $show);
+        [$dir, $n, $st, $why, $basis, $games, $break] = $streak($mine, $winP, $nm($p), $show);
         foreach (['win_streak' => '연승', 'loss_streak' => '연패'] as $kind => $unit) {
             $want = $kind === 'win_streak';
             $label = "{$nm($p)} 매치 $unit";
@@ -602,19 +649,50 @@ function stats_match_records(array $ds, string $a, string $b, string $date): arr
                 $res = [null, 'none', "현재 1$unit — 2$unit 이상이 아닙니다."];
             }
             [$v, $vst, $vwhy] = $res;
+            $detail = $note = null;
+            if ($v !== null) {
+                $bt = $bestText($v, $best($mine, $winP, $want), $unit);
+                $rows = array_map(static fn($m) => $game($m, $p), $games);
+                $detail = ['type' => 'games', 'who' => $nm($p), 'title' => "{$nm($p)} · 끝장전 매치 $unit", 'total' => $v, 'games' => $rows,
+                    'break' => $break === null ? null : $game($break, $p), 'break_label' => $want ? '연승 직전 마지막 패배' : '연패 직전 마지막 승리',
+                    'best' => $bt];
+                $note = $bt !== '' ? $bt : '최근 경기 ' . $gameText($rows[0]);
+            }
             $out['items']["$s.$kind"] = $item("$s.$kind", $nm($p), $v, $unit, '현재 끝장전 매치', $v === null ? $label : $label . ' ' . $v . $unit,
-                $want && $v !== null && $v >= 3, $vst, $vwhy, $basis ?: ($mine ? [$show(end($mine))] : []));
+                $want && $v !== null && $v >= 3, $vst, $vwhy, $basis ?: ($mine ? [$show(end($mine))] : []), (string)$note, $detail);
         }
-        // 출전 간격: 경기일 - 마지막 출전일
+        // 출전 간격: 경기일 - 마지막 출전일 (끝장전만)
         $last = $mine ? end($mine) : null;
         if ($last === null) {
             $out['items']["$s.gap"] = $item("$s.gap", $nm($p), null, '일', '만에 끝장전 출전', "{$nm($p)} 출전 간격", false, 'none',
                 "시트 기록({$out['from']}~)에 이전 출전이 없습니다.", []);
         } else {
             $days = stats_days($last['date'], $date);
+            $g = $game($last, $p);
             $out['items']["$s.gap"] = $item("$s.gap", $nm($p), $days, '일', '만에 끝장전 출전', "{$nm($p)} " . number_format($days) . '일 만에 출전',
                 $days >= 365, $uncertain($last) ? 'hold' : 'ok', $uncertain($last) ? "마지막 출전 경기({$last['date']})가 이상 경기라 확정할 수 없습니다." : '',
-                ['마지막 출전: ' . $show($last), "경기일 $date → " . stats_days_text($last['date'], $date)]);
+                ['마지막 출전: ' . $gameText($g), "경기일 " . stats_dot_date($date) . ' → ' . stats_days_text($last['date'], $date)],
+                '마지막 출전 ' . $gameText($g),
+                ['type' => 'facts', 'title' => "{$nm($p)} · 끝장전 출전 간격", 'facts' => [
+                    ['마지막 출전', $g['date'] . ' · vs ' . $g['opp']], ['결과 (' . $nm($p) . ' 기준)', "{$g['my']}–{$g['their']} " . ($g['win'] ? '승' : '패')],
+                    ['이번 경기까지', stats_days_text($last['date'], $date)]]]);
+        }
+        // 최근 5매치 흐름: 경기일 이전 최근 경기 (적으면 있는 만큼, 경기 수를 함께 표시)
+        $recent = array_reverse(array_slice($mine, -RECORDS_RECENT));
+        if (!$recent) {
+            $out['items']["$s.recent"] = $item("$s.recent", $nm($p), null, '승', '최근 끝장전', "{$nm($p)} 최근 매치", false, 'none',
+                "시트 기록({$out['from']}~)에 이전 출전이 없습니다.", []);
+        } else {
+            $rows = array_map(static fn($m) => $game($m, $p), $recent);
+            $w = count(array_filter($rows, static fn($g) => $g['win']));
+            $odd = array_values(array_filter($recent, $uncertain));
+            $cnt = count($rows);
+            $out['items']["$s.recent"] = $item("$s.recent", $nm($p), $w, '승', "최근 {$cnt}경기 · " . ($cnt - $w) . '패',
+                "{$nm($p)} 최근 {$cnt}경기 {$w}승 " . ($cnt - $w) . '패', false, $odd ? 'hold' : 'ok',
+                $odd ? "최근 경기 중 이상 경기({$odd[0]['date']})가 있어 확정할 수 없습니다." : '', array_map($gameText, $rows),
+                '최근 경기 ' . $gameText($rows[0]),
+                ['type' => 'games', 'who' => $nm($p), 'title' => "{$nm($p)} · 최근 끝장전 {$cnt}경기", 'total' => $cnt, 'games' => $rows,
+                    'break' => null, 'break_label' => '', 'best' => '', 'record' => "{$w}승 " . ($cnt - $w) . '패']);
         }
     }
 
@@ -622,7 +700,6 @@ function stats_match_records(array $ds, string $a, string $b, string $date): arr
     $meet = array_values(array_filter($before, static fn($m) => in_array($a, [$m['playerA'], $m['playerB']], true)
         && in_array($b, [$m['playerA'], $m['playerB']], true)));
     $pair = $nm($a) . ' vs ' . $nm($b);
-    $showA = static fn(array $m) => $line($m, $a);
     if (!$meet) {
         $none = "시트 기록({$out['from']}~)에 두 선수의 맞대결이 없습니다.";
         $out['items']['h.gap'] = $item('h.gap', $pair, null, '일', '만에 펼쳐지는 맞대결', "$pair 맞대결 간격", false, 'none', $none, []);
@@ -631,19 +708,38 @@ function stats_match_records(array $ds, string $a, string $b, string $date): arr
     }
     $last = end($meet);
     $days = stats_days($last['date'], $date);
+    $ga = $game($last, $a);
+    $score = "{$nm($a)} {$ga['my']}–{$ga['their']} {$nm($b)}"; // 맞대결 스코어는 이름과 함께 (누구 점수인지)
+    $winner = $ga['win'] ? $nm($a) : $nm($b);
+    // 경기일 이전 끝장전 상대전적 (확정 경기만). 확인 필요 경기가 끼어 있으면 상대전적은 내지 않는다
+    $valid = array_values(array_filter($meet, static fn($m) => !$uncertain($m)));
+    $odd = count($meet) - count($valid);
+    $h = stats_head_to_head($valid, $a, $b, 0);
+    $facts = [['마지막 맞대결', $ga['date'] . ' · ' . $winner . ' 승'], ['스코어', $score], ['이번 경기까지', stats_days_text($last['date'], $date)]];
+    if ($odd === 0) {
+        $facts[] = ['상대전적 (매치)', "{$nm($a)} {$h['a_wins']}승 · {$nm($b)} {$h['b_wins']}승 ({$h['count']}경기)"];
+        $facts[] = ['상대전적 (세트)', "{$nm($a)} {$h['a_sets']} · {$nm($b)} {$h['b_sets']}"];
+    }
     $out['items']['h.gap'] = $item('h.gap', $pair, $days, '일', '만에 펼쳐지는 맞대결', "$pair " . number_format($days) . '일 만의 맞대결',
         $days >= 365, $uncertain($last) ? 'hold' : 'ok', $uncertain($last) ? "마지막 맞대결({$last['date']})이 이상 경기라 확정할 수 없습니다." : '',
-        ['마지막 맞대결: ' . $showA($last), "경기일 $date → " . stats_days_text($last['date'], $date)]);
+        array_merge(['마지막 맞대결: ' . $ga['date'] . ' ' . $score . " ($winner 승)", "경기일 " . stats_dot_date($date) . ' → ' . stats_days_text($last['date'], $date)],
+            $odd === 0 ? [$facts[3][1] . ' · 세트 ' . $facts[4][1]] : ["상대전적: 확인 필요 경기 {$odd}건이 있어 표시하지 않습니다."]),
+        '마지막 맞대결 ' . $ga['date'] . ' · ' . $score,
+        ['type' => 'facts', 'title' => "$pair · 끝장전 맞대결", 'facts' => $facts]);
     // 맞대결 연승: 최근 맞대결에서 이긴 선수(holder)가 그 전부터 이어서 이긴 수. 근거도 이긴 선수 쪽에서 본 스코어
     $holder = !$uncertain($last) && match_for($last, $b)['my'] > match_for($last, $b)['their'] ? $b : $a;
     $opp = $holder === $a ? $b : $a;
-    [$dir, $n, $st, $why, $basis] = $streak($meet, static fn($m) => match_for($m, $holder)['my'] > match_for($m, $holder)['their'], '두 선수의',
-        static fn(array $m) => $line($m, $holder));
+    [$dir, $n, $st, $why, $basis, $games, $break] = $streak($meet, static fn($m) => match_for($m, $holder)['my'] > match_for($m, $holder)['their'],
+        '두 선수의', static fn(array $m) => $line($m, $holder));
     if ($dir === null) { // 가장 최근 맞대결이 이상 경기
         $out['items']['h.streak'] = $item('h.streak', $pair, null, '연승', '맞대결', "$pair 맞대결 연승", false, 'hold', $why, $basis);
     } elseif ($st === 'hold' || $n >= 2) {
+        $rows = array_map(static fn($m) => $game($m, $holder), $games);
         $out['items']['h.streak'] = $item('h.streak', $nm($holder), $n, '연승', $nm($opp) . ' 상대 맞대결',
-            "{$nm($holder)} {$nm($opp)} 상대 맞대결 {$n}연승", $n >= 3, $st, $why, $basis);
+            "{$nm($holder)} {$nm($opp)} 상대 맞대결 {$n}연승", $n >= 3, $st, $why, $basis,
+            '최근 맞대결 ' . $rows[0]['date'] . " · {$nm($holder)} {$rows[0]['my']}–{$rows[0]['their']} {$nm($opp)}",
+            ['type' => 'games', 'who' => $nm($holder), 'title' => "{$nm($holder)} · {$nm($opp)} 상대 맞대결 연승", 'total' => $n, 'games' => $rows,
+                'break' => $break === null ? null : $game($break, $holder), 'break_label' => '연승 직전 맞대결', 'best' => '']);
     } else {
         $out['items']['h.streak'] = $item('h.streak', $pair, null, '연승', '맞대결', "$pair 맞대결 연승", false, 'none',
             '맞대결 2연승 이상이 아닙니다 (최근 맞대결 ' . $nm($holder) . ' 승).', $basis);

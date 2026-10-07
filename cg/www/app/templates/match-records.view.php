@@ -1,4 +1,4 @@
-<?php /** 매치 기록 — $view: {title, rows[{name, num, unit, desc}], mock}. 1줄이면 크게(이름 · 큰 숫자 · 설명), 2~3줄이면 줄로 */
+<?php /** 매치 기록 — $view: {title, rows[{name, num, unit, desc, note}], mock}. 1줄이면 크게(이름 · 큰 숫자 · 설명 · 근거 한 줄), 2~3줄이면 줄로 */
 $val = static fn(array $r): string => '<span class="cg-fit"><b>' . h($r['num']) . '</b>' . ($r['unit'] !== '' ? '<small>' . h($r['unit']) . '</small>' : '') . '</span>';
 ?>
 <div class="cg-box cg-records">
@@ -14,6 +14,9 @@ $val = static fn(array $r): string => '<span class="cg-fit"><b>' . h($r['num']) 
     <div class="rec-val"><?= $val($r) ?></div>
 <?php if ($r['desc'] !== ''): ?>
     <div class="rec-desc"><span class="cg-fit"><?= h($r['desc']) ?></span></div>
+<?php endif ?>
+<?php if ($r['note'] !== ''): ?>
+    <div class="rec-note"><span class="cg-fit"><?= h($r['note']) ?></span></div>
 <?php endif ?>
   </div>
 <?php else: ?>

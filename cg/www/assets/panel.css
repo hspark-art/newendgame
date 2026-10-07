@@ -249,3 +249,5 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .rc-none .rc-item { margin-top: 4px; }
 .tag.rec { background: rgba(102, 187, 106, .2); color: #81c784; }
 .tag.hold { background: rgba(255, 167, 38, .18); color: #ffb74d; }
+.rc-item .rc-act { grid-column: 3; margin-top: 3px; }
+.rc-item .rc-act .btn { margin-right: 4px; }

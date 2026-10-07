@@ -248,6 +248,46 @@
 .rec-big .rec-name { font-size: calc(28px * var(--k-name)); }
 .rec-big .rec-val { width: auto; text-align: center; font-size: calc(70px * var(--k-num)); line-height: 1.05; }
 .rec-big .rec-desc { font-size: calc(20px * var(--k-name)); }
+/* v0.8 근거 한 줄 (기록 1개일 때): 날짜·스코어 등 — 숫자보다 작게, 읽히는 크기 */
+.rec-note { overflow: hidden; white-space: nowrap; margin-top: 4px; font-family: var(--cg-font-num); color: var(--c-sub);
+  font-size: calc(17px * var(--k-num)); font-weight: 600; line-height: 1.25; }
+
+/* 기록 상세 (#16): 폭 표준 560, 높이는 줄 수만큼 (5줄 + 아래 한 줄 약 350px, 아래 기준이라 위로 커짐).
+   위: 큰 숫자 + 범위·개인 최다 / 아래: 경기 내역 표 [날짜 | 상대 | 스코어 | 결과] 또는 사실 표 [항목 | 내용] */
+.cg-recdetail { height: auto; }
+.rd-hero { flex: none; display: flex; align-items: center; gap: 16px; height: calc(60px * var(--k-h)); padding: 0 22px; }
+.rd-num { flex: none; max-width: 48%; overflow: hidden; white-space: nowrap; font-family: var(--cg-font-num); color: var(--c-accent);
+  font-size: calc(46px * var(--k-num)); line-height: 1; text-shadow: 0 2px 3px rgba(0, 0, 0, .8); }
+.rd-num b { font-weight: 800; }
+.rd-num small { margin-left: .1em; font-size: .5em; font-weight: 700; color: var(--c-num); }
+.rd-side { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; text-align: right; }
+.rd-label { overflow: hidden; white-space: nowrap; font-family: var(--cg-font-name); color: var(--c-text);
+  font-size: calc(19px * var(--k-name)); font-weight: 700; line-height: 1.25; }
+.rd-best { overflow: hidden; white-space: nowrap; font-family: var(--cg-font-name); color: var(--c-sub);
+  font-size: calc(15px * var(--k-name)); font-weight: 600; line-height: 1.3; }
+.rd-table, .rd-facts { flex: none; display: flex; flex-direction: column; padding: 0 0 8px; }
+.rd-tr { display: flex; align-items: center; gap: 10px; height: calc(33px * var(--k-h)); padding: 0 22px; }
+.rd-tr:nth-child(even) { background: var(--row-alt); }
+.rd-tr > span { overflow: hidden; white-space: nowrap; }
+.rd-c1 { flex: none; width: calc(118px * var(--k-w)); font-family: var(--cg-font-num); color: var(--c-num); font-size: calc(19px * var(--k-num)); }
+.rd-c2 { flex: 1; min-width: 0; font-family: var(--cg-font-name); color: var(--c-text); font-size: calc(21px * var(--k-name)); font-weight: 600; }
+.rd-c3 { flex: none; width: calc(118px * var(--k-w)); text-align: center; font-family: var(--cg-font-num); color: var(--c-num);
+  font-size: calc(22px * var(--k-num)); font-weight: 700; }
+.rd-c4 { flex: none; width: calc(44px * var(--k-w)); text-align: center; font-family: var(--cg-font-name);
+  font-size: calc(19px * var(--k-name)); font-weight: 800; border-radius: 4px; }
+.rd-c4.is-w { color: var(--c-on-accent); background: var(--c-accent); }
+.rd-c4.is-l { color: var(--c-sub); background: var(--chip-l); }
+.rd-th { height: calc(24px * var(--k-h)); background: transparent !important; }
+.rd-th > span { font-family: var(--cg-font-name); color: var(--c-sub); font-size: calc(13px * var(--k-name)); font-weight: 600;
+  background: none; }
+.rd-fr { display: flex; align-items: center; gap: 14px; height: calc(34px * var(--k-h)); padding: 0 22px; }
+.rd-fr:nth-child(even) { background: var(--row-alt); }
+.rd-k { flex: none; width: calc(150px * var(--k-w)); overflow: hidden; white-space: nowrap; font-family: var(--cg-font-name);
+  color: var(--c-sub); font-size: calc(17px * var(--k-name)); font-weight: 600; }
+.rd-v { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-align: right; font-family: var(--cg-font-num);
+  color: var(--c-text); font-size: calc(21px * var(--k-num)); font-weight: 700; }
+.cg-sumbar.rd-foot { height: calc(32px * var(--k-h)); font-size: calc(16px * var(--k-num)); font-weight: 600; color: var(--c-sub);
+  border-bottom: 0; border-top: 2px solid #0c0e12; }
 
 /* 5줄: 한 줄 높이는 4줄일 때와 같게 두고 박스가 위로 한 줄만큼 커진다 (오른쪽 아래 기준 배치라 아래 위치는 그대로).
    이전에는 높이 250px 안에 5줄을 넣느라 줄이 낮아져 글자 아래가 잘렸다 */

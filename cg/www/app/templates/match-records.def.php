@@ -8,8 +8,9 @@ declare(strict_types=1);
  * 송출을 막고(검증 사유) 이유를 알린다 — 운영자가 확인한 값을 직접 입력하거나 그 줄을 빼면 송출할 수 있다.
  * 선수 끝장전 목록이 시트 자체 집계와 다르면 그 선수 기록도 확인 필요 (stats_records_crosscheck).
  * 기록 후보와 계산 근거(경기 날짜·결과)는 '오늘 매치' 창과 페이지 추가 창에서 본다 (match_records 액션).
+ * v0.8: 기록을 1개만 고르면 큰 숫자 아래에 근거 한 줄(마지막 출전·맞대결 날짜와 스코어, 개인 최다 비교 등). 경기 내역 전체는 '기록 상세'(#16).
  */
-$rowKeys = static fn(int $n) => ["r$n.name", "r$n.num", "r$n.unit", "r$n.desc"];
+$rowKeys = static fn(int $n) => ["r$n.name", "r$n.num", "r$n.unit", "r$n.desc", "r$n.note"];
 
 return [
     'slug' => 'match-records',
@@ -28,6 +29,7 @@ return [
         'num' => ['label' => '숫자', 'type' => 'int', 'max' => 99999],
         'unit' => ['label' => '단위', 'type' => 'text', 'max' => 4],
         'desc' => ['label' => '설명', 'type' => 'text', 'max' => 24],
+        'note' => ['label' => '근거 한 줄 (기록 1개일 때만 표시)', 'type' => 'text', 'max' => 60],
     ]),
     'auto' => static function (array $p, array $ds): array {
         $r = stats_match_records($ds, $p['a']['player'], $p['b']['player'], $p['date']);
@@ -37,7 +39,7 @@ return [
             $it = $r['items'][$key] ?? null;
             // 기록이 없어져도(조건이 바뀜) 이름은 남겨 검증 사유로 막는다 — 줄이 조용히 사라지지 않게
             $auto += ["r$n.name" => $it['name'] ?? null, "r$n.num" => $it['value'] ?? null, "r$n.unit" => $it['unit'] ?? null,
-                "r$n.desc" => $it['desc'] ?? null];
+                "r$n.desc" => $it['desc'] ?? null, "r$n.note" => ($it['note'] ?? '') === '' ? null : $it['note']];
         }
         return $auto;
     },
@@ -60,7 +62,7 @@ return [
         $shown = static fn(string $k) => !in_array($k, $hidden, true);
         foreach (array_keys($p['records']) as $i) {
             $n = $i + 1;
-            $text = array_filter(["r$n.name", "r$n.unit", "r$n.desc"], static fn($k) => $shown($k) && (string)($f[$k] ?? '') !== '');
+            $text = array_filter(["r$n.name", "r$n.unit", "r$n.desc", "r$n.note"], static fn($k) => $shown($k) && (string)($f[$k] ?? '') !== '');
             if ($text && $shown("r$n.num") && ($f["r$n.num"] ?? null) === null) {
                 $out[] = "{$n}행 숫자가 비어 있습니다. 확인한 숫자를 직접 입력하거나 그 줄을 빼세요 (빨간 −).";
             }
@@ -72,12 +74,12 @@ return [
     'present' => static function (array $f): array {
         $rows = [];
         for ($i = 1; $i <= 3; $i++) {
-            $r = row_visible($f, $i, ['name', 'num', 'unit', 'desc'], 'num');
+            $r = row_visible($f, $i, ['name', 'num', 'unit', 'desc', 'note'], 'num');
             if ($r === null) {
                 continue;
             }
             $rows[] = ['name' => (string)$r['name'], 'num' => $r['num'] === null ? '' : number_format($r['num']),
-                'unit' => (string)$r['unit'], 'desc' => (string)$r['desc']];
+                'unit' => (string)$r['unit'], 'desc' => (string)$r['desc'], 'note' => (string)($r['note'] ?? '')];
         }
         return ['title' => (string)$f['title'], 'rows' => $rows];
     },

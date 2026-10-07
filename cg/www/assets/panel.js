@@ -546,7 +546,7 @@
         return '<input type="date"' + attr + ' value="' + esc(v || matchDate()) + '">';
       case 'record_slots':
         // 기록 후보는 선수·경기일을 고르면 불러온다 (loadRecords)
-        return '<div class="rec-pick"' + attr + ' data-selected="' + esc(JSON.stringify(v || [])) + '"></div>';
+        return '<div class="rec-pick"' + attr + ' data-max="' + esc(p.max) + '" data-selected="' + esc(JSON.stringify(v || [])) + '"></div>';
       case 'predictor_slots':
         var list = [['', '—']].concat(S.predictors.map(function (x) { return [x.id, x.name]; }));
         (v || []).forEach(function (id) { list = withValue(list, id, id + ' (목록에 없음)'); });
@@ -620,20 +620,27 @@
    */
   function renderRecords(el, r) {
     var on = function (it) { return el._order.indexOf(it.key) >= 0; };
+    var detailBtns = el.hasAttribute('data-detail-buttons');
     var row = function (it) {
       var off = it.status !== 'ok' && !on(it);
+      var d = it.detail;
+      var btns = detailBtns && it.status === 'ok' && d
+        ? '<span class="rc-act"><button type="button" class="btn sm" data-detail="' + esc(it.key) + '" data-part="1">상세 CG 추가</button>'
+          + (d.type === 'games' && !d.record && d.total > 5
+            ? ' <button type="button" class="btn sm" data-detail="' + esc(it.key) + '" data-part="2">상세 6~' + Math.min(10, d.total) + '번째 경기</button>' : '')
+          + '</span>' : '';
       return '<label class="rc-item is-' + esc(it.status) + '"><input type="checkbox" value="' + esc(it.key) + '"'
         + (on(it) ? ' checked' : '') + (off ? ' disabled' : '') + '><span class="rc-no"></span>'
         + '<span class="rc-main"><b>' + esc(it.text) + '</b>'
         + (it.recommended ? ' <span class="tag rec">추천</span>' : '')
         + (it.status === 'hold' ? ' <span class="tag hold">확인 필요</span>' : '') + '</span>'
         + (it.reason ? '<span class="rc-why">' + esc(it.reason) + '</span>' : '')
-        + (it.basis.length ? '<span class="rc-basis">' + it.basis.map(esc).join('<br>') + '</span>' : '') + '</label>';
+        + (it.basis.length ? '<span class="rc-basis">' + it.basis.map(esc).join('<br>') + '</span>' : '') + btns + '</label>';
     };
     var main = r.items.filter(function (it) { return it.status !== 'none' || on(it); });
     var none = r.items.filter(function (it) { return main.indexOf(it) < 0; });
     el.innerHTML = '<div class="rc-head">경기일 ' + esc(r.date) + ' 이전 끝장전 기준 · 시트 기록 ' + esc((r.from || '?') + ' ~ ' + (r.to || '?'))
-      + ' · 최대 3개, 고른 순서대로 CG 줄</div>'
+      + ' · 최대 ' + recordMax(el) + '개' + (recordMax(el) > 1 ? ', 고른 순서대로 CG 줄' : '') + '</div>'
       + r.notes.map(function (n) { return '<div class="rc-note">' + esc(n) + '</div>'; }).join('')
       + (main.length ? main.map(row).join('') : '<div class="rc-empty">조건에 맞는 기록이 없습니다.</div>')
       + (none.length ? '<details class="rc-none"><summary>해당 없는 기록 ' + none.length + '개 (이유 보기)</summary>' + none.map(row).join('') + '</details>' : '');
@@ -648,13 +655,15 @@
     });
   }
 
-  /** 체크: 고른 순서 기록 (최대 3개) */
+  function recordMax(el) { return parseInt(el.getAttribute('data-max') || '3', 10) || 3; }
+
+  /** 체크: 고른 순서 기록 (매치 기록 최대 3개, 기록 상세 1개) */
   function pickRecord(el, input) {
     var k = input.value;
     if (input.checked) {
-      if (el._order.length >= 3) {
+      if (el._order.length >= recordMax(el)) {
         input.checked = false;
-        toast('기록은 CG 한 장에 최대 3개까지 고를 수 있습니다.', 'err');
+        toast('기록은 CG 한 장에 최대 ' + recordMax(el) + '개까지 고를 수 있습니다.', 'err');
         return;
       }
       el._order.push(k);
@@ -988,6 +997,19 @@
       });
     };
     $('mRec').onclick = showMatchRecords;
+    $('mRecList').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-detail]');
+      if (!b) { return; }
+      e.preventDefault(); // label 안의 버튼: 체크박스가 바뀌지 않게
+      var m = this._for;
+      if (!m) { return; }
+      var part = parseInt(b.getAttribute('data-part'), 10);
+      api('page_add', { template: 'record-detail', params: { a: { player: m.a }, b: { player: m.b }, date: m.date,
+        records: [b.getAttribute('data-detail')], part: part } }).then(function (r) {
+        toast(pad3(r.page_no) + ' 기록 상세 페이지를 추가했습니다.', 'ok');
+        $('mResult').textContent = '추가: ' + pad3(r.page_no) + ' 기록 상세' + (part > 1 ? ' (6~10번째 경기)' : '');
+      });
+    });
     $('mRecList').addEventListener('change', function (e) {
       if (e.target.type === 'checkbox') { pickRecord(this, e.target); $('mRecAdd').disabled = !this._order.length; }
     });
