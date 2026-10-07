@@ -148,12 +148,14 @@ function row_blank(array $row): bool
  */
 function sheet_dataset(array $tables, string $method, bool $serialDates = false): array
 {
-    $lint = $dcErrors = [];
-    $games = sheet_games($tables['results'] ?? [], $serialDates, $lint, $dcErrors);
-    [$matches, $anomalies] = sheet_matches($games);
+    $lint = $dcErrors = $pending = [];
+    $games = sheet_games($tables['results'] ?? [], $serialDates, $lint, $dcErrors, $pending);
+    [$matches, $anomalies, $live] = sheet_matches($games);
     $setRecords = sheet_set_records($games);
 
-    $check = ['method' => $method, 'anomalies' => $anomalies, 'mismatches' => [], 'unavailable' => [], 'lint' => $lint];
+    // pending = 경기 중 입력하고 있어 뺀 맨 아래 행 (Results·예측 탭), live = 진행 중 경기 — 둘 다 안내만 (CG를 막지 않음)
+    $check = ['method' => $method, 'anomalies' => $anomalies, 'mismatches' => [], 'unavailable' => [], 'lint' => $lint,
+        'pending' => $pending, 'live' => $live];
     $verify = ['sets' => ['available' => false, 'players' => []], 'matches' => ['available' => false, 'players' => []],
         'predictions' => ['available' => false, 'predictors' => []], 'double' => ['available' => false, 'players' => []],
         'mission' => ['available' => false, 'predictors' => []], 'maps' => ['available' => false, 'bad' => []],
@@ -230,14 +232,22 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         $check['unavailable'][] = '끝장전 목록 검증 불가: ' . ($sheetMatches['error'] ?? '상대전적조회NEW 탭 없음');
     } else {
         $verify['matches']['available'] = true;
-        $calcLists = [];
+        $calcLists = $liveOpp = [];
         foreach ($matches as $m) {
+            if ($m['anomaly_kind'] === 'live') {
+                // 진행 중 경기는 대조하지 않는다 (시트 집계가 입력 중인 경기를 어떻게 보여 주든 양쪽에서 뺀다)
+                $liveOpp[$m['playerA']][$m['date'] . '|' . $m['playerB']] = $liveOpp[$m['playerB']][$m['date'] . '|' . $m['playerA']] = true;
+                $calcLists[$m['playerA']] ??= [];
+                $calcLists[$m['playerB']] ??= [];
+                continue;
+            }
             $calcLists[$m['playerA']][] = [$m['date'], $m['playerB'], $m['scoreA'], $m['scoreB'], (string)$m['raceA'], (string)$m['raceB']];
             $calcLists[$m['playerB']][] = [$m['date'], $m['playerA'], $m['scoreB'], $m['scoreA'], (string)$m['raceB'], (string)$m['raceA']];
         }
         foreach ($calcLists as $pid => $list) {
             $pid = (string)$pid;
-            $sheetList = $sheetMatches['rows'][$pid] ?? [];
+            $sheetList = array_values(array_filter($sheetMatches['rows'][$pid] ?? [],
+                static fn($x) => !isset($liveOpp[$pid][$x[0] . '|' . $x[1]])));
             $diff = sheet_list_diff($list, $sheetList);
             // 목록 일치 여부. 확인 안 된 이상 경기가 있는 선수는 dataset_finalize에서 다시 false로 만든다
             $verify['matches']['list_ok'][$pid] = $diff === null;
@@ -259,6 +269,7 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
 
     // 승자 예측 (예측 탭): 기록 + 순위표 검증. 탭에 문제가 있으면 예측 CG만 쓸 수 없고 나머지는 그대로 쓴다.
     $pred = isset($tables['predictions']) ? sheet_predictions_table($tables['predictions'], $serialDates) : null;
+    array_push($check['pending'], ...($pred['pending'] ?? []));
     $predictions = [];
     $predictors = [];
     if ($pred === null || $pred['error'] !== null) {
@@ -483,7 +494,7 @@ function dataset_finalize(array $ds, array $excluded): array
         $m['excluded'] = $m['anomaly'] !== null && $m['anomaly_kind'] === 'sets' && isset($ex[$m['id']]);
         if ($m['anomaly'] === null) {
             $valid[] = $m;
-        } elseif (!$m['excluded']) {
+        } elseif (!$m['excluded'] && $m['anomaly_kind'] !== 'live') { // 진행 중 경기는 끝나기 전까지 통계에서만 뺀다
             $uncertain[$m['playerA']] = $uncertain[$m['playerB']] = true;
         }
     }
@@ -726,11 +737,14 @@ function sheet_stats_table(array $rows): array
 }
 
 /**
- * Results 탭 → 세트 목록. 형식 오류가 있으면 ProviderError
+ * Results 탭 → 세트 목록. 형식 오류가 있으면 ProviderError.
+ * 단, 마지막 정상 행보다 아래에 있는 오류 행은 경기 중 입력하고 있는 행으로 보고 그 행만 빼고 읽는다($pending) —
+ * 중간 행의 오류(이미 지난 기록)는 그대로 새로고침 실패 (마지막 정상 데이터 유지).
  * @param array $lint     (출력) 고쳐 읽었지만 시트 집계가 다르게 셀 수 있는 입력 — 이름·종족 칸의 공백 등
  * @param array $dcErrors (출력) Double Chance(H열) 값을 읽을 수 없는 행
+ * @param array $pending  (출력) 입력 중으로 보고 뺀 맨 아래 행 [{row, text}]
  */
-function sheet_games(array $rows, bool $serialDates, array &$lint = [], array &$dcErrors = []): array
+function sheet_games(array $rows, bool $serialDates, array &$lint = [], array &$dcErrors = [], array &$pending = []): array
 {
     $h = table_header_row($rows, [0 => 'Winner', 1 => 'Race', 2 => 'Loser', 3 => 'Race', 4 => 'Map', 5 => 'Date']);
     if ($h === null) {
@@ -761,7 +775,7 @@ function sheet_games(array $rows, bool $serialDates, array &$lint = [], array &$
             $err[] = '날짜(' . mb_substr(cell_str($row[5] ?? ''), 0, 20) . ')';
         }
         if ($err) {
-            $problems[] = "Results {$n}행: " . implode(', ', $err) . ' 오류';
+            $problems[] = ['row' => $n, 'text' => "Results {$n}행: " . implode(', ', $err) . ' 오류'];
             continue;
         }
         foreach ([0 => '승자 이름', 2 => '패자 이름'] as $c => $label) {
@@ -792,11 +806,20 @@ function sheet_games(array $rows, bool $serialDates, array &$lint = [], array &$
         $games[] = ['row' => $n, 'date' => $date, 'winner' => $w, 'wrace' => $wr, 'loser' => $l, 'lrace' => $lr,
             'map' => mb_substr(cell_str($row[4] ?? ''), 0, 60), 'dc' => $dc];
     }
-    if ($problems) {
-        throw new ProviderError('Results 탭 형식 오류 ' . count($problems) . '건 — 시트를 고친 뒤 다시 불러오세요', array_slice($problems, 0, 30));
-    }
     if (!$games) {
+        if ($problems) {
+            throw new ProviderError('Results 탭 형식 오류 ' . count($problems) . '건 — 시트를 고친 뒤 다시 불러오세요',
+                array_slice(array_column($problems, 'text'), 0, 30));
+        }
         throw new ProviderError('Results 탭에 세트 기록이 없습니다.');
+    }
+    $lastRow = end($games)['row'];
+    $mid = array_values(array_filter($problems, static fn($p) => $p['row'] < $lastRow));
+    if ($mid) {
+        throw new ProviderError('Results 탭 형식 오류 ' . count($mid) . '건 — 시트를 고친 뒤 다시 불러오세요', array_slice(array_column($mid, 'text'), 0, 30));
+    }
+    foreach ($problems as $p) { // 맨 아래 = 입력 중
+        $pending[] = ['row' => $p['row'], 'text' => $p['text'] . ' — 입력 중으로 보고 계산에서 뺐습니다'];
     }
     return $games;
 }
@@ -805,8 +828,17 @@ function sheet_games(array $rows, bool $serialDates, array &$lint = [], array &$
  * 세트 → 끝장전. 같은 날짜·같은 두 선수 = 1경기. A는 그 경기 첫 세트의 승자.
  * @return array{0:list<array>, 1:list<array>} [경기 목록(이상 표시 포함), 이상 사례]
  */
-function sheet_matches(array $games): array
+/**
+ * 세트 → 끝장전. 9세트가 아닌 경기 등은 이상 경기(anomalies).
+ * 진행 중 경기: 가장 마지막에 입력된 경기이고 9세트 미만, 날짜가 오늘·어제(한국 시간, 자정을 넘긴 방송) → 이상 경기가 아니라 'live'.
+ * 끝장전 통계(완료 경기)에는 넣지 않지만 선수 CG를 막지 않고 알림도 만들지 않는다 (세트 통계에는 들어간다).
+ * @return array{0:list<array>, 1:list<array>, 2:list<array>} [경기, 이상 경기, 진행 중 경기]
+ */
+function sheet_matches(array $games, ?string $today = null): array
 {
+    $today ??= date('Y-m-d');
+    $yesterday = date('Y-m-d', strtotime($today . ' -1 day'));
+    $lastRow = $games ? max(array_column($games, 'row')) : 0;
     $groups = [];
     foreach ($games as $g) {
         $pair = [$g['winner'], $g['loser']];
@@ -814,7 +846,7 @@ function sheet_matches(array $games): array
         $groups[$g['date'] . '|' . implode('|', $pair)][] = $g;
     }
     $matches = [];
-    $anomalies = [];
+    $anomalies = $live = [];
     foreach ($groups as $key => $sets) {
         $a = $sets[0]['winner'];
         $b = $sets[0]['loser'];
@@ -827,7 +859,10 @@ function sheet_matches(array $games): array
         }
         $n = count($sets);
         $anomaly = $kind = null;
-        if ($n !== 9) {
+        $date = $sets[0]['date'];
+        if ($n < 9 && max(array_column($sets, 'row')) === $lastRow && ($date === $today || $date === $yesterday)) {
+            [$anomaly, $kind] = ["진행 중 ({$n}세트 입력)", 'live'];
+        } elseif ($n !== 9) {
             [$anomaly, $kind] = ["세트 수 {$n}개 (9세트가 아님)", 'sets'];
         } elseif ($score[$a] === $score[$b]) {
             [$anomaly, $kind] = ['승자 없음 (동점)', 'tie'];
@@ -860,12 +895,16 @@ function sheet_matches(array $games): array
         ];
         $matches[] = $m;
         if ($anomaly !== null) {
-            $anomalies[] = ['kind' => 'match', 'match' => $key, 'sub' => $kind, 'text' => sprintf('%s %s vs %s %d:%d — %s (Results %d~%d행)',
-                $m['date'], $a, $b, $m['scoreA'], $m['scoreB'], $anomaly, $m['rows'][0], $m['rows'][1])];
+            $text = sprintf('%s %s vs %s %d:%d — %s (Results %d~%d행)', $m['date'], $a, $b, $m['scoreA'], $m['scoreB'], $anomaly, $m['rows'][0], $m['rows'][1]);
+            if ($kind === 'live') {
+                $live[] = ['match' => $key, 'text' => $text . ' — 끝나면 끝장전 통계에 넣습니다'];
+            } else {
+                $anomalies[] = ['kind' => 'match', 'match' => $key, 'sub' => $kind, 'text' => $text];
+            }
         }
     }
     usort($matches, static fn($x, $y) => [$x['date'], $x['rows'][0]] <=> [$y['date'], $y['rows'][0]]);
-    return [$matches, $anomalies];
+    return [$matches, $anomalies, $live];
 }
 
 /** 선수별 세트 전적: all/P/T/Z = [승, 패] (상대 종족 기준), used = 자기가 쓴 종족별 세트 수 */
@@ -991,14 +1030,15 @@ function sheet_list_diff(array $calc, array $sheet): ?array
  * 예측 탭: 왼쪽 기록(날짜, 선수1, 선수2, 세트, 맵, 갯수, 중계진, 선택, 성공/실패), 오른쪽 순위표(순위, 이름, 전체, 승, 승률, 지수, 수익률).
  * 성공/실패가 비어 있으면 아직 결과가 없는 예측으로 보고 건너뛴다. 다른 값이 있으면 예측 전체를 쓰지 않는다.
  * 갯수(미션 지수용)는 F열 머리글이 "갯수"일 때만 읽는다. 결과가 있는 기록에 갯수가 없으면 미션 지수만 쓰지 않는다.
+ * 단, 마지막 완전한 기록보다 아래 행의 문제(경기 중 입력하고 있는 행)는 그 행만 빼고(pending) 나머지는 그대로 쓴다.
  * @return array{error:?string, records:list<array>, ranking:?array<string, array{0:int,1:int}>,
- *   amount_error:?string, mission:?array<string, array{0:int,1:float}>, mission_error:?string}
+ *   amount_error:?string, mission:?array<string, array{0:int,1:float}>, mission_error:?string, pending:list<array{row:int,text:string}>}
  *   records = [{date, predictor, correct, row, amount?}], mission = 이름 => [지수, 수익률(비율)]
  */
 function sheet_predictions_table(array $rows, bool $serialDates): array
 {
     $fail = static fn(string $e) => ['error' => $e, 'records' => [], 'ranking' => null, 'amount_error' => null, 'mission' => null,
-        'mission_error' => null];
+        'mission_error' => null, 'pending' => []];
     $h = table_header_row($rows, [0 => '날짜', 6 => '중계진', 7 => '선택', 8 => '성공/실패']);
     if ($h === null) {
         return $fail('예측 탭의 머리글(날짜 … 중계진, 선택, 성공/실패)을 찾을 수 없음');
@@ -1020,7 +1060,7 @@ function sheet_predictions_table(array $rows, bool $serialDates): array
             break;
         }
     }
-    $records = [];
+    $records = $bad = [];
     $ranking = $nameCol !== null && $totalCol !== null && $winCol !== null ? [] : null;
     $mission = $ranking !== null && $idxCol !== null && $roiCol !== null ? [] : null;
     $missionError = $mission === null ? '예측 탭 순위표의 지수·수익률 열을 찾을 수 없음' : null;
@@ -1061,24 +1101,50 @@ function sheet_predictions_table(array $rows, bool $serialDates): array
         }
         $pid = predictor_name($who);
         if ($date === null || $pid === null || !in_array($res, ['성공', '실패'], true)) {
-            return $fail('예측 탭 ' . ($i + 1) . '행을 읽을 수 없음 (날짜·중계진·성공/실패)');
+            $bad[] = ['row' => $i + 1, 'text' => '예측 탭 ' . ($i + 1) . '행을 읽을 수 없음 (날짜·중계진·성공/실패)'];
+            continue;
         }
         $rec = ['date' => $date, 'predictor' => $pid, 'correct' => $res === '성공', 'row' => $i + 1];
         if ($amountCol !== null) {
             $amt = int_norm($r[$amountCol] ?? null);
             if ($amt === null) {
-                $amountError ??= '예측 탭 ' . ($i + 1) . '행의 갯수를 읽을 수 없음';
+                $rec['no_amount'] = true;
             } else {
                 $rec['amount'] = $amt;
             }
         }
         $records[] = $rec;
     }
+    // 마지막 완전한 기록보다 아래 행 = 경기 중 입력하고 있는 행 → 그 행만 뺀다(pending).
+    // 중간 행 오류는 이전과 같이 예측 CG 사용 불가, 중간 행 갯수 오류는 미션 지수 사용 불가.
+    $complete = array_filter($records, static fn($x) => empty($x['no_amount']));
+    $lastRow = $complete ? max(array_column($complete, 'row')) : 0;
+    $pending = [];
+    foreach ($bad as $b) {
+        if ($b['row'] < $lastRow) {
+            return $fail($b['text']);
+        }
+        $pending[] = ['row' => $b['row'], 'text' => $b['text'] . ' — 입력 중으로 보고 계산에서 뺐습니다'];
+    }
+    $kept = [];
+    foreach ($records as $x) {
+        if (!empty($x['no_amount'])) {
+            if ($x['row'] > $lastRow) {
+                $pending[] = ['row' => $x['row'], 'text' => "예측 탭 {$x['row']}행: 갯수 입력 전 — 입력 중으로 보고 계산에서 뺐습니다"];
+                continue;
+            }
+            $amountError ??= "예측 탭 {$x['row']}행의 갯수를 읽을 수 없음";
+            unset($x['no_amount']);
+        }
+        $kept[] = $x;
+    }
+    $records = $kept;
+    usort($pending, static fn($x, $y) => $x['row'] <=> $y['row']);
     if ($amountError !== null) {
         $records = array_map(static fn($x) => array_diff_key($x, ['amount' => 0]), $records); // 일부만 있으면 지수가 틀린다
     }
     return ['error' => $records ? null : '예측 기록이 없음', 'records' => $records, 'ranking' => $ranking,
-        'amount_error' => $amountError, 'mission' => $mission, 'mission_error' => $missionError];
+        'amount_error' => $amountError, 'mission' => $mission, 'mission_error' => $missionError, 'pending' => $pending];
 }
 
 /** "박상현 캐스터" → "박상현". 끝말이 알려진 직책이 아니면 전체를 이름으로 본다 (추측하지 않음) */

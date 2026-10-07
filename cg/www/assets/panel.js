@@ -157,7 +157,9 @@
     $('alertBadge').textContent = '새 ' + an;
     if (src.status === 'OK') {
       st.className = 'status ok';
-      st.textContent = src.label + (chk && chk.method === 'xlsx' ? '(파일)' : '') + ' · 정상 · ' + (src.last_success_at || '').slice(5, 16);
+      st.textContent = src.label + (chk && chk.method === 'xlsx' ? '(파일)' : '') + ' · 정상 · ' + (src.last_success_at || '').slice(5, 16)
+        + (chk && chk.pending && chk.pending.length ? ' · 입력 중 ' + chk.pending.length + '행' : '')
+        + (chk && chk.live && chk.live.length ? ' · 진행 중 경기' : '');
     } else if (src.stale) {
       st.className = 'status stale';
       st.textContent = 'STALE · 마지막 정상 ' + src.last_success_at.slice(11) + ' · 갱신 실패';
@@ -805,7 +807,9 @@
           + '<p>' + v(s.verified.sets, '세트 전적') + v(s.verified.matches, '끝장전 목록') + v(s.verified.predictions, '승자 예측')
           + v(s.verified.double, '더블 찬스') + v(s.verified.mission, '미션 지수') + v(s.verified.maps, '맵 상성')
           + v(s.verified.mapsets, '선수 맵 전적') + '</p>'
-          + s.unavailable.map(function (u) { return '<p class="notice err">' + esc(u) + '</p>'; }).join('');
+          + s.unavailable.map(function (u) { return '<p class="notice err">' + esc(u) + '</p>'; }).join('')
+          + (s.live || []).map(function (u) { return '<p class="notice">진행 중 경기: ' + esc(u) + '</p>'; }).join('')
+          + (s.pending || []).map(function (u) { return '<p class="notice">입력 중: ' + esc(u) + '</p>'; }).join('');
       }
       $('dcSummary').innerHTML = html;
       $('dcMisCount').textContent = r.mismatches.length + '건';

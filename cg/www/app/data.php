@@ -303,6 +303,9 @@ function data_check_summary(array $ds, string $now): array
         'verified' => array_map(static fn($v) => $v['available'], $ds['verify']),
         'anomalies' => count($c['anomalies']), 'mismatches' => count($c['mismatches']), 'unavailable' => $c['unavailable'],
         'lint' => count($c['lint'] ?? []),
+        // 경기 중 입력: 맨 아래 입력 중인 행(그 행만 뺌)·진행 중 경기(끝나면 끝장전 통계에 넣음) — 안내만, CG를 막지 않음
+        'pending' => array_slice(array_column($c['pending'] ?? [], 'text'), 0, 20),
+        'live' => array_column($c['live'] ?? [], 'text'),
     ];
 }
 

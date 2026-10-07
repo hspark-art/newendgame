@@ -156,6 +156,14 @@ if ($dbReady) {
     if ($src['status'] === 'ERROR' && (string)($src['last_error'] ?? '') !== '') {
         cli_line('주의', '새로고침 실패 원인 (' . ($src['last_attempt_at'] ?? '-') . '): ' . mb_substr((string)$src['last_error'], 0, 300));
     }
+    // 경기 중 입력: 맨 아래 입력 중인 행은 그 행만 빼고, 진행 중 경기는 끝나면 끝장전 통계에 넣는다 (마지막 정상 새로고침 기준)
+    $chk = json_dec(setting_get('data_check', 'null'));
+    foreach ($chk['live'] ?? [] as $t) {
+        cli_line('안내', '진행 중 경기: ' . $t);
+    }
+    if (!empty($chk['pending'])) {
+        cli_line('안내', '입력 중으로 보고 뺀 행 ' . count($chk['pending']) . '개: ' . mb_substr(implode(' / ', $chk['pending']), 0, 300));
+    }
 }
 
 // ---------------------------------------------------------------- 선택: 외부 접속·웹 보호

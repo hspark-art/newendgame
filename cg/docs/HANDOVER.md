@@ -24,6 +24,11 @@
 - 검증: 자동 테스트(SQLite·MariaDB), 실데이터 사본 독립 계산 대조, 브라우저, 0.7.0→0.8.0 업데이트·되돌리기 리허설, 별도 코드 리뷰 반영 (VALIDATION 12-6절).
 - 전달물(저장소 밖, `cg/dist/`): `EndgameCG_web_0.7.0-0.8.0_files.zip`(사이트 루트 기준), `EndgameCG_v0.8.0_INSTALL_KR.md`(설치 안내, 서버에 올리지 않음). 만드는 법: `php tools/build_release.php` → `php tools/build_patch.php dist/EndgameCG_Web_v0.7.0.zip dist/EndgameCG_Web_v0.8.0.zip 패치.zip` → 패치 zip의 `files/www/` 아래를 사이트 루트 기준으로 다시 묶는다.
 
+## 4-1. v0.8.1 (경기 중 실시간 수기 입력 반영, 2026-10-07)
+- 요청: 경기 중 Results·중계진 예측 현황입력용 탭을 수기로 고치는 동안 CG 데이터가 반영되지 않는 문제의 원인·해결.
+- 원인·수정·검증: tests/VALIDATION.md 12-7절. 서버에 올리는 파일 6개(`app/sheet_data.php`, `app/data.php`, `app/cli.php`, `assets/panel.js`, `app/manifest.sha256`, `app/version.json`), DB 구조 변경 없음. 전달물 `dist/EndgameCG_web_0.8.0-0.8.1_files.zip`, `dist/EndgameCG_v0.8.1_INSTALL_KR.md`.
+- 운영 안내: 예정 세트의 날짜를 미리 적어도 이제 막히지 않지만(맨 아래면 입력 중으로 보고 뺌), 중간 행을 지우거나 비우면 이전처럼 새로고침이 실패한다. 자동 새로고침은 5분 간격(바로 반영은 패널 F5), 송출 중 CG는 UPDATE LIVE로 반영.
+
 ## 5. 남은 작업
 - 사용자 답변 ①②를 받으면: `RECORDS_FULL_HISTORY`(stats.php) 조정, 'N번째 출전·맞대결'·'세트 연승'·'역전승' 추가 여부, 매치 프리뷰 "첫 맞대결" 문구.
 - 서버 적용 후 운영자 확인 결과(OBS 화면 크기·위치, 기록 상세 가독성) 받기.
