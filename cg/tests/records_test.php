@@ -153,10 +153,12 @@ test('매치 기록 CG: 오늘 매치 창의 후보 → 고른 기록으로 페�
     cue_page($page['page_no']);
     $st = instance_state(instance_get(channel_get('preview')['instance_id']), current_session_id());
     assert_same([], $st['problems']);
-    assert_same([['name' => '가선수 vs 나선수', 'num' => '635', 'unit' => '일', 'desc' => '만에 펼쳐지는 맞대결',
-        'note' => '마지막 맞대결 2024.04.06 · 가선수 4–5 나선수'],
-        ['name' => '가선수', 'num' => '635', 'unit' => '일', 'desc' => '만에 끝장전 출전', 'note' => '마지막 출전 2024.04.06 vs 나선수 4–5 패']],
-        $st['view']['rows'], '고른 순서대로 (근거 한 줄 포함)');
+    assert_same([['name' => '가선수 vs 나선수', 'num' => '635', 'unit' => '일', 'desc' => '만에 펼쳐지는 맞대결', 'note' => ''],
+        ['name' => '가선수', 'num' => '635', 'unit' => '일', 'desc' => '만에 끝장전 출전', 'note' => '']],
+        $st['view']['rows'], '고른 순서대로 (2개면 근거 한 줄 없음)');
+    // 근거 한 줄 내용 (기록 1개일 때 쓰는 값)
+    $items = stats_match_records(dataset_or_null(), '가선수', '나선수', '2026-01-01')['items'];
+    assert_same(['마지막 맞대결 2024.04.06 · 가선수 4–5 나선수', '마지막 출전 2024.04.06 vs 나선수 4–5 패'], [$items['h.gap']['note'], $items['a.gap']['note']]);
     $html = cg_render($st['view']);
     assert_true(str_contains($html, 'rec-rows') && !str_contains($html, 'rec-big') && str_contains($html, '<b>635</b><small>일</small>'));
     assert_same('가선수 vs 나선수 · 2026-01-01 · 맞대결 간격, A 출전 간격', template_summary('match-records', json_dec(rundown_rows()[0]['params_json'])));
@@ -364,6 +366,19 @@ test('기록 상세(v0.8): 페이지 추가·송출, 0.7.0에 만든 매치 기�
     $st = instance_state(instance_get($iid), current_session_id());
     assert_same([[], ''], [$st['problems'], $st['view']['rows'][0]['note']]);
     assert_true(!str_contains(cg_render($st['view']), 'rec-note'));
+    // 0.7.0에서 송출한 화면(FINAL에 근거 줄 칸 자체가 없음): 업데이트 직후 '송출값과 다름'으로 보이지 않는다
+    program_take(channel_get('preview')['rev'], ['effect' => 'cut'], op());
+    $snap = channel_get('program')['snapshot'];
+    $snap['final'] = array_filter($snap['final'], static fn($k) => !str_ends_with($k, '.note'), ARRAY_FILTER_USE_KEY);
+    db_exec("UPDATE cg_channels SET snapshot_json = ? WHERE layer = 1 AND kind = 'program'", [json_enc($snap)]);
+    assert_same(false, panel_state(op())['program']['pending_live'], '새 칸이 비어 있으면 송출값과 같음');
+    // 데이터 새로고침으로 근거 줄이 채워지면 그때는 '송출값과 다름' (송출 화면은 UPDATE LIVE·TAKE 전까지 그대로)
+    data_apply(dataset_or_null(), op(), false);
+    assert_same(true, panel_state(op())['program']['pending_live']);
+    assert_same('', channel_get('program')['snapshot']['view']['rows'][0]['note'] ?? '', '송출 화면은 바뀌지 않음');
+
     $two = type_state('match-records', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'], 'date' => '2026-01-01', 'records' => ['a.gap', 'h.gap']]);
     assert_true(!str_contains(cg_render($two['view']), 'rec-note'), '2~3개면 근거 줄을 그리지 않음');
+    $auto2 = instance_get(channel_get('preview')['instance_id'])['auto'];
+    assert_same([null, null], [$auto2['r1.note'] ?? null, $auto2['r2.note'] ?? null], '2~3개면 근거 줄 값도 넣지 않음 (보이지 않는 칸 때문에 송출값과 다름이 나지 않게)');
 });

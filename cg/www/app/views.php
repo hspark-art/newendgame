@@ -44,6 +44,9 @@ function finals_same(?array $a, ?array $b): bool
     if ($a === null || $b === null) {
         return $a === $b;
     }
+    // 빈 값(null)과 없는 칸은 같다 — 업데이트로 템플릿에 새 칸이 생겨도 이전에 송출한 화면을 '다름'으로 보지 않게
+    $a = array_filter($a, static fn($v) => $v !== null);
+    $b = array_filter($b, static fn($v) => $v !== null);
     ksort($a);
     ksort($b);
     return $a === $b;

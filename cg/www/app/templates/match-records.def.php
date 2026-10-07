@@ -34,12 +34,13 @@ return [
     'auto' => static function (array $p, array $ds): array {
         $r = stats_match_records($ds, $p['a']['player'], $p['b']['player'], $p['date']);
         $auto = ['title' => '이번 매치 주요 기록'];
+        $one = count($p['records']) === 1; // 근거 한 줄은 기록 1개일 때만 그린다 → 2~3개면 값도 넣지 않는다
         foreach ($p['records'] as $i => $key) {
             $n = $i + 1;
             $it = $r['items'][$key] ?? null;
             // 기록이 없어져도(조건이 바뀜) 이름은 남겨 검증 사유로 막는다 — 줄이 조용히 사라지지 않게
             $auto += ["r$n.name" => $it['name'] ?? null, "r$n.num" => $it['value'] ?? null, "r$n.unit" => $it['unit'] ?? null,
-                "r$n.desc" => $it['desc'] ?? null, "r$n.note" => ($it['note'] ?? '') === '' ? null : $it['note']];
+                "r$n.desc" => $it['desc'] ?? null, "r$n.note" => !$one || ($it['note'] ?? '') === '' ? null : $it['note']];
         }
         return $auto;
     },
