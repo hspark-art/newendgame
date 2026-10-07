@@ -54,8 +54,8 @@ test('결과 대기(예측): 결과 칸이 빈 미리 입력한 예측은 완료
     assert_same([3, 1], [$r['correct'], $r['wrong']], 'CG 집계 = 완료 4회 중 3회 (결과 대기 제외)');
     $m = array_column(stats_mission_ranking($ds['predictions'], '2026'), null, 'predictor')['김중계'];
     assert_same([200, 400, 500], [$m['index'], $m['staked'], $m['roi']], '미션: 지수·분모 모두 완료 행 (+200 ÷ 400 = 50.0%)');
-    assert_same(['승자 예측 김중계: 전체 입력 5 / 완료 4 / 결과 대기 1 (시트 \'전체\'는 결과 대기 행도 셉니다 — CG는 완료 기준)',
-        '미션 지수 김중계: 수익률 완료 기준 50.00% (CG) / 시트 40.00% — 시트 분모에 결과 대기 갯수 100 포함'], $ds['check']['waiting']);
+    assert_same(['승자 예측 김중계: 전체 입력 5 / 완료 4 / 결과 대기·입력 중 1 (시트 \'전체\'는 결과 대기 행도 셉니다 — CG는 완료 기준)',
+        '미션 지수 김중계: 완료 기준 +200 · 50.00% (CG) / 시트 +200 · 40.00% — 시트 분모에 결과 대기 갯수 100 포함'], $ds['check']['waiting']);
     // 시트가 완료 행만 세도록 바뀌어도(기존 합성 시트) 일치
     $old = sheet_dataset(fx_tables(), 'api');
     assert_same([true, true], [$old['verify']['predictions']['predictors']['김중계'], $old['verify']['mission']['predictors']['김중계']]);
@@ -65,7 +65,7 @@ test('결과 대기(예측): 결과 칸이 빈 미리 입력한 예측은 완료
         $t['predictions'][2][12] = 6;
     }), 'api');
     $mis = array_values(array_filter($bad['check']['mismatches'], static fn($m) => $m['kind'] === 'predictions'));
-    assert_same([['김중계', '6회 중 3회', '4회 중 3회 (결과 대기 1행 별도)']], array_map(static fn($m) => [$m['who'], $m['sheet'], $m['calc']], $mis));
+    assert_same([['김중계', '6회 중 3회', '4회 중 3회 (결과 대기·입력 중 포함 시 5회 중 3회)']], array_map(static fn($m) => [$m['who'], $m['sheet'], $m['calc']], $mis));
 
     // 송출: 승자 예측·미션 지수 CG가 막히지 않음
     setup_sheet('fx_pred_sheet_formula');
@@ -228,4 +228,88 @@ test('새로고침 반영: 진행 중 → 세트 입력 → 경기 끝 순서로
     assert_same(5, dataset_or_null()['check']['counts']['valid_matches']);
     assert_true($h2h() !== $before, '맞대결 CG에 끝난 경기가 들어감 (같은 데이터로 다시 계산)');
     assert_same('OK', source_status()['status']);
+});
+
+test('리뷰 반영(v0.8.2): 더블 찬스는 진행 중 경기를 세지 않음(시트가 세든 안 세든 일치), 완료 갯수 0 + 결과 대기 갯수, 날짜 입력 전 완료 예측 행', function () {
+    // 더블 찬스: 진행 중 경기 1세트 입력 → CG 값(끝난 경기)은 그대로. 시트(선수별 통계)가 진행 중 경기를 세어도·안 세어도 일치
+    $base = sheet_dataset(fx_tables(), 'api')['double_chance']['가선수'];
+    foreach ([true, false] as $sheetCounts) {
+        $ds = sheet_dataset(fx_tables(static function (array &$t) use ($sheetCounts) {
+            (fx_live(1))($t);
+            if (!$sheetCounts) {
+                foreach ($t['stats'] as &$r) {
+                    if (in_array($r[1] ?? '', ['가선수', '나선수'], true)) {
+                        $r[13] -= 2; // fx_live가 더한 시도 2회를 되돌림 = 시트가 진행 중 경기를 아직 세지 않음
+                    }
+                }
+                unset($r);
+            }
+        }), 'api');
+        assert_same($base, $ds['double_chance']['가선수'], '진행 중 경기는 더블 찬스 시도·성공에 넣지 않음');
+        assert_same([true, true], [$ds['verify']['double']['players']['가선수'], $ds['verify']['double']['players']['나선수']]);
+        assert_same($sheetCounts, (bool)array_filter($ds['check']['waiting'], static fn($w) => str_contains($w, '더블 찬스 가선수')));
+    }
+    // 완료 갯수 합이 0인 중계진 + 결과 대기 갯수: 시트 +0 · 0.0% = 0 ÷ (0+100) → 일치 (0으로 나누지 않음)
+    $row = static fn(string $who, $amt, $res, $date = '2026-01-20') => [$date, '가선수(Z)', '나선수(P)', 'SET 1', 'Map', $amt, $who, '가선수(Z)', $res];
+    $ds = sheet_dataset(fx_tables(static function (array &$t) use ($row) {
+        $t['predictions'][] = $row('박위원 해설', 0, '실패');
+        $t['predictions'][] = $row('박위원 해설', 100, '');
+        $t['predictions'][4] = array_replace($t['predictions'][4], [10 => 3, 11 => '박위원', 12 => 2, 13 => 0, 14 => 0, 15 => 0, 16 => 0.0]);
+    }), 'api');
+    assert_same([true, true], [$ds['verify']['predictions']['predictors']['박위원'], $ds['verify']['mission']['predictors']['박위원']]);
+    // 결과는 입력했고 날짜만 입력 전인 맨 아래 행: CG에는 넣지 않고(연도를 모름), 시트 수식 기준으로는 세어 대조 → 차단 없음
+    $ds = sheet_dataset(fx_tables(static function (array &$t) use ($row) {
+        $t['predictions'][] = $row('이해설 해설', 100, '성공', '');
+        [$t['predictions'][3][12], $t['predictions'][3][13], $t['predictions'][3][15], $t['predictions'][3][16]] = [4, 2, 0, 0.0];
+    }), 'api');
+    assert_same(3, count(array_filter($ds['predictions'], static fn($p) => $p['predictor'] === '이해설')));
+    assert_same([true, true], [$ds['verify']['predictions']['predictors']['이해설'], $ds['verify']['mission']['predictors']['이해설']]);
+});
+
+test('리뷰 반영(v0.8.2): 사전 입력 행 연결은 같은 날짜·같은 두 선수·9세트 단위만 — 세트가 빠진 끝난 경기는 이상 경기로 남음, 표시 수는 전체', function () {
+    // 8세트로 끝난 경기(세트 하나 누락) 아래에 같은 날 다음 경기 9세트 사전 입력 → 8 + 9 = 17 → 진행 중 아님, 이상 경기
+    $ds = sheet_dataset(fx_tables(fx_live(8, 17)), 'api');
+    assert_same([], $ds['check']['live']);
+    assert_true((bool)array_filter($ds['check']['anomalies'], static fn($a) => str_contains($a['text'], '세트 수 8개 (9세트가 아님) · 결과 대기 9행 — 예정 행 17개')),
+        json_encode(array_column($ds['check']['anomalies'], 'text'), JSON_UNESCAPED_UNICODE));
+    // 진행 중 7세트 + 같은 날 다음 경기 9세트 사전 입력 → 7 + 2 + 9 = 18 → 진행 중
+    assert_same(1, count(sheet_dataset(fx_tables(fx_live(7, 18)), 'api')['check']['live']));
+    // 다른 두 선수 이름을 적기 시작한 입력 중 행은 이 경기에 연결하지 않음
+    $ds = sheet_dataset(fx_tables(static function (array &$t) {
+        (fx_live(7, 7))($t);
+        $t['results'][] = ['다선수', 'T', '', '', '', date('Y-m-d'), 0, 0];
+        $t['results'][] = ['', '', '', '', '', date('Y-m-d'), 0, 0];
+    }), 'api');
+    assert_same([], $ds['check']['live'], '다선수 행은 연결 안 됨 → 7 + 1 = 8 → 이상 경기');
+    // 표시: 결과 대기 행이 많아도 수는 전체, 목록은 탭마다
+    setup_sheet(static function (array &$t) {
+        (fx_live(7, 25))($t);
+        $t['predictions'][] = ['2026-01-20', '가선수(Z)', '나선수(P)', 'SET 1', 'Map', '', '이해설 해설', '가선수(Z)', '실패'];
+    });
+    $c = json_dec(setting_get('data_check'));
+    assert_same(19, $c['pending_count']);
+    assert_true(count($c['pending']) === 11 && str_contains(end($c['pending']), '예측 탭'), json_encode($c['pending'], JSON_UNESCAPED_UNICODE));
+});
+
+test('리뷰 반영(v0.8.2): MAP 통계(시트 스크립트 값)가 사전 입력 행을 세트 수에 넣어도 거짓 불일치 없음, 안 넣어도 일치', function () {
+    $pre = static function (bool $sheetCounts) {
+        return static function (array &$t) use ($sheetCounts) {
+            $t['results'][] = ['', '', '', '', 'Map 1', date('Y-m-d'), 0, 0]; // 다음 경기 사전 입력 (맵·날짜만)
+            $t['results'][] = ['', '', '', '', 'New Map', date('Y-m-d'), 0, 0];
+            if ($sheetCounts) {
+                foreach ($t['mapstats'] as &$r) {
+                    if (($r[1] ?? '') === 'Map 1') {
+                        [$r[2], $r[13]] = [$r[2] + 1, date('Y-m-d')];
+                    }
+                }
+                unset($r);
+                $t['mapstats'][] = [99, 'New Map', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, date('Y-m-d'), date('Y-m-d'), 1];
+            }
+        };
+    };
+    foreach ([true, false] as $sheetCounts) {
+        $ds = sheet_dataset(fx_tables($pre($sheetCounts)), 'api');
+        assert_same([], array_filter($ds['check']['mismatches'], static fn($m) => $m['kind'] === 'maps'), $sheetCounts ? '시트가 셈' : '시트가 안 셈');
+        assert_same($sheetCounts ? 2 : 0, count(array_filter($ds['check']['waiting'], static fn($w) => str_starts_with($w, '맵 '))));
+    }
 });

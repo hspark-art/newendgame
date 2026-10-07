@@ -158,7 +158,7 @@
     if (src.status === 'OK') {
       st.className = 'status ok';
       st.textContent = src.label + (chk && chk.method === 'xlsx' ? '(파일)' : '') + ' · 정상 · ' + (src.last_success_at || '').slice(5, 16)
-        + (chk && chk.pending && chk.pending.length ? ' · 결과 대기·입력 중 ' + chk.pending.length + '행' : '')
+        + (chk && (chk.pending_count || (chk.pending || []).length) ? ' · 결과 대기·입력 중 ' + (chk.pending_count || chk.pending.length) + '행' : '')
         + (chk && chk.live && chk.live.length ? ' · 진행 중 경기' : '');
     } else if (src.stale) {
       st.className = 'status stale';

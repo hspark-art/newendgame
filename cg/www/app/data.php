@@ -298,13 +298,18 @@ function data_check_summary(array $ds, string $now): array
     if ($c === null) {
         return ['source' => $ds['source'], 'mock' => true, 'at' => $now];
     }
+    $pending = $c['pending'] ?? [];
+    $tab = static fn(bool $results) => array_slice(array_column(array_filter($pending,
+        static fn($p) => str_starts_with($p['text'], 'Results') === $results), 'text'), 0, 10);
     return [
         'source' => $ds['source'], 'mock' => false, 'at' => $ds['fetched_at'] ?? $now, 'method' => $c['method'], 'counts' => $c['counts'],
         'verified' => array_map(static fn($v) => $v['available'], $ds['verify']),
         'anomalies' => count($c['anomalies']), 'mismatches' => count($c['mismatches']), 'unavailable' => $c['unavailable'],
         'lint' => count($c['lint'] ?? []),
         // 경기 중 입력: 맨 아래 입력 중인 행(그 행만 뺌)·진행 중 경기(끝나면 끝장전 통계에 넣음) — 안내만, CG를 막지 않음
-        'pending' => array_slice(array_column($c['pending'] ?? [], 'text'), 0, 20),
+        // 목록은 탭마다 앞 10줄 (Results 사전 입력이 많아도 예측 탭 안내가 묻히지 않게), 수는 전체
+        'pending' => array_merge($tab(true), $tab(false)),
+        'pending_count' => count($pending),
         'live' => array_column($c['live'] ?? [], 'text'),
         // 결과 대기(미리 입력한 예측) 때문에 시트 집계와 숫자가 다른 경우의 설명 — 불일치가 아님
         'waiting' => array_slice($c['waiting'] ?? [], 0, 20),

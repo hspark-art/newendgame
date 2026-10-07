@@ -1,6 +1,6 @@
 # 인수인계 (세션이 바뀔 때 먼저 읽기)
 
-최종 갱신: 2026-10-07 · 작업 버전 v0.8.0 (DB 구조 6, 변경 없음)
+최종 갱신: 2026-10-07 · 작업 버전 v0.8.2 (DB 구조 6, 변경 없음)
 
 ## 1. 최신 원본의 출처
 - 기준 원본: 이 저장소 `cg/` (브랜치 `claude/optimistic-cray-mekgoi`). 운영 서버는 카페24 웹호스팅 `~/www/cg/` (https://etalent.co.kr/cg/), SSH 계정 talente, PHP `/usr/local/php/bin/php`.
@@ -28,6 +28,12 @@
 - 요청: 경기 중 Results·중계진 예측 현황입력용 탭을 수기로 고치는 동안 CG 데이터가 반영되지 않는 문제의 원인·해결.
 - 원인·수정·검증: tests/VALIDATION.md 12-7절. 서버에 올리는 파일 6개(`app/sheet_data.php`, `app/data.php`, `app/cli.php`, `assets/panel.js`, `app/manifest.sha256`, `app/version.json`), DB 구조 변경 없음. 전달물 `dist/EndgameCG_web_0.8.0-0.8.1_files.zip`, `dist/EndgameCG_v0.8.1_INSTALL_KR.md`.
 - 운영 안내: 예정 세트의 날짜를 미리 적어도 이제 막히지 않지만(맨 아래면 입력 중으로 보고 뺌), 중간 행을 지우거나 비우면 이전처럼 새로고침이 실패한다. 자동 새로고침은 5분 간격(바로 반영은 패널 F5), 송출 중 CG는 UPDATE LIVE로 반영.
+
+## 4-2. v0.8.2 (결과 대기 처리·시트 대조 기준, 2026-10-07)
+- 요청서: "끝장전 CG 크기 고정 및 데이터 점검 오류 수정" — CG 크기 변경 금지(CLAUDE.md에 기록), 예측·미션 결과 대기 행 거짓 불일치, 9세트 사전 입력 진행 중 경기, 자정 이후 유지.
+- 원본 출처: 서버 코드 = v0.8.0 배포본(2026-10-07 사용자 점검 135개 일치). v0.8.1은 전달만 했고 업로드 여부 미확인 → 0.8.0 기준 누적 ZIP. 시트 = 2026-09-30 xlsx 사본(수식 확인), 사용자 화면의 최신 숫자는 원본이 없어 미대조.
+- 서버 파일 7개: `app/sheet_data.php`, `app/stats.php`, `app/data.php`, `app/cli.php`, `assets/panel.js`, `app/manifest.sha256`, `app/version.json`. 전달물 `dist/EndgameCG_web_0.8.0-0.8.2_files.zip`, `dist/EndgameCG_v0.8.2_INSTALL_KR.md`.
+- 기준·검증: tests/VALIDATION.md 12-8절. 다음에 할 일: 최신 시트 xlsx를 받으면 임성춘 114/113·+7669 2.8%/2.9%를 직접 대조, 시트 스크립트(MAP 통계·상대전적조회NEW) 동작 확인.
 
 ## 5. 남은 작업
 - 사용자 답변 ①②를 받으면: `RECORDS_FULL_HISTORY`(stats.php) 조정, 'N번째 출전·맞대결'·'세트 연승'·'역전승' 추가 여부, 매치 프리뷰 "첫 맞대결" 문구.

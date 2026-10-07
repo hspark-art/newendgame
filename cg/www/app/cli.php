@@ -162,7 +162,7 @@ if ($dbReady) {
         cli_line('안내', '진행 중 경기: ' . $t);
     }
     if (!empty($chk['pending'])) {
-        cli_line('안내', '결과 대기·입력 중으로 뺀 행 ' . count($chk['pending']) . '개: ' . mb_substr(implode(' / ', $chk['pending']), 0, 300));
+        cli_line('안내', '결과 대기·입력 중으로 뺀 행 ' . ($chk['pending_count'] ?? count($chk['pending'])) . '개: ' . mb_substr(implode(' / ', $chk['pending']), 0, 300));
     }
     foreach ($chk['waiting'] ?? [] as $t) {
         cli_line('안내', '결과 대기 반영: ' . $t);
