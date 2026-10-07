@@ -118,6 +118,35 @@ function param_value(array $p, mixed $raw, array $ctx): mixed
                 throw new ActionError('BAD_PARAMS', "$label: 맵을 선택하세요.", 422);
             }
             return $s;
+        case 'date':
+            // 경기일 (매치 기록의 기준일). 비우면 오늘 (한국 시간)
+            if ($s === '') {
+                return date('Y-m-d');
+            }
+            if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/D', $s, $m) || !checkdate((int)$m[2], (int)$m[3], (int)$m[1]) || $m[1] < 2000) {
+                throw new ActionError('BAD_PARAMS', "$label: 날짜를 YYYY-MM-DD로 고르세요.", 422);
+            }
+            return $s;
+        case 'record_slots':
+            // 매치 기록 종류 (MATCH_RECORD_KINDS 키) — 고른 순서가 CG 줄 순서
+            $list = [];
+            foreach (is_array($raw) ? $raw : [] as $k) {
+                $k = trim((string)$k);
+                if ($k === '') {
+                    continue;
+                }
+                if (!isset(MATCH_RECORD_KINDS[$k])) {
+                    throw new ActionError('BAD_PARAMS', "$label: 없는 기록 종류입니다.", 422);
+                }
+                if (in_array($k, $list, true)) {
+                    throw new ActionError('BAD_PARAMS', "$label: 같은 기록을 두 번 골랐습니다.", 422);
+                }
+                $list[] = $k;
+            }
+            if (!$list || count($list) > $p['max']) {
+                throw new ActionError('BAD_PARAMS', "$label: 기록을 1~{$p['max']}개 고르세요.", 422);
+            }
+            return $list;
         case 'predictor_slots':
             $list = [];
             foreach (is_array($raw) ? array_slice($raw, 0, $p['max']) : [] as $id) {

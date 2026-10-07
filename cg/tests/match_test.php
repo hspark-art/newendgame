@@ -194,7 +194,7 @@ test('오늘 매치: 저장 → 2인 CG 한 번에 추가(상대 종족 자동·
     $p = array_map(static fn($row) => json_dec($row['params_json']), array_column(rundown_rows(), null, 'page_no'));
     assert_same('가선수', $p[1]['a']['player']);
     assert_same(['다선수', '라선수', 'Map 1'], [$p[3]['a']['player'], $p[3]['b']['player'], $p[3]['map']]);
-    assert_same(['a' => '다선수', 'b' => '라선수'], match_today());
+    assert_same(['a' => '다선수', 'b' => '라선수', 'date' => null], match_today());
     assert_same([], match_pages_apply(['a' => '다선수', 'b' => '라선수'], op())['changed'], '이미 같으면 바꾸지 않음');
 });
 

@@ -175,11 +175,18 @@ $op = guard_control();
     <p class="hint">두 선수를 정해 두면 [+ 페이지 추가] 창에 미리 채워지고, 상대 종족은 서로의 종족으로 맞춰집니다.</p>
     <label>A 선수 (왼쪽) <select id="mA"></select></label>
     <label>B 선수 (오른쪽) <select id="mB"></select></label>
+    <label>경기일 (매치 기록은 이날 이전 경기로 계산) <input type="date" id="mDate"></label>
     <div class="dlg-btns left"><button type="button" id="mSave" class="btn primary">매치 저장</button></div>
     <h4>이 매치 CG 한 번에 추가</h4>
     <div id="mTpls" class="checks"></div>
     <label>이번 맵 (매치 프리뷰·맵 전적, 선택) <select id="mMap"></select></label>
     <div class="dlg-btns left"><button type="button" id="mAdd" class="btn">고른 CG 페이지 추가</button></div>
+    <h4>이 매치 주요 기록 (매치 시작 전 확인)</h4>
+    <p class="hint">경기일 이전에 확정된 끝장전으로 계산합니다. 근거(경기 날짜·결과)를 확인하고 최대 3개를 고르면 '매치 기록' CG 페이지가 추가됩니다.
+      확인이 필요한 기록과 해당 없는 기록은 고를 수 없습니다.</p>
+    <div class="dlg-btns left"><button type="button" id="mRec" class="btn">기록 후보 보기</button></div>
+    <div id="mRecList" class="rec-pick"></div>
+    <div class="dlg-btns left"><button type="button" id="mRecAdd" class="btn" disabled>고른 기록으로 CG 페이지 추가</button></div>
     <h4>페이지 리스트를 이 매치로 바꾸기</h4>
     <p class="hint">선수 두 명을 쓰는 페이지(상대 종족 승률·매치 프리뷰·맞대결·풀세트·더블 찬스 등)의 선수를 오늘 매치로 바꿉니다.
       페이지 번호·메모·경기 수·맵은 그대로이고, 송출 중인 페이지는 바꾸지 않습니다.</p>

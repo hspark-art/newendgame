@@ -1,0 +1,74 @@
+<?php
+declare(strict_types=1);
+
+/*
+ * #15 매치 기록 — 매치 시작 전, 출전 선수의 끝장전 기록 중 운영자가 고른 1~3개 (stats_match_records).
+ * 줄마다 [선수명 또는 매치명] [큰 숫자 + 단위] [짧은 설명]. 1개면 크게, 2~3개면 줄로. 규격은 다른 CG와 같은 560×250.
+ * 경기일 이전에 확정된 끝장전만 계산한다. 이상 경기·시트 첫 기록까지 이어지는 연승 등 확정할 수 없는 기록은
+ * 송출을 막고(검증 사유) 이유를 알린다 — 운영자가 확인한 값을 직접 입력하거나 그 줄을 빼면 송출할 수 있다.
+ * 기록 후보와 계산 근거(경기 날짜·결과)는 '오늘 매치' 창과 페이지 추가 창에서 본다 (match_records 액션).
+ */
+$rowKeys = static fn(int $n) => ["r$n.name", "r$n.num", "r$n.unit", "r$n.desc"];
+
+return [
+    'slug' => 'match-records',
+    'name' => '매치 기록',
+    'short' => '기록',
+    'order' => 15,
+    'params' => [
+        ['key' => 'a.player', 'label' => 'A 선수', 'type' => 'player'],
+        ['key' => 'b.player', 'label' => 'B 선수', 'type' => 'player'],
+        ['key' => 'date', 'label' => '경기일 (이날 이전 경기로 계산)', 'type' => 'date'],
+        ['key' => 'records', 'label' => '기록 (최대 3개, 고른 순서대로)', 'type' => 'record_slots', 'max' => 3],
+    ],
+    'check' => 'check_two_players',
+    'fields' => ['title' => ['label' => '제목', 'type' => 'text', 'max' => 40]] + row_fields(3, [
+        'name' => ['label' => '이름', 'type' => 'text', 'max' => 20],
+        'num' => ['label' => '숫자', 'type' => 'int', 'max' => 99999],
+        'unit' => ['label' => '단위', 'type' => 'text', 'max' => 4],
+        'desc' => ['label' => '설명', 'type' => 'text', 'max' => 24],
+    ]),
+    'auto' => static function (array $p, array $ds): array {
+        $r = stats_match_records($ds, $p['a']['player'], $p['b']['player'], $p['date']);
+        $auto = ['title' => '이번 매치 주요 기록'];
+        foreach ($p['records'] as $i => $key) {
+            $n = $i + 1;
+            $it = $r['items'][$key] ?? null;
+            // 기록이 없어져도(조건이 바뀜) 이름은 남겨 검증 사유로 막는다 — 줄이 조용히 사라지지 않게
+            $auto += ["r$n.name" => $it['name'] ?? null, "r$n.num" => $it['value'] ?? null, "r$n.unit" => $it['unit'] ?? null,
+                "r$n.desc" => $it['desc'] ?? null];
+        }
+        return $auto;
+    },
+    'verify' => static function (array $p, array $ds) use ($rowKeys): array {
+        $r = stats_match_records($ds, $p['a']['player'], $p['b']['player'], $p['date']);
+        $issues = [];
+        foreach ($p['records'] as $i => $key) {
+            $it = $r['items'][$key] ?? null;
+            if ($it === null || $it['status'] !== 'ok') {
+                $issues[] = verify_issue($rowKeys($i + 1), ($it['text'] ?? MATCH_RECORD_KINDS[$key]) . ' — '
+                    . ($it === null ? '기록을 계산할 수 없습니다' : ($it['status'] === 'hold' ? '확인 필요: ' : '기록 없음: ') . rtrim($it['reason'], '.')));
+            }
+            // 끝장전 기록이 시트 집계와 다르거나 이상 경기가 있는 선수는 다른 CG와 같이 막는다
+            $who = $key[0] === 'h' ? [$p['a']['player'], $p['b']['player']] : [$p[$key[0]]['player']];
+            foreach ($who as $pid) {
+                $issues = array_merge($issues, verify_matches($ds, $pid, $rowKeys($i + 1)));
+            }
+        }
+        return $issues;
+    },
+    'summary' => static fn(array $p, array $ctx): string => sprintf('%s vs %s · %s · %s', pname($ctx['players'], $p['a']['player']),
+        pname($ctx['players'], $p['b']['player']), $p['date'], implode(', ', array_map(static fn($k) => MATCH_RECORD_KINDS[$k] ?? $k, $p['records']))),
+    'present' => static function (array $f): array {
+        $rows = [];
+        for ($i = 1; $i <= 3; $i++) {
+            $r = row_visible($f, $i, ['name', 'num', 'unit', 'desc'], 'num');
+            if ($r === null) {
+                continue;
+            }
+            $rows[] = ['name' => (string)$r['name'], 'num' => $r['num'] === null ? '' : number_format($r['num']),
+                'unit' => (string)$r['unit'], 'desc' => (string)$r['desc']];
+        }
+        return ['title' => (string)$f['title'], 'rows' => $rows];
+    },
+];

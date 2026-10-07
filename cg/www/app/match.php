@@ -6,32 +6,34 @@ declare(strict_types=1);
  * - 페이지 추가 창에 미리 채운다 (panel.js),
  * - 2인 CG(상대 종족 승률·매치 프리뷰·맞대결·풀세트·더블 찬스 …)를 한 번에 추가하고,
  * - 페이지 리스트의 2인 CG 선수를 한 번에 이 매치로 바꾼다 (송출 중인 페이지는 그대로).
- * 상대 종족은 각 선수의 주 종족으로 맞춘다. 저장 위치: cg_settings 'match_today' {a, b}
+ * - 매치 기록(v0.7): 경기일 이전 기록 중 후보(연승·출전 간격·맞대결 간격 등)와 근거를 보여 주고, 운영자가 고른 기록으로 '매치 기록' CG를 만든다.
+ * 상대 종족은 각 선수의 주 종족으로 맞춘다. 저장 위치: cg_settings 'match_today' {a, b, date}
  */
 
 /** 한 번에 추가할 때 기본으로 고르는 CG (온라인 상대 전적은 수동 입력이라 뺌, 맵 전적은 맵을 골라야 함) */
 const MATCH_DEFAULT_TEMPLATES = ['race-win-rate', 'match-preview', 'head-to-head', 'full-set', 'double-chance'];
 
-/** 2인 CG: 파라미터에 a.player·b.player가 있는 템플릿 (표시 순서) */
+/** 2인 CG: 파라미터에 a.player·b.player가 있는 템플릿 (표시 순서). 매치 기록은 운영자가 기록을 골라야 해서 뺀다 */
 function match_templates(): array
 {
     $out = [];
     foreach (cg_templates() as $slug => $t) {
         $keys = array_column($t['params'], 'type', 'key');
-        if (($keys['a.player'] ?? null) === 'player' && ($keys['b.player'] ?? null) === 'player') {
+        if (($keys['a.player'] ?? null) === 'player' && ($keys['b.player'] ?? null) === 'player' && !in_array('record_slots', $keys, true)) {
             $out[] = $slug;
         }
     }
     return $out;
 }
 
-/** @return array{a:?string, b:?string} 지금 데이터에 없는 선수는 비운다 */
+/** @return array{a:?string, b:?string, date:?string} 지금 데이터에 없는 선수는 비운다. date = 경기일 (정하지 않았으면 null) */
 function match_today(): array
 {
     $m = json_dec(setting_get('match_today', '{}')) ?: [];
     $players = players_cache();
     $pick = static fn($v) => is_string($v) && isset($players[$v]) ? $v : null;
-    return ['a' => $pick($m['a'] ?? null), 'b' => $pick($m['b'] ?? null)];
+    $date = is_string($m['date'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}$/D', $m['date']) ? $m['date'] : null;
+    return ['a' => $pick($m['a'] ?? null), 'b' => $pick($m['b'] ?? null), 'date' => $date];
 }
 
 /** 패널에 보내는 값 */
@@ -40,6 +42,7 @@ function match_view(): array
     $m = match_today();
     $players = players_cache();
     return $m + [
+        'today' => date('Y-m-d'),
         'text' => $m['a'] !== null && $m['b'] !== null ? sprintf('%s (%s) vs %s (%s)', $m['a'], $players[$m['a']]['race'] ?? '?',
             $m['b'], $players[$m['b']]['race'] ?? '?') : '',
         'templates' => array_map(static fn($s) => ['slug' => $s, 'name' => template_get($s)['name'],
@@ -58,14 +61,40 @@ function match_today_save(array $in, array $op): array
     if ($a === $b) {
         throw new ActionError('BAD_PARAMS', 'A와 B에 서로 다른 선수를 고르세요.', 422);
     }
-    if (match_today() !== ['a' => $a, 'b' => $b]) {
-        db_tx(function () use ($a, $b, $op) {
-            setting_set('match_today', json_enc(['a' => $a, 'b' => $b]));
-            cg_log('broadcast', 'MATCH_SET', $op, ['detail' => "오늘 매치: $a vs $b"]);
+    // 경기일: 보내지 않으면 저장된 값 그대로 (예전 패널·한 번에 추가 등)
+    $date = array_key_exists('date', $in) ? param_value(['label' => '경기일', 'type' => 'date'], $in['date'], []) : match_today()['date'];
+    if (match_today() !== ['a' => $a, 'b' => $b, 'date' => $date]) {
+        db_tx(function () use ($a, $b, $date, $op) {
+            setting_set('match_today', json_enc(['a' => $a, 'b' => $b, 'date' => $date]));
+            cg_log('broadcast', 'MATCH_SET', $op, ['detail' => "오늘 매치: $a vs $b" . ($date === null ? '' : " · 경기일 $date")]);
             state_bump();
         });
     }
     return match_view();
+}
+
+/**
+ * 매치 기록 후보와 계산 근거 (오늘 매치 창·페이지 추가 창). 경기일 이전에 확정된 끝장전 기준 — stats_match_records.
+ * 운영자가 이 목록에서 고른 기록만 '매치 기록' CG가 된다 (자동으로 CG를 만들거나 문구를 지어내지 않는다).
+ */
+function match_records_view(array $in): array
+{
+    $players = players_cache();
+    $a = (string)($in['a'] ?? '');
+    $b = (string)($in['b'] ?? '');
+    if (!isset($players[$a]) || !isset($players[$b]) || $a === $b) {
+        throw new ActionError('BAD_PARAMS', 'A·B에 서로 다른 선수를 고르세요.', 422);
+    }
+    $date = param_value(['label' => '경기일', 'type' => 'date'], $in['date'] ?? '', []);
+    $ds = dataset_or_null();
+    if ($ds === null) {
+        throw new ActionError('NO_DATA', '데이터가 없습니다. 데이터 새로고침을 먼저 하세요.', 409);
+    }
+    $r = stats_match_records($ds, $a, $b, $date);
+    $order = array_keys(MATCH_RECORD_KINDS);
+    $items = array_map(static fn($k) => $r['items'][$k] + ['kind_label' => MATCH_RECORD_KINDS[$k]], array_values(array_intersect($order, array_keys($r['items']))));
+    return ['date' => $date, 'from' => $r['from'], 'to' => $r['to'], 'notes' => $r['notes'], 'items' => $items,
+        'fetched_at' => $ds['fetched_at'] ?? null];
 }
 
 /**

@@ -199,8 +199,8 @@ test('9종 렌더링: 모든 값 이스케이프, MOCK 표시, 빈 행 생략, �
     ];
     // v0.5 새 CG 4종(미션 지수·매치 프리뷰·맵 전적·맵 상성)은 시트 데이터가 필요해 sheet_cg_test.php,
     // 자유 입력은 free_text_test.php에서 확인한다
-    assert_same(array_merge(array_keys($cases), ['mission-index', 'match-preview', 'map-record', 'map-matchup', 'free-text']),
-        array_keys(cg_templates()), '14종, 정해진 순서');
+    assert_same(array_merge(array_keys($cases), ['mission-index', 'match-preview', 'map-record', 'map-matchup', 'free-text', 'match-records']),
+        array_keys(cg_templates()), '15종, 정해진 순서'); // 매치 기록은 records_test.php에서 확인
     foreach ($cases as $slug => $params) {
         $st = type_state($slug, $params);
         assert_same([], $st['problems'], "$slug 송출 가능");

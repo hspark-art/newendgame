@@ -513,7 +513,13 @@
     if (!m.a || !m.b) { return null; }
     var raceB = (S.players.filter(function (x) { return x.id === m.b; })[0] || {}).race;
     // 한 선수 CG(최근 종족전)는 A 선수 · 상대 종족 = B의 종족
-    return { a: { player: m.a }, b: { player: m.b }, player: m.a, vs: raceB || undefined };
+    return { a: { player: m.a }, b: { player: m.b }, player: m.a, vs: raceB || undefined, date: matchDate() };
+  }
+
+  /** 오늘 매치의 경기일. 정하지 않았거나 지난 날짜면 오늘 */
+  function matchDate() {
+    var m = S.match || {};
+    return m.date && m.date >= m.today ? m.date : m.today;
   }
 
   function paramControl(p, v) {
@@ -536,6 +542,11 @@
       case 'map':
       case 'map_any':
         return '<select' + attr + '>' + mapOptions(v || '', p.type === 'map_any') + '</select>';
+      case 'date':
+        return '<input type="date"' + attr + ' value="' + esc(v || matchDate()) + '">';
+      case 'record_slots':
+        // 기록 후보는 선수·경기일을 고르면 불러온다 (loadRecords)
+        return '<div class="rec-pick"' + attr + ' data-selected="' + esc(JSON.stringify(v || [])) + '"></div>';
       case 'predictor_slots':
         var list = [['', '—']].concat(S.predictors.map(function (x) { return [x.id, x.name]; }));
         (v || []).forEach(function (id) { list = withValue(list, id, id + ' (목록에 없음)'); });
@@ -555,11 +566,89 @@
     }).join('');
     var linked = tpl.params.some(function (p) { return p.auto_from; });
     $('pHint').textContent = linked ? '선수를 고르면 상대 종족이 서로의 종족으로 자동 선택됩니다. 필요하면 바꾸세요.' : '';
+    pageRecords();
+  }
+
+  /** 페이지 추가 창의 기록 후보: 지금 고른 A·B 선수와 경기일로 다시 불러온다 (고른 기록은 유지) */
+  function pageRecords() {
+    var el = $('pParams').querySelector('.rec-pick');
+    if (!el) { return; }
+    var val = function (k) { var x = $('pParams').querySelector('[data-key="' + k + '"]'); return x ? x.value : ''; };
+    var keep = el._order || JSON.parse(el.getAttribute('data-selected') || '[]');
+    loadRecords(el, val('a.player'), val('b.player'), val('date'), keep);
+  }
+
+  // ------------------------------------------------------------ 매치 기록 후보 (오늘 매치 창 · 페이지 추가 창)
+
+  function loadRecords(el, a, b, date, selected) {
+    el._order = (selected || []).slice();
+    if (!a || !b || a === b) {
+      el.innerHTML = '<div class="rc-empty">A·B에 서로 다른 선수를 고르면 기록 후보가 나옵니다.</div>';
+      return Promise.resolve(null);
+    }
+    el.innerHTML = '<div class="rc-empty">기록 후보를 계산하는 중…</div>';
+    return api('match_records', { a: a, b: b, date: date }, true).then(function (r) {
+      renderRecords(el, r);
+      return r;
+    }, function (e) {
+      el.innerHTML = '<div class="rc-empty err">' + esc(e.data ? e.data.error : '기록 후보를 불러오지 못했습니다.') + '</div>';
+      return null;
+    });
+  }
+
+  /**
+   * 후보 목록: 고를 수 있는 기록(확정) · 확인 필요(이유 표시, 고를 수 없음) · 해당 없음(접어 둠).
+   * 고른 순서가 CG 줄 순서 (el._order). 이미 고른 기록은 상태가 바뀌어도 풀 수 있게 남긴다
+   */
+  function renderRecords(el, r) {
+    var on = function (it) { return el._order.indexOf(it.key) >= 0; };
+    var row = function (it) {
+      var off = it.status !== 'ok' && !on(it);
+      return '<label class="rc-item is-' + esc(it.status) + '"><input type="checkbox" value="' + esc(it.key) + '"'
+        + (on(it) ? ' checked' : '') + (off ? ' disabled' : '') + '><span class="rc-no"></span>'
+        + '<span class="rc-main"><b>' + esc(it.text) + '</b>'
+        + (it.recommended ? ' <span class="tag rec">추천</span>' : '')
+        + (it.status === 'hold' ? ' <span class="tag hold">확인 필요</span>' : '') + '</span>'
+        + (it.reason ? '<span class="rc-why">' + esc(it.reason) + '</span>' : '')
+        + (it.basis.length ? '<span class="rc-basis">' + it.basis.map(esc).join('<br>') + '</span>' : '') + '</label>';
+    };
+    var main = r.items.filter(function (it) { return it.status !== 'none' || on(it); });
+    var none = r.items.filter(function (it) { return main.indexOf(it) < 0; });
+    el.innerHTML = '<div class="rc-head">경기일 ' + esc(r.date) + ' 이전 끝장전 기준 · 시트 기록 ' + esc((r.from || '?') + ' ~ ' + (r.to || '?'))
+      + ' · 최대 3개, 고른 순서대로 CG 줄</div>'
+      + r.notes.map(function (n) { return '<div class="rc-note">' + esc(n) + '</div>'; }).join('')
+      + (main.length ? main.map(row).join('') : '<div class="rc-empty">조건에 맞는 기록이 없습니다.</div>')
+      + (none.length ? '<details class="rc-none"><summary>해당 없는 기록 ' + none.length + '개 (이유 보기)</summary>' + none.map(row).join('') + '</details>' : '');
+    el._order = el._order.filter(function (k) { return r.items.some(function (it) { return it.key === k; }); });
+    markRecords(el);
+  }
+
+  function markRecords(el) {
+    Array.prototype.forEach.call(el.querySelectorAll('.rc-item'), function (lb) {
+      var i = el._order.indexOf(lb.querySelector('input').value);
+      lb.querySelector('.rc-no').textContent = i >= 0 ? String(i + 1) : '';
+    });
+  }
+
+  /** 체크: 고른 순서 기록 (최대 3개) */
+  function pickRecord(el, input) {
+    var k = input.value;
+    if (input.checked) {
+      if (el._order.length >= 3) {
+        input.checked = false;
+        toast('기록은 CG 한 장에 최대 3개까지 고를 수 있습니다.', 'err');
+        return;
+      }
+      el._order.push(k);
+    } else {
+      el._order = el._order.filter(function (x) { return x !== k; });
+    }
+    markRecords(el);
   }
 
   // ------------------------------------------------------------ 오늘 매치
 
-  function matchInput() { return { a: $('mA').value, b: $('mB').value }; }
+  function matchInput() { return { a: $('mA').value, b: $('mB').value, date: $('mDate').value }; }
 
   function openMatch() {
     if (!S.players.length) {
@@ -575,9 +664,19 @@
         + esc(t.name) + '</label>';
     }).join('');
     $('mMap').innerHTML = mapOptions('', true);
+    $('mDate').value = matchDate();
+    $('mRecList').innerHTML = '';
+    $('mRecList')._order = [];
+    $('mRecAdd').disabled = true;
     $('mResult').textContent = '';
     $('dlgMatch').returnValue = '';
     $('dlgMatch').showModal();
+  }
+
+  function showMatchRecords() {
+    var m = matchInput();
+    $('mRecAdd').disabled = true;
+    loadRecords($('mRecList'), m.a, m.b, m.date, []);
   }
 
   function openPage(row) {
@@ -622,6 +721,8 @@
       var els = $('pParams').querySelectorAll('[data-key="' + p.key + '"]');
       if (p.type === 'predictor_slots') {
         setPath(out, p.key, Array.prototype.map.call(els, function (e) { return e.value; }).filter(Boolean));
+      } else if (p.type === 'record_slots') {
+        setPath(out, p.key, (els[0]._order || []).slice());
       } else {
         setPath(out, p.key, els[0].value);
       }
@@ -864,7 +965,23 @@
     };
     $('btnMatch').onclick = openMatch;
     $('mSave').onclick = function () {
-      api('match_save', matchInput()).then(function (m) { toast('오늘 매치: ' + m.text, 'ok'); $('mResult').textContent = ''; });
+      api('match_save', matchInput()).then(function (m) {
+        toast('오늘 매치: ' + m.text, 'ok');
+        $('mResult').textContent = '';
+        showMatchRecords(); // 매치를 정하면 기록 후보를 바로 보여 준다 (매치 시작 전 확인)
+      });
+    };
+    $('mRec').onclick = showMatchRecords;
+    $('mRecList').addEventListener('change', function (e) {
+      if (e.target.type === 'checkbox') { pickRecord(this, e.target); $('mRecAdd').disabled = !this._order.length; }
+    });
+    $('mRecAdd').onclick = function () {
+      var m = matchInput();
+      api('page_add', { template: 'match-records', params: { a: { player: m.a }, b: { player: m.b }, date: m.date, records: $('mRecList')._order.slice() } })
+        .then(function (r) {
+          toast(pad3(r.page_no) + ' 매치 기록 페이지를 추가했습니다.', 'ok');
+          $('mResult').textContent = '추가: ' + pad3(r.page_no) + ' 매치 기록';
+        });
     };
     $('mAdd').onclick = function () {
       var tpls = Array.prototype.map.call($('mTpls').querySelectorAll('input:checked'), function (c) { return c.value; });
@@ -1000,7 +1117,10 @@
       if (!editingPageId) { fillRaces(); }
     };
     $('pParams').addEventListener('change', function (e) {
+      var pick = e.target.closest('.rec-pick');
+      if (pick) { pickRecord(pick, e.target); return; }
       if (e.target.getAttribute('data-type') === 'player') { autoRace(e.target); }
+      if (['player', 'date'].indexOf(e.target.getAttribute('data-type')) >= 0) { pageRecords(); }
     });
 
     $('rdBody').addEventListener('click', function (e) {

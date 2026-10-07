@@ -73,6 +73,7 @@ function action_dispatch(string $action, array $in, array $op): mixed
         'match_save' => match_today_save($in, $op),
         'match_add' => match_pages_add($in, $op),
         'match_apply' => match_pages_apply($in, $op),
+        'match_records' => match_records_view($in),
         'map_info' => map_info_view(),
         'map_info_save' => map_info_save($in, $op),
         // CG 디자인 (바꾸기는 관리자만 — 함수 안에서 확인)

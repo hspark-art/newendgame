@@ -165,26 +165,27 @@
 .c-roi { width: calc(112px * var(--k-w)); flex: none; text-align: right; font-family: var(--cg-font-num); color: var(--c-num);
   font-size: calc(28px * var(--k-num)); font-weight: 700; }
 
-/* 매치 프리뷰: [A 값] [가운데 항목] [B 값] 줄. 줄 수만큼 높이가 늘어난다 (아래 기준이라 위로 커짐) */
-.cg-preview { width: calc(680px * var(--k-w)); height: auto; }
+/* 매치 프리뷰: [A 값] [가운데 항목] [B 값] 줄. 폭은 다른 CG와 같은 표준 560 (v0.7.0, 이전 680),
+   높이는 줄 수만큼 늘어난다 (6줄 약 354px, 아래 기준이라 위로 커짐) */
+.cg-preview { height: auto; }
 .cg-preview .cg-head { height: calc(50px * var(--k-h)); }
 .cg-preview .cg-head .cg-cell { font-size: calc(28px * var(--k-name)); padding: 0 14px; }
 .pv-rows { flex: none; display: flex; flex-direction: column; padding: 4px 0 8px; }
-.pv-row { display: flex; align-items: center; height: calc(42px * var(--k-h)); }
+.pv-row { display: flex; align-items: center; height: calc(35px * var(--k-h)); }
 .pv-row:nth-child(even) { background: var(--row-alt); }
-.pv-side { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; padding: 0 18px; font-family: var(--cg-font-num); color: var(--c-num);
-  font-size: calc(26px * var(--k-num)); text-shadow: 0 2px 2px rgba(0, 0, 0, .75); }
+.pv-side { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; padding: 0 14px; font-family: var(--cg-font-num); color: var(--c-num);
+  font-size: calc(24px * var(--k-num)); text-shadow: 0 2px 2px rgba(0, 0, 0, .75); }
 .pv-side.pv-a { text-align: right; }
 .pv-side.pv-b { text-align: left; }
 .pv-side b { font-weight: 700; }
 .pv-side small { font-size: .7em; color: var(--c-sub); margin-left: .35em; }
 .pv-side.is-lead b { color: var(--c-accent); }
-.pv-label { width: calc(150px * var(--k-w)); flex: none; text-align: center; overflow: hidden; white-space: nowrap;
-  font-family: var(--cg-font-name); font-size: calc(19px * var(--k-name)); font-weight: 600; color: var(--c-sub); }
-.pv-label.is-note { color: var(--c-accent); font-size: calc(22px * var(--k-name)); font-weight: 700; }
+.pv-label { width: calc(118px * var(--k-w)); flex: none; text-align: center; overflow: hidden; white-space: nowrap;
+  font-family: var(--cg-font-name); font-size: calc(17px * var(--k-name)); font-weight: 600; color: var(--c-sub); }
+.pv-label.is-note { color: var(--c-accent); font-size: calc(20px * var(--k-name)); font-weight: 700; }
 .pv-form { display: inline-flex; gap: 4px; vertical-align: middle; text-shadow: none; }
 .pv-form i { font-style: normal; width: 1.3em; height: 1.3em; line-height: 1.3em; text-align: center; border-radius: 4px;
-  font-size: calc(19px * var(--k-num)); font-weight: 800; }
+  font-size: calc(17px * var(--k-num)); font-weight: 800; }
 .pv-form .is-w { background: var(--c-accent); color: var(--c-on-accent); }
 .pv-form .is-l { background: var(--chip-l); color: var(--c-sub); }
 
@@ -226,6 +227,27 @@
 .fr-line.is-center .fr-text { text-align: center; }
 .fr-sub { flex: none; max-width: 45%; overflow: hidden; white-space: nowrap; text-align: right; font-family: var(--cg-font-num);
   color: var(--c-num); font-size: calc(27px * var(--k-num)); font-weight: 700; text-shadow: 0 2px 2px rgba(0, 0, 0, .75); }
+
+/* 매치 기록 (#15): 표준 560×250. 2~3줄 = [이름 / 짧은 설명] [큰 숫자 + 단위], 1줄 = 이름 · 큰 숫자 · 설명을 가운데로 크게.
+   긴 이름·큰 숫자는 .cg-fit 자동 맞춤으로 줄어든다 (칸 폭 고정) */
+.rec-rows { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding: 4px 0 8px; }
+.rec-row { display: flex; align-items: center; gap: 16px; height: calc(52px * var(--k-h)); padding: 0 24px; }
+.rec-row:nth-child(even) { background: var(--row-alt); }
+.rec-who { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.rec-name { overflow: hidden; white-space: nowrap; font-family: var(--cg-font-name); color: var(--c-text);
+  font-size: calc(25px * var(--k-name)); font-weight: 700; line-height: 1.15; text-shadow: 0 2px 2px rgba(0, 0, 0, .75); }
+.rec-desc { overflow: hidden; white-space: nowrap; font-family: var(--cg-font-name); color: var(--c-sub);
+  font-size: calc(16px * var(--k-name)); font-weight: 500; line-height: 1.2; }
+.rec-val { flex: none; width: calc(210px * var(--k-w)); overflow: hidden; white-space: nowrap; text-align: right;
+  font-family: var(--cg-font-num); color: var(--c-accent); font-size: calc(40px * var(--k-num)); line-height: 1.1;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, .8); }
+.rec-val b { font-weight: 800; }
+.rec-val small { margin-left: .12em; font-size: .55em; font-weight: 700; color: var(--c-num); }
+.rec-big { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; padding: 4px 28px 10px;
+  text-align: center; }
+.rec-big .rec-name { font-size: calc(28px * var(--k-name)); }
+.rec-big .rec-val { width: auto; text-align: center; font-size: calc(70px * var(--k-num)); line-height: 1.05; }
+.rec-big .rec-desc { font-size: calc(20px * var(--k-name)); }
 
 /* 5줄: 한 줄 높이는 4줄일 때와 같게 두고 박스가 위로 한 줄만큼 커진다 (오른쪽 아래 기준 배치라 아래 위치는 그대로).
    이전에는 높이 250px 안에 5줄을 넣느라 줄이 낮아져 글자 아래가 잘렸다 */
