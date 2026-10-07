@@ -398,8 +398,9 @@
     api(dir > 0 ? 'next' : 'prev', {}, false).then(function (r) { if (!r) { toast(dir > 0 ? '마지막 페이지입니다.' : '첫 페이지입니다.'); } });
   }
   function cue(no) { api('cue_page', { page_no: no }); }
-  function refresh(quiet) {
-    return api('refresh_data', {}, !!quiet).then(function (r) {
+  /** auto = 자동 새로고침 (서버가 5분에 한 번만 실제로 불러온다 — 패널이 여러 개여도) */
+  function refresh(quiet, auto) {
+    return api('refresh_data', auto ? { auto: 1 } : {}, !!quiet).then(function (r) {
       if (!quiet) { toast('데이터를 새로 불러왔습니다. 자동값 변경 ' + r.changed + '건', 'ok'); }
       else if (r.changed > 0) { toast('자동값이 바뀌었습니다: ' + r.changed + '건'); }
     }, function (e) { if (quiet && e.data) { toast(e.data.error, 'err'); } });
@@ -1134,13 +1135,11 @@
 
   bind();
   window.setInterval(tickClock, 500);
-  // 자동 새로고침: Google 시트는 5분마다 (요청 수 절약), 테스트용 MOCK은 1분. 시트 주소·키가 없으면(파일 가져오기만 쓰는 경우) 하지 않는다
-  var lastAuto = Date.now();
+  // 자동 새로고침: 1분마다 서버에 묻고, 실제로 불러올지는 서버가 정한다 — 패널이 여러 개 열려 있어도 서버 전체에서 5분에 한 번,
+  // 실패하면 1분 뒤 한 번 더 (control.php data_refresh_auto). 시트 주소·키가 없으면(파일 가져오기만 쓰는 경우) 하지 않는다
   window.setInterval(function () {
     if (!S || !$('autoRefresh').checked || !S.data.ready) { return; }
-    if (S.data.source === 'sheet' && Date.now() - lastAuto < 290000) { return; }
-    lastAuto = Date.now();
-    refresh(true);
+    refresh(true, true);
   }, 60000);
   poll();
 })();

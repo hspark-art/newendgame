@@ -507,11 +507,19 @@ function program_visibility(bool $show, array $op): void
 
 // ---------------------------------------------------------------- 데이터 갱신
 
+/** 자동 새로고침 간격(초): 패널이 여러 개 열려 있어도 서버 전체에서 이 간격에 한 번만 불러온다 */
+const AUTO_REFRESH_SEC = 290;
+/** 새로고침이 한 번 실패하면 이 시간(초) 뒤에 한 번 더 시도한다 (그다음은 다시 AUTO_REFRESH_SEC) */
+const AUTO_RETRY_SEC = 55;
+/** 이 횟수만큼 연속으로 실패해야 관리자 알림 (한 번은 일시적인 연결 끊김일 수 있어 다시 시도를 본다) */
+const REFRESH_ALERT_STREAK = 2;
+
 /**
  * 데이터 새로고침: 지금 소스(MOCK 또는 Google 시트)에서 불러와 반영한다. $dataset을 주면(xlsx 가져오기·테스트) 그것을 쓴다.
  * 실패하면 마지막 정상 AUTO를 그대로 두고 소스 상태만 ERROR로 바꾼다. 수동값과 PROGRAM은 절대 바꾸지 않는다.
+ * $autoRefresh = 패널의 자동 새로고침 (바뀐 자동값이 없으면 송출 로그에 남기지 않는다)
  */
-function data_refresh(array $op, ?array $dataset = null): array
+function data_refresh(array $op, ?array $dataset = null, bool $autoRefresh = false): array
 {
     $now = now();
     $source = data_source();
@@ -522,19 +530,51 @@ function data_refresh(array $op, ?array $dataset = null): array
         db_tx(function () use ($now, $detail, $op, $source) {
             db_exec("UPDATE cg_sources SET status = 'ERROR', last_attempt_at = ?, last_error = ? WHERE id = ?", [$now, $detail, $source]);
             cg_log('error', 'REFRESH_FAIL', $op, ['detail' => $detail]);
-            alert_refresh_failed($source, $detail, $now);
+            $streak = refresh_fail_streak() + 1;
+            setting_set('refresh_fail_streak', (string)$streak);
+            if ($streak >= REFRESH_ALERT_STREAK) {
+                alert_refresh_failed($source, $detail, $now);
+            }
             state_bump();
         });
         throw new ActionError('SOURCE_ERROR', '데이터를 불러오지 못했습니다. 마지막 정상 데이터를 유지합니다. (' . $detail . ')', 502);
     }
-    return data_apply($ds, $op, true);
+    return data_apply($ds, $op, true, $autoRefresh);
+}
+
+/** 연속 실패 횟수 (성공하면 0) */
+function refresh_fail_streak(): int
+{
+    return (int)setting_get('refresh_fail_streak', '0');
+}
+
+/**
+ * 패널의 자동 새로고침 (패널은 1분마다 요청하고, 실제로 불러올지는 여기서 정한다).
+ * - 마지막 시도가 AUTO_REFRESH_SEC보다 오래됐을 때만 불러온다. 직전에 한 번 실패했으면 AUTO_RETRY_SEC 뒤에 다시 시도.
+ * - 시도 시각을 조건부 UPDATE로 먼저 차지해서, 여러 패널이 같은 순간에 요청해도 한 곳만 불러온다.
+ * @return array{changed:int, skipped?:bool}
+ */
+function data_refresh_auto(array $op): array
+{
+    if (!data_ready()) {
+        return ['changed' => 0, 'skipped' => true]; // 시트 주소·키가 없으면(파일 가져오기만 쓰는 경우) 자동으로 불러오지 않는다
+    }
+    $t = time();
+    $wait = refresh_fail_streak() === 1 ? AUTO_RETRY_SEC : AUTO_REFRESH_SEC;
+    $claimed = db_query('UPDATE cg_sources SET last_attempt_at = ? WHERE id = ? AND (last_attempt_at IS NULL OR last_attempt_at <= ?)',
+        [date('Y-m-d H:i:s', $t), data_source(), date('Y-m-d H:i:s', $t - $wait)])->rowCount();
+    if ($claimed === 0) {
+        return ['changed' => 0, 'skipped' => true];
+    }
+    return data_refresh($op, null, true);
 }
 
 /**
  * 데이터 반영: 캐시·선수 목록 저장, 모든 CG 인스턴스의 AUTO와 검증 사유를 다시 계산한다.
  * $fetched = false (닉네임 변경 등)이면 새로 불러온 것이 아니므로 캐시·소스 상태는 그대로 둔다.
+ * $autoRefresh = 자동 새로고침 — 바뀐 자동값이 없으면 송출 로그를 남기지 않는다 (패널 위 '마지막 정상' 시각만 갱신)
  */
-function data_apply(array $ds, array $op, bool $fetched): array
+function data_apply(array $ds, array $op, bool $fetched, bool $autoRefresh = false): array
 {
     $now = now();
     // 캐시에는 원본(경기 제외 확정·닉네임을 합치기 전)을 둔다 — 설정을 바꾸면 원본에서 다시 계산한다
@@ -543,7 +583,7 @@ function data_apply(array $ds, array $op, bool $fetched): array
         $raw['fetched_at'] = $now;
     }
     $ds = dataset_prepare($raw);
-    return db_tx(function () use ($ds, $raw, $now, $op, $fetched) {
+    return db_tx(function () use ($ds, $raw, $now, $op, $fetched, $autoRefresh) {
         if ($fetched) {
             dataset_cache_put($raw, $now);
         }
@@ -586,10 +626,15 @@ function data_apply(array $ds, array $op, bool $fetched): array
         if ($fetched) {
             db_exec("UPDATE cg_sources SET status = 'OK', last_attempt_at = ?, last_success_at = ?, last_error = NULL
                 WHERE id = ?", [$now, $now, $ds['source']]);
+            if (refresh_fail_streak() !== 0) {
+                setting_set('refresh_fail_streak', '0');
+            }
             $c = $ds['check'] ?? null;
-            cg_log('data', 'REFRESH', $op, ['detail' => 'AUTO 변경 ' . count($changed) . '건'
-                . ($c === null ? '' : sprintf(' · 세트 %d · 끝장전 %d · 이상 %d · 불일치 %d', $c['counts']['games'],
-                    $c['counts']['matches'], count($c['anomalies']), count($c['mismatches'])))]);
+            if (!$autoRefresh || $changed) {
+                cg_log('data', 'REFRESH', $op, ['detail' => ($autoRefresh ? '(자동) ' : '') . 'AUTO 변경 ' . count($changed) . '건'
+                    . ($c === null ? '' : sprintf(' · 세트 %d · 끝장전 %d · 이상 %d · 불일치 %d', $c['counts']['games'],
+                        $c['counts']['matches'], count($c['anomalies']), count($c['mismatches'])))]);
+            }
         }
         state_bump(in_array($pv['instance_id'], $changed, true) ? ['preview'] : []);
         return ['changed' => count($changed)];

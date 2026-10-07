@@ -47,7 +47,7 @@ function action_dispatch(string $action, array $in, array $op): mixed
         'show' => program_visibility(true, $op),
         'out' => program_visibility(false, $op),
         'set_display' => preview_display($in, $op),
-        'refresh_data' => data_refresh($op),
+        'refresh_data' => empty($in['auto']) ? data_refresh($op) : data_refresh_auto($op),
         'save_preview' => preview_save(in_int($in, 'instance_id'), in_values($in), $op),
         'reset' => override_reset(in_int($in, 'instance_id'), isset($in['field']) ? (string)$in['field'] : null, $op),
         'hide' => instance_hide(in_int($in, 'instance_id'), array_values(array_filter((array)($in['fields'] ?? []), 'is_string')),
