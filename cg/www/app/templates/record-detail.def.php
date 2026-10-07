@@ -77,7 +77,8 @@ return [
         } elseif ($total <= 5) {
             $auto['label'] = ($it['kind'] === 'streak' ? '맞대결 ' : '끝장전 매치 ') . "{$total}경기";
         } else {
-            $auto['label'] = ($p['part'] === 1 ? '최근 5경기' : ($from + 1) . '~' . min($from + 5, $total) . '번째 경기') . " · 전체 {$total}경기";
+            $to = min($from + 5, $total);
+            $auto['label'] = ($p['part'] === 1 ? '최근 5경기' : ($from + 1) . ($to > $from + 1 ? "~$to" : '') . '번째 경기') . " · 전체 {$total}경기";
         }
         $auto['head'] = $d['who'] . ' 기준';
         $auto['best'] = $p['part'] === 1 && $d['best'] !== '' ? $d['best'] : null;
@@ -96,14 +97,16 @@ return [
         $key = $p['records'][0];
         $it = stats_match_records($ds, $p['a']['player'], $p['b']['player'], $p['date'])['items'][$key] ?? null;
         if ($it !== null && $it['status'] === 'ok') {
-            return [];
+            $total = $it['detail']['total'] ?? 0;
+            // 2쪽인데 5경기 이하 → 보일 경기가 없다 (빈 표가 나가지 않게, 이유를 알린다)
+            return $p['part'] > 1 && $total <= 5 ? [verify_issue($rdKeys(), "{$it['text']} — 전체 {$total}경기라 2쪽(6번째 경기부터)에 보일 경기가 없습니다. 1쪽을 쓰세요")] : [];
         }
         return [verify_issue($rdKeys(), ($it['text'] ?? MATCH_RECORD_KINDS[$key]) . ' — '
             . ($it === null ? '기록을 계산할 수 없습니다' : ($it['status'] === 'hold' ? '확인 필요: ' : '기록 없음: ') . rtrim($it['reason'], '.')))];
     },
     'summary' => static fn(array $p, array $ctx): string => sprintf('%s vs %s · %s · %s%s', pname($ctx['players'], $p['a']['player']),
         pname($ctx['players'], $p['b']['player']), $p['date'], MATCH_RECORD_KINDS[$p['records'][0]] ?? $p['records'][0],
-        $p['part'] > 1 ? ' (6~10번째 경기)' : ''),
+        $p['part'] > 1 ? ' (2쪽 · 6번째 경기부터)' : ''),
     'present' => static function (array $f, array $p) use ($isGames): array {
         $rows = [];
         for ($i = 1; $i <= 5; $i++) {

@@ -627,7 +627,7 @@
       var btns = detailBtns && it.status === 'ok' && d
         ? '<span class="rc-act"><button type="button" class="btn sm" data-detail="' + esc(it.key) + '" data-part="1">상세 CG 추가</button>'
           + (d.type === 'games' && !d.record && d.total > 5
-            ? ' <button type="button" class="btn sm" data-detail="' + esc(it.key) + '" data-part="2">상세 6~' + Math.min(10, d.total) + '번째 경기</button>' : '')
+            ? ' <button type="button" class="btn sm" data-detail="' + esc(it.key) + '" data-part="2">상세 6' + (d.total > 6 ? '~' + Math.min(10, d.total) : '') + '번째 경기</button>' : '')
           + '</span>' : '';
       return '<label class="rc-item is-' + esc(it.status) + '"><input type="checkbox" value="' + esc(it.key) + '"'
         + (on(it) ? ' checked' : '') + (off ? ' disabled' : '') + '><span class="rc-no"></span>'
@@ -1007,7 +1007,7 @@
       api('page_add', { template: 'record-detail', params: { a: { player: m.a }, b: { player: m.b }, date: m.date,
         records: [b.getAttribute('data-detail')], part: part } }).then(function (r) {
         toast(pad3(r.page_no) + ' 기록 상세 페이지를 추가했습니다.', 'ok');
-        $('mResult').textContent = '추가: ' + pad3(r.page_no) + ' 기록 상세' + (part > 1 ? ' (6~10번째 경기)' : '');
+        $('mResult').textContent = '추가: ' + pad3(r.page_no) + ' 기록 상세' + (part > 1 ? ' (' + b.textContent.replace(/^상세 /, '') + ')' : '');
       });
     });
     $('mRecList').addEventListener('change', function (e) {

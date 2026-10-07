@@ -10,7 +10,8 @@ declare(strict_types=1);
  * 기록 후보와 계산 근거(경기 날짜·결과)는 '오늘 매치' 창과 페이지 추가 창에서 본다 (match_records 액션).
  * v0.8: 기록을 1개만 고르면 큰 숫자 아래에 근거 한 줄(마지막 출전·맞대결 날짜와 스코어, 개인 최다 비교 등). 경기 내역 전체는 '기록 상세'(#16).
  */
-$rowKeys = static fn(int $n) => ["r$n.name", "r$n.num", "r$n.unit", "r$n.desc", "r$n.note"];
+// 송출을 막는 칸 (근거 한 줄은 넣지 않는다 — 확정 기록에만 자동값이 있고, 없어도 줄 자체가 빠질 뿐)
+$rowKeys = static fn(int $n) => ["r$n.name", "r$n.num", "r$n.unit", "r$n.desc"];
 
 return [
     'slug' => 'match-records',
@@ -34,13 +35,13 @@ return [
     'auto' => static function (array $p, array $ds): array {
         $r = stats_match_records($ds, $p['a']['player'], $p['b']['player'], $p['date']);
         $auto = ['title' => '이번 매치 주요 기록'];
-        $one = count($p['records']) === 1; // 근거 한 줄은 기록 1개일 때만 그린다 → 2~3개면 값도 넣지 않는다
+        $one = count($p['records']) === 1; // 근거 한 줄은 기록 1개일 때만 그린다 → 2~3개면 값도 넣지 않는다 (확인 필요 기록도 넣지 않음)
         foreach ($p['records'] as $i => $key) {
             $n = $i + 1;
             $it = $r['items'][$key] ?? null;
             // 기록이 없어져도(조건이 바뀜) 이름은 남겨 검증 사유로 막는다 — 줄이 조용히 사라지지 않게
             $auto += ["r$n.name" => $it['name'] ?? null, "r$n.num" => $it['value'] ?? null, "r$n.unit" => $it['unit'] ?? null,
-                "r$n.desc" => $it['desc'] ?? null, "r$n.note" => !$one || ($it['note'] ?? '') === '' ? null : $it['note']];
+                "r$n.desc" => $it['desc'] ?? null, "r$n.note" => $one && ($it['status'] ?? '') === 'ok' && ($it['note'] ?? '') !== '' ? $it['note'] : null];
         }
         return $auto;
     },

@@ -613,10 +613,11 @@ function data_apply(array $ds, array $op, bool $fetched, bool $autoRefresh = fal
             $inst = instance_get((int)$r['id']);
             $auto = template_auto($inst['template'], $inst['params'], $ds);
             $issues = template_issues($inst['template'], $inst['params'], $ds);
-            if ($inst['auto'] !== $auto || $inst['issues'] !== $issues) {
+            $autoSame = finals_same($inst['auto'], $auto); // 빈 값(null) = 없는 칸 (업데이트로 새 칸이 생겨도 변경으로 세지 않음)
+            if (!$autoSame || $inst['issues'] !== $issues) {
                 $changed[] = $inst['id'];
             }
-            if ($inst['auto'] !== $auto) {
+            if (!$autoSame) {
                 cg_log('data', 'AUTO_CHANGED', $op, ['instance_id' => $inst['id'], 'template' => $inst['template'],
                     'prev' => $inst['auto'], 'new' => $auto]);
             }

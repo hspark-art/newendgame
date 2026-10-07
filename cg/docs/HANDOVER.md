@@ -16,8 +16,8 @@
 
 ## 3. 수정한 파일 (v0.8.0, 0.7.0 대비)
 - 신규: `www/app/templates/record-detail.def.php`, `.view.php`
-- 수정: `www/app/stats.php`, `www/app/views.php`, `www/app/templates/match-records.def.php`, `.view.php`, `www/index.php`, `www/assets/panel.js`, `panel.css`, `cg.css`, `www/app/version.json`, `tests/records_test.php`, `tests/cg_types_test.php`, `tests/match_test.php`, `docs/CG_REFERENCE_GUIDE.md`(12·14절), `docs/ROADMAP.md`, `docs/HANDOVER.md`, `tests/VALIDATION.md`(12-6절)
-- 서버에 올리는 파일(사이트 루트 기준 11개): `app/stats.php`, `app/views.php`, `app/templates/{record-detail,match-records}.{def,view}.php`, `assets/{cg.css,panel.js,panel.css}`, `index.php`, `app/manifest.sha256`, `app/version.json`.
+- 수정: `www/app/stats.php`, `www/app/views.php`, `www/app/control.php`, `www/app/templates/match-records.def.php`, `.view.php`, `www/index.php`, `www/assets/panel.js`, `panel.css`, `cg.css`, `www/app/version.json`, `tests/records_test.php`, `tests/cg_types_test.php`, `tests/match_test.php`, `docs/CG_REFERENCE_GUIDE.md`(12·14절), `docs/ROADMAP.md`, `docs/HANDOVER.md`, `tests/VALIDATION.md`(12-6절)
+- 서버에 올리는 파일(사이트 루트 기준 13개): `app/stats.php`, `app/views.php`, `app/control.php`, `app/templates/{record-detail,match-records}.{def,view}.php`, `assets/{cg.css,panel.js,panel.css}`, `index.php`, `app/manifest.sha256`, `app/version.json`.
 
 ## 4. 완료한 작업
 - 기록 상세 CG·근거 보강·요약 근거 한 줄·최근 5매치·개인 최다, 오늘 매치 창 [상세 CG 추가]·[상세 6~N번째 경기], 페이지 추가 입력(기록 1개 + 쪽).

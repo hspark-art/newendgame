@@ -15,7 +15,7 @@ $val = static fn(array $r): string => '<span class="cg-fit"><b>' . h($r['num']) 
 <?php if ($r['desc'] !== ''): ?>
     <div class="rec-desc"><span class="cg-fit"><?= h($r['desc']) ?></span></div>
 <?php endif ?>
-<?php if ($r['note'] !== ''): ?>
+<?php if (($r['note'] ?? '') !== ''): // 0.7.0에서 송출한 화면(스냅샷)에는 note가 없다 ?>
     <div class="rec-note"><span class="cg-fit"><?= h($r['note']) ?></span></div>
 <?php endif ?>
   </div>
