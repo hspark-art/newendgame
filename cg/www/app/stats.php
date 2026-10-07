@@ -568,10 +568,10 @@ function stats_match_records(array $ds, string $a, string $b, string $date): arr
         $basis = [];
         foreach ($rev as $m) {
             if ($uncertain($m)) {
-                return [$dir, $n, 'hold', "기록 사이에 이상 경기({$m['date']})가 있어 확정할 수 없습니다.", $more(array_merge($basis, [$show($m)]))];
+                return [$dir, $n, 'hold', "기록 사이에 이상 경기({$m['date']})가 있어 확정할 수 없습니다.", array_merge($more($basis), [$show($m)])];
             }
             if ($win($m) !== $dir) {
-                return [$dir, $n, 'ok', '', $more(array_merge($basis, ['끊긴 경기: ' . $show($m)]))];
+                return [$dir, $n, 'ok', '', array_merge($more($basis), ['끊긴 경기: ' . $show($m)])];
             }
             $n++;
             $basis[] = $show($m);
@@ -627,17 +627,18 @@ function stats_match_records(array $ds, string $a, string $b, string $date): arr
         $none = "시트 기록({$out['from']}~)에 두 선수의 맞대결이 없습니다.";
         $out['items']['h.gap'] = $item('h.gap', $pair, null, '일', '만에 펼쳐지는 맞대결', "$pair 맞대결 간격", false, 'none', $none, []);
         $out['items']['h.streak'] = $item('h.streak', $pair, null, '연승', '맞대결', "$pair 맞대결 연승", false, 'none', $none, []);
-        return $out;
+        return stats_records_crosscheck($ds, $out, $a, $b);
     }
     $last = end($meet);
     $days = stats_days($last['date'], $date);
     $out['items']['h.gap'] = $item('h.gap', $pair, $days, '일', '만에 펼쳐지는 맞대결', "$pair " . number_format($days) . '일 만의 맞대결',
         $days >= 365, $uncertain($last) ? 'hold' : 'ok', $uncertain($last) ? "마지막 맞대결({$last['date']})이 이상 경기라 확정할 수 없습니다." : '',
         ['마지막 맞대결: ' . $showA($last), "경기일 $date → " . stats_days_text($last['date'], $date)]);
-    // 맞대결 연승: 최근 맞대결부터 같은 선수가 이긴 수 (A 기준으로 계산한 뒤 이긴 쪽 이름으로)
-    [$dir, $n, $st, $why, $basis] = $streak($meet, static fn($m) => match_for($m, $a)['my'] > match_for($m, $a)['their'], '두 선수의', $showA);
-    $holder = $dir === false ? $b : $a;
+    // 맞대결 연승: 최근 맞대결에서 이긴 선수(holder)가 그 전부터 이어서 이긴 수. 근거도 이긴 선수 쪽에서 본 스코어
+    $holder = !$uncertain($last) && match_for($last, $b)['my'] > match_for($last, $b)['their'] ? $b : $a;
     $opp = $holder === $a ? $b : $a;
+    [$dir, $n, $st, $why, $basis] = $streak($meet, static fn($m) => match_for($m, $holder)['my'] > match_for($m, $holder)['their'], '두 선수의',
+        static fn(array $m) => $line($m, $holder));
     if ($dir === null) { // 가장 최근 맞대결이 이상 경기
         $out['items']['h.streak'] = $item('h.streak', $pair, null, '연승', '맞대결', "$pair 맞대결 연승", false, 'hold', $why, $basis);
     } elseif ($st === 'hold' || $n >= 2) {
@@ -647,5 +648,34 @@ function stats_match_records(array $ds, string $a, string $b, string $date): arr
         $out['items']['h.streak'] = $item('h.streak', $pair, null, '연승', '맞대결', "$pair 맞대결 연승", false, 'none',
             '맞대결 2연승 이상이 아닙니다 (최근 맞대결 ' . $nm($holder) . ' 승).', $basis);
     }
+    return stats_records_crosscheck($ds, $out, $a, $b);
+}
+
+/**
+ * 매치 기록 교차 검증: 선수의 끝장전 목록이 시트 자체 집계(상대전적조회NEW 탭)와 다르거나 대조할 수 없으면
+ * 그 선수가 들어간 확정(ok) 기록을 '확인 필요'로 바꾼다 (다른 CG의 verify_matches와 같은 기준).
+ * 이상 경기는 stats_match_records가 경기일 기준으로 따로 본다 — 당일 입력 중인 경기·기록 구간 밖의 이상 경기로는 막지 않는다.
+ */
+function stats_records_crosscheck(array $ds, array $out, string $a, string $b): array
+{
+    $v = $ds['verify']['matches'] ?? null;
+    if ($v === null) {
+        return $out; // MOCK
+    }
+    $name = static fn(string $p) => (string)($ds['players'][$p]['name'] ?? $p);
+    $why = static fn(string $p) => !$v['available'] ? '끝장전 기록을 시트 집계(상대전적조회NEW 탭)와 대조할 수 없습니다.'
+        : (($v['list_ok'][$p] ?? false) === true ? null : $name($p) . ' 끝장전 기록이 시트 집계(상대전적조회NEW 탭)와 다릅니다.');
+    foreach ($out['items'] as $k => &$it) {
+        if ($it['status'] !== 'ok') {
+            continue;
+        }
+        foreach ($k[0] === 'h' ? [$a, $b] : [$k[0] === 'a' ? $a : $b] as $p) {
+            if (($w = $why($p)) !== null) {
+                [$it['status'], $it['reason'], $it['recommended']] = ['hold', $w, false];
+                break;
+            }
+        }
+    }
+    unset($it);
     return $out;
 }

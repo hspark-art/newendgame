@@ -6,6 +6,7 @@ declare(strict_types=1);
  * 줄마다 [선수명 또는 매치명] [큰 숫자 + 단위] [짧은 설명]. 1개면 크게, 2~3개면 줄로. 규격은 다른 CG와 같은 560×250.
  * 경기일 이전에 확정된 끝장전만 계산한다. 이상 경기·시트 첫 기록까지 이어지는 연승 등 확정할 수 없는 기록은
  * 송출을 막고(검증 사유) 이유를 알린다 — 운영자가 확인한 값을 직접 입력하거나 그 줄을 빼면 송출할 수 있다.
+ * 선수 끝장전 목록이 시트 자체 집계와 다르면 그 선수 기록도 확인 필요 (stats_records_crosscheck).
  * 기록 후보와 계산 근거(경기 날짜·결과)는 '오늘 매치' 창과 페이지 추가 창에서 본다 (match_records 액션).
  */
 $rowKeys = static fn(int $n) => ["r$n.name", "r$n.num", "r$n.unit", "r$n.desc"];
@@ -49,13 +50,22 @@ return [
                 $issues[] = verify_issue($rowKeys($i + 1), ($it['text'] ?? MATCH_RECORD_KINDS[$key]) . ' — '
                     . ($it === null ? '기록을 계산할 수 없습니다' : ($it['status'] === 'hold' ? '확인 필요: ' : '기록 없음: ') . rtrim($it['reason'], '.')));
             }
-            // 끝장전 기록이 시트 집계와 다르거나 이상 경기가 있는 선수는 다른 CG와 같이 막는다
-            $who = $key[0] === 'h' ? [$p['a']['player'], $p['b']['player']] : [$p[$key[0]]['player']];
-            foreach ($who as $pid) {
-                $issues = array_merge($issues, verify_matches($ds, $pid, $rowKeys($i + 1)));
-            }
+            // 시트 집계와의 대조는 stats_records_crosscheck가 상태(확인 필요)에 넣는다 — 후보 목록과 송출 차단이 같은 기준
         }
         return $issues;
+    },
+    // 이름·설명은 있는데 숫자가 비면(직접 입력으로 검증 사유만 풀고 숫자를 안 넣은 경우) 그 줄이 조용히 빠지지 않게 막는다
+    'problems' => static function (array $f, array $hidden, array $p): array {
+        $out = [];
+        $shown = static fn(string $k) => !in_array($k, $hidden, true);
+        foreach (array_keys($p['records']) as $i) {
+            $n = $i + 1;
+            $text = array_filter(["r$n.name", "r$n.unit", "r$n.desc"], static fn($k) => $shown($k) && (string)($f[$k] ?? '') !== '');
+            if ($text && $shown("r$n.num") && ($f["r$n.num"] ?? null) === null) {
+                $out[] = "{$n}행 숫자가 비어 있습니다. 확인한 숫자를 직접 입력하거나 그 줄을 빼세요 (빨간 −).";
+            }
+        }
+        return $out;
     },
     'summary' => static fn(array $p, array $ctx): string => sprintf('%s vs %s · %s · %s', pname($ctx['players'], $p['a']['player']),
         pname($ctx['players'], $p['b']['player']), $p['date'], implode(', ', array_map(static fn($k) => MATCH_RECORD_KINDS[$k] ?? $k, $p['records']))),

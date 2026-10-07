@@ -201,3 +201,57 @@ test('매치 기록 CG: 입력 검사 — 경기일 형식, 기록 1~3개·중�
     assert_same([date('Y-m-d'), ['a.gap']], [$ok['date'], $ok['records']], '경기일을 비우면 오늘');
     assert_throws(ActionError::class, fn() => match_records_view(['a' => '가선수', 'b' => '가선수', 'date' => '2026-01-01']), 'BAD_PARAMS');
 });
+
+test('매치 기록(리뷰): 시트 집계와 다른 선수는 확인 필요 — 후보 목록과 송출 차단이 같은 기준, 대조 불가도 확인 필요', function () {
+    $ds = fx_rds([fx_rm('2023-01-01', '갑', '을', 5, 4)]);
+    $ds['verify'] = ['matches' => ['available' => true, 'list_ok' => ['갑' => false, '을' => true]]];
+    $it = stats_match_records($ds, '갑', '을', '2024-01-01')['items'];
+    assert_same(['hold', 'hold', 'ok'], [$it['a.gap']['status'], $it['h.gap']['status'], $it['b.gap']['status']]);
+    assert_true(str_contains($it['a.gap']['reason'], '갑 끝장전 기록이 시트 집계(상대전적조회NEW 탭)와 다릅니다') && !$it['a.gap']['recommended']);
+    $ds['verify']['matches']['available'] = false;
+    assert_same('hold', stats_match_records($ds, '갑', '을', '2024-01-01')['items']['b.gap']['status'], '대조할 수 없으면 확인 필요');
+});
+
+test('매치 기록(리뷰): 경기일 당일 입력 중인 세트로는 막지 않음, 이름만 직접 입력하고 숫자가 비면 줄이 조용히 빠지지 않고 차단', function () {
+    // 경기일(2026-01-01)에 가선수 vs 나선수 3세트가 입력 중 → 이상 경기지만 계산에서 빼므로 출전 간격은 송출 가능
+    // (시트 집계 탭이 Results를 따라 그 3세트를 함께 보여 주는 경우 — 집계와 다르면 확인 필요로 막는 것은 위 테스트)
+    setup_sheet(static function (array &$t) {
+        for ($i = 0; $i < 3; $i++) {
+            $t['results'][] = ['가선수', 'Z', '나선수', 'P', 'Map 1', '2026-01-01', 100000, 0];
+        }
+        $t['matches'][] = ['2026-01-01', 'Thursday', '가선수', 'Z', '나선수', 'P', 3, 0, '승'];
+        $t['matches'][] = ['2026-01-01', 'Thursday', '나선수', 'P', '가선수', 'Z', 0, 3, '패'];
+    });
+    $r = array_column(match_records_view(['a' => '가선수', 'b' => '나선수', 'date' => '2026-01-01'])['items'], null, 'key');
+    assert_same(['ok', 635], [$r['a.gap']['status'], $r['a.gap']['value']]);
+    $st = type_state('match-records', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'], 'date' => '2026-01-01',
+        'records' => ['a.gap', 'a.win_streak']]);
+    assert_true(!array_filter($st['problems'], static fn($p) => str_contains($p, '출전 간격')), '당일 입력 중 경기로 출전 간격을 막지 않음');
+    // 해당 없는 2행(연승 아님): 검증 사유가 가리키는 이름·단위·설명만 직접 입력해도 숫자가 비어 있으면 차단
+    $iid = channel_get('preview')['instance_id'];
+    preview_save($iid, ['r2.name' => '가선수', 'r2.unit' => '연승', 'r2.desc' => '현재 끝장전 매치'], op());
+    $p = instance_state(instance_get($iid), current_session_id())['problems'];
+    assert_same(['2행 숫자가 비어 있습니다. 확인한 숫자를 직접 입력하거나 그 줄을 빼세요 (빨간 −).'], $p);
+    preview_save($iid, ['r2.num' => '4'], op());
+    $ok = instance_state(instance_get($iid), current_session_id());
+    assert_same([[], 2, '4'], [$ok['problems'], count($ok['view']['rows']), $ok['view']['rows'][1]['num']]);
+});
+
+test('매치 기록(리뷰): 맞대결 연승 근거는 이긴 선수 쪽 스코어, 긴 연승도 끊긴 경기 줄은 남김, 배열 입력은 422', function () {
+    $all = [fx_rm('2020-01-01', '갑', '을', 5, 4), fx_rm('2021-01-01', '을', '갑', 5, 4), fx_rm('2022-01-01', '갑', '을', 3, 6),
+        fx_rm('2023-01-01', '을', '갑', 7, 2)];
+    $b = stats_match_records(fx_rds($all), '갑', '을', '2024-01-01')['items']['h.streak']['basis'];
+    assert_same(['2023-01-01 vs 갑 7:2 승', '2022-01-01 vs 갑 6:3 승', '2021-01-01 vs 갑 5:4 승', '끊긴 경기: 2020-01-01 vs 갑 4:5 패'], $b);
+    $long = [fx_rm('2010-01-01', '갑', '을', 4, 5)];
+    for ($y = 2011; $y <= 2020; $y++) {
+        $long[] = fx_rm("$y-01-01", '갑', '병', 5, 4);
+    }
+    $w = stats_match_records(fx_rds($long), '갑', '을', '2021-01-01')['items']['a.win_streak'];
+    assert_same([10, '… 외 2경기', '끊긴 경기: 2010-01-01 vs 을 4:5 패'], [$w['value'], $w['basis'][8], $w['basis'][9]]);
+
+    setup_sheet();
+    assert_throws(ActionError::class, fn() => template_params('match-records', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수'],
+        'date' => '2026-01-01', 'records' => [['a.gap']]], players_cache(), template_ctx()), 'BAD_PARAMS');
+    assert_throws(ActionError::class, fn() => match_records_view(['a' => ['가선수'], 'b' => '나선수', 'date' => '2026-01-01']), 'BAD_PARAMS');
+    assert_throws(ActionError::class, fn() => match_today_save(['a' => ['가선수'], 'b' => '나선수'], op()), 'BAD_PARAMS');
+});

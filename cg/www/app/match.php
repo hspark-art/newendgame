@@ -53,8 +53,8 @@ function match_view(): array
 function match_today_save(array $in, array $op): array
 {
     $players = players_cache();
-    $a = (string)($in['a'] ?? '');
-    $b = (string)($in['b'] ?? '');
+    $a = is_scalar($in['a'] ?? null) ? (string)$in['a'] : '';
+    $b = is_scalar($in['b'] ?? null) ? (string)$in['b'] : '';
     if (!isset($players[$a]) || !isset($players[$b])) {
         throw new ActionError('BAD_PARAMS', '오늘 매치의 두 선수를 고르세요.', 422);
     }
@@ -80,8 +80,8 @@ function match_today_save(array $in, array $op): array
 function match_records_view(array $in): array
 {
     $players = players_cache();
-    $a = (string)($in['a'] ?? '');
-    $b = (string)($in['b'] ?? '');
+    $a = is_scalar($in['a'] ?? null) ? (string)$in['a'] : '';
+    $b = is_scalar($in['b'] ?? null) ? (string)$in['b'] : '';
     if (!isset($players[$a]) || !isset($players[$b]) || $a === $b) {
         throw new ActionError('BAD_PARAMS', 'A·B에 서로 다른 선수를 고르세요.', 422);
     }

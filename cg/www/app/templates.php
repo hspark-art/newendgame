@@ -131,6 +131,9 @@ function param_value(array $p, mixed $raw, array $ctx): mixed
             // 매치 기록 종류 (MATCH_RECORD_KINDS 키) — 고른 순서가 CG 줄 순서
             $list = [];
             foreach (is_array($raw) ? $raw : [] as $k) {
+                if (!is_scalar($k)) {
+                    throw new ActionError('BAD_PARAMS', "$label: 없는 기록 종류입니다.", 422);
+                }
                 $k = trim((string)$k);
                 if ($k === '') {
                     continue;
@@ -242,6 +245,10 @@ function template_problems(string $slug, array $raw, array $params, array $issue
             $problems[] = $iss['msg'] . ' — 확인한 값을 직접 입력하면 송출할 수 있습니다: ' . implode(', ', array_slice($labels, 0, 4))
                 . (count($labels) > 4 ? ' 외 ' . (count($labels) - 4) . '개' : '');
         }
+    }
+    // 템플릿 고유 검사 (예: 매치 기록 — 이름은 있는데 숫자가 빈 줄)
+    if (isset($tpl['problems'])) {
+        $problems = array_merge($problems, $tpl['problems']($raw, $hidden, $params));
     }
     if (!$problems) {
         $view = $tpl['present'](present_input($raw, $hidden), $params);

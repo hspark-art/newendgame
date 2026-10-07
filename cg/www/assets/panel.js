@@ -562,7 +562,9 @@
   function buildParams(slug, params) {
     var tpl = tplBySlug(slug);
     $('pParams').innerHTML = tpl.params.map(function (p) {
-      return '<label class="prm"><span>' + esc(p.label) + '</span>' + paramControl(p, getPath(params || {}, p.key)) + '</label>';
+      // 기록 선택은 체크박스 여러 개라 label로 감싸지 않는다 (감싸면 머리글·설명을 눌러도 첫 기록이 체크된다)
+      var tag = p.type === 'record_slots' ? 'div' : 'label';
+      return '<' + tag + ' class="prm"><span>' + esc(p.label) + '</span>' + paramControl(p, getPath(params || {}, p.key)) + '</' + tag + '>';
     }).join('');
     var linked = tpl.params.some(function (p) { return p.auto_from; });
     $('pHint').textContent = linked ? '선수를 고르면 상대 종족이 서로의 종족으로 자동 선택됩니다. 필요하면 바꾸세요.' : '';
@@ -580,20 +582,36 @@
 
   // ------------------------------------------------------------ 매치 기록 후보 (오늘 매치 창 · 페이지 추가 창)
 
+  /** 후보를 불러온다. el._for = 이 목록의 선수·경기일 (추가할 때 이 값으로), 늦게 도착한 이전 요청의 응답은 버린다 */
   function loadRecords(el, a, b, date, selected) {
+    var seq = el._seq = (el._seq || 0) + 1;
     el._order = (selected || []).slice();
+    el._for = null;
     if (!a || !b || a === b) {
       el.innerHTML = '<div class="rc-empty">A·B에 서로 다른 선수를 고르면 기록 후보가 나옵니다.</div>';
       return Promise.resolve(null);
     }
     el.innerHTML = '<div class="rc-empty">기록 후보를 계산하는 중…</div>';
     return api('match_records', { a: a, b: b, date: date }, true).then(function (r) {
+      if (seq !== el._seq) { return null; }
+      el._for = { a: a, b: b, date: r.date };
       renderRecords(el, r);
       return r;
     }, function (e) {
+      if (seq !== el._seq) { return null; }
       el.innerHTML = '<div class="rc-empty err">' + esc(e.data ? e.data.error : '기록 후보를 불러오지 못했습니다.') + '</div>';
       return null;
     });
+  }
+
+  /** 오늘 매치 창: 선수·경기일을 바꾸면 이전 후보는 지운다 (다른 매치의 근거로 고른 기록이 추가되지 않게) */
+  function clearMatchRecords() {
+    var el = $('mRecList');
+    el._seq = (el._seq || 0) + 1;
+    el._order = [];
+    el._for = null;
+    el.innerHTML = '';
+    $('mRecAdd').disabled = true;
   }
 
   /**
@@ -665,9 +683,7 @@
     }).join('');
     $('mMap').innerHTML = mapOptions('', true);
     $('mDate').value = matchDate();
-    $('mRecList').innerHTML = '';
-    $('mRecList')._order = [];
-    $('mRecAdd').disabled = true;
+    clearMatchRecords();
     $('mResult').textContent = '';
     $('dlgMatch').returnValue = '';
     $('dlgMatch').showModal();
@@ -975,9 +991,12 @@
     $('mRecList').addEventListener('change', function (e) {
       if (e.target.type === 'checkbox') { pickRecord(this, e.target); $('mRecAdd').disabled = !this._order.length; }
     });
+    ['mA', 'mB', 'mDate'].forEach(function (id) { $(id).addEventListener('change', clearMatchRecords); });
     $('mRecAdd').onclick = function () {
-      var m = matchInput();
-      api('page_add', { template: 'match-records', params: { a: { player: m.a }, b: { player: m.b }, date: m.date, records: $('mRecList')._order.slice() } })
+      var el = $('mRecList');
+      var m = el._for;
+      if (!m || !el._order.length) { return; }
+      api('page_add', { template: 'match-records', params: { a: { player: m.a }, b: { player: m.b }, date: m.date, records: el._order.slice() } })
         .then(function (r) {
           toast(pad3(r.page_no) + ' 매치 기록 페이지를 추가했습니다.', 'ok');
           $('mResult').textContent = '추가: ' + pad3(r.page_no) + ' 매치 기록';
