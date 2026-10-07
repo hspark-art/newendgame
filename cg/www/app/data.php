@@ -306,6 +306,8 @@ function data_check_summary(array $ds, string $now): array
         // 경기 중 입력: 맨 아래 입력 중인 행(그 행만 뺌)·진행 중 경기(끝나면 끝장전 통계에 넣음) — 안내만, CG를 막지 않음
         'pending' => array_slice(array_column($c['pending'] ?? [], 'text'), 0, 20),
         'live' => array_column($c['live'] ?? [], 'text'),
+        // 결과 대기(미리 입력한 예측) 때문에 시트 집계와 숫자가 다른 경우의 설명 — 불일치가 아님
+        'waiting' => array_slice($c['waiting'] ?? [], 0, 20),
     ];
 }
 

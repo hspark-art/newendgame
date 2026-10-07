@@ -158,7 +158,7 @@
     if (src.status === 'OK') {
       st.className = 'status ok';
       st.textContent = src.label + (chk && chk.method === 'xlsx' ? '(파일)' : '') + ' · 정상 · ' + (src.last_success_at || '').slice(5, 16)
-        + (chk && chk.pending && chk.pending.length ? ' · 입력 중 ' + chk.pending.length + '행' : '')
+        + (chk && chk.pending && chk.pending.length ? ' · 결과 대기·입력 중 ' + chk.pending.length + '행' : '')
         + (chk && chk.live && chk.live.length ? ' · 진행 중 경기' : '');
     } else if (src.stale) {
       st.className = 'status stale';
@@ -809,7 +809,8 @@
           + v(s.verified.mapsets, '선수 맵 전적') + '</p>'
           + s.unavailable.map(function (u) { return '<p class="notice err">' + esc(u) + '</p>'; }).join('')
           + (s.live || []).map(function (u) { return '<p class="notice">진행 중 경기: ' + esc(u) + '</p>'; }).join('')
-          + (s.pending || []).map(function (u) { return '<p class="notice">입력 중: ' + esc(u) + '</p>'; }).join('');
+          + (s.pending || []).map(function (u) { return '<p class="notice">' + esc(u) + '</p>'; }).join('')
+          + (s.waiting || []).map(function (u) { return '<p class="notice">결과 대기 반영: ' + esc(u) + '</p>'; }).join('');
       }
       $('dcSummary').innerHTML = html;
       $('dcMisCount').textContent = r.mismatches.length + '건';

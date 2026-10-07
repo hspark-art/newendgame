@@ -534,6 +534,12 @@ function stats_match_records(array $ds, string $a, string $b, string $date): arr
         if (!empty($m['excluded']) || !in_array($a, [$m['playerA'], $m['playerB']], true) && !in_array($b, [$m['playerA'], $m['playerB']], true)) {
             continue;
         }
+        if (($m['anomaly_kind'] ?? null) === 'live') {
+            // 진행 중 경기(사전 입력한 세트의 결과 대기)는 날짜와 관계없이 끝난 경기가 아니다 — 자정을 넘겨도 같다
+            $out['notes'][] = sprintf('진행 중인 %s vs %s 경기(%s, 완료 세트 %d:%d)는 끝나기 전이라 계산에서 뺐습니다.',
+                $nm($m['playerA']), $nm($m['playerB']), $dot($m['date']), $m['scoreA'], $m['scoreB']);
+            continue;
+        }
         if ($m['date'] < $date) {
             $before[] = $m;
         } elseif ($m['date'] === $date) {
