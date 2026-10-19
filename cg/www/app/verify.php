@@ -143,10 +143,50 @@ function verify_map_sets(array $ds, string $pid, string $map, array $fields): ar
     return [];
 }
 
+/** 총상금 (선수별 통계 탭 기본·더블 찬스·합계 상금) */
+function verify_prize(array $ds, string $pid, array $fields): array
+{
+    $v = $ds['verify'] ?? null;
+    if ($v === null) {
+        return [];
+    }
+    if (!($v['prize']['available'] ?? false)) {
+        return [verify_issue($fields, '총상금을 시트 집계(선수별 통계 탭)와 대조할 수 없습니다')];
+    }
+    if (($v['prize']['players'][$pid] ?? false) !== true) {
+        return [verify_issue($fields, pname($ds['players'], $pid) . ' 총상금이 시트 집계와 다릅니다')];
+    }
+    return [];
+}
+
+/**
+ * ASL 기록 (ASL 시트 '보기용' 탭). 대조할 시트 집계가 없어 형식 검사·우승자 판정만 한다.
+ * ASL을 쓸 수 없거나 ASL 기록에 없는 선수면 $fields 전체, 우승자를 정하지 못한 시즌에 4강 이상인 선수면 $titleFields를 막는다.
+ */
+function verify_asl(array $ds, string $pid, array $fields, array $titleFields = []): array
+{
+    if (($ds['verify'] ?? null) === null) {
+        return [];
+    }
+    $asl = $ds['asl'] ?? null;
+    if (!($asl['available'] ?? false)) {
+        return [verify_issue($fields, 'ASL 기록을 쓸 수 없습니다: ' . ($asl['error'] ?? 'ASL 기록 없음'))];
+    }
+    $name = pname($ds['players'], $pid);
+    $r = stats_asl_record($asl, $pid);
+    if ($r['games'] === 0) {
+        return [verify_issue($fields, "$name: ASL 기록에 없는 선수입니다")];
+    }
+    if ($titleFields && $r['unsure']) {
+        return [verify_issue($titleFields, "$name: " . implode(', ', array_slice($r['unsure'], 0, 3)) . ' 우승자를 정할 수 없어 우승·준우승 횟수를 확인할 수 없습니다')];
+    }
+    return [];
+}
+
 /**
  * 순위형 CG: 순위는 후보 전체로 정해지므로 후보 중 하나라도 확실하지 않으면 행 전체(순위·이름·기록)를 막는다.
  * 시트 집계에만 있는 선수(Results에 기록 없음)가 있어도 모집단이 확실하지 않은 것으로 본다.
- * @param string $kind sets | matches | predictions | mission
+ * @param string $kind sets | matches | predictions | mission | prize
  */
 function verify_population(array $ds, string $kind, array $ids, array $fields): array
 {
@@ -164,6 +204,7 @@ function verify_population(array $ds, string $kind, array $ids, array $fields): 
             'matches' => ($v['matches']['players'][$id] ?? false) === true,
             'predictions' => ($v['predictions']['predictors'][$id] ?? false) === true,
             'mission' => ($v['mission']['predictors'][$id] ?? false) === true,
+            'prize' => ($v['prize']['players'][$id] ?? false) === true,
         };
         if (!$ok) {
             $bad[] = (string)$id;

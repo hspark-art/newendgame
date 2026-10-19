@@ -806,17 +806,19 @@
           + ' · 예측 ' + c.predictions + (c.maps ? ' · 맵 ' + c.maps + (c.map_names ? ' (한글 ' + c.map_names + ')' : '') : '') + ' · 기간 ' + esc(c.first_date) + ' ~ ' + esc(c.last_date) + '</p>'
           + '<p>' + v(s.verified.sets, '세트 전적') + v(s.verified.matches, '끝장전 목록') + v(s.verified.predictions, '승자 예측')
           + v(s.verified.double, '더블 찬스') + v(s.verified.mission, '미션 지수') + v(s.verified.maps, '맵 상성')
-          + v(s.verified.mapsets, '선수 맵 전적') + '</p>'
+          + v(s.verified.mapsets, '선수 맵 전적') + v(s.verified.prize, '총상금')
+          + (c.asl_games ? ' <span class="tag auto">ASL 기록 ' + c.asl_games + '세트</span>' : '') + '</p>'
           + s.unavailable.map(function (u) { return '<p class="notice err">' + esc(u) + '</p>'; }).join('')
           + (s.live || []).map(function (u) { return '<p class="notice">진행 중 경기: ' + esc(u) + '</p>'; }).join('')
           + (s.pending || []).map(function (u) { return '<p class="notice">' + esc(u) + '</p>'; }).join('')
-          + (s.waiting || []).map(function (u) { return '<p class="notice">결과 대기 반영: ' + esc(u) + '</p>'; }).join('');
+          + (s.waiting || []).map(function (u) { return '<p class="notice">결과 대기 반영: ' + esc(u) + '</p>'; }).join('')
+          + (s.asl_notes || []).map(function (u) { return '<p class="notice">' + esc(u) + '</p>'; }).join('');
       }
       $('dcSummary').innerHTML = html;
       $('dcMisCount').textContent = r.mismatches.length + '건';
       $('dcAnoCount').textContent = r.anomalies.length + '건';
       var kinds = { sets: '세트 전적', matches: '끝장전', predictions: '승자 예측', double: '더블 찬스', mission: '미션 지수',
-        maps: '맵 상성', mapsets: '선수 맵 전적' };
+        maps: '맵 상성', mapsets: '선수 맵 전적', prize: '총상금' };
       $('dcMismatch').innerHTML = r.mismatches.map(function (m) {
         return '<tr><td>' + esc(kinds[m.kind] || m.kind) + '</td><td>' + esc(m.who) + '</td><td>' + esc(m.item) + '</td><td>'
           + esc(m.sheet) + '</td><td>' + esc(m.calc) + '</td></tr>';
@@ -873,6 +875,7 @@
       return '<option value="' + esc(k) + '"' + (k === r.source ? ' selected' : '') + '>' + esc(r.sources[k]) + '</option>';
     }).join('');
     $('dsSheet').value = r.sheet_id ? (r.admin ? 'https://docs.google.com/spreadsheets/d/' + r.sheet_id + '/edit' : r.sheet_id) : '';
+    $('dsAslSheet').value = r.asl_sheet_id ? (r.admin ? 'https://docs.google.com/spreadsheets/d/' + r.asl_sheet_id + '/edit' : r.asl_sheet_id) : '';
     TAB_INPUTS.forEach(function (x) { $(x[0]).value = (r.tabs || {})[x[1]] || ''; });
     $('dsKeyEmail').textContent = r.key_email || '없음';
     $('dsOpenssl').hidden = r.openssl;
@@ -883,7 +886,7 @@
   function saveSettings() {
     var tabs = {};
     TAB_INPUTS.forEach(function (x) { tabs[x[1]] = $(x[0]).value; });
-    return api('data_settings_save', { source: $('dsSource').value, sheet: $('dsSheet').value, tabs: tabs })
+    return api('data_settings_save', { source: $('dsSource').value, sheet: $('dsSheet').value, asl_sheet: $('dsAslSheet').value, tabs: tabs })
       .then(function (r) { renderSettings(r); toast('데이터 설정을 저장했습니다. [데이터 새로고침]으로 반영하세요.', 'ok'); });
   }
 

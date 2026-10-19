@@ -243,12 +243,13 @@ $op = guard_control();
         <label class="prm"><span>세트 집계 탭 (검증)</span><input type="text" id="dsTabPlayers"></label>
         <label class="prm"><span>끝장전 목록 탭 (검증)</span><input type="text" id="dsTabMatches"></label>
         <label class="prm"><span>승자 예측 탭</span><input type="text" id="dsTabPredictions"></label>
-        <label class="prm"><span>더블 찬스 보정 탭</span><input type="text" id="dsTabAdjust"></label>
-        <label class="prm"><span>선수별 통계 탭 (더블 찬스 검증)</span><input type="text" id="dsTabStats"></label>
+        <label class="prm"><span>상금·더블 찬스 보정 탭</span><input type="text" id="dsTabAdjust"></label>
+        <label class="prm"><span>선수별 통계 탭 (더블 찬스·총상금 검증)</span><input type="text" id="dsTabStats"></label>
         <label class="prm"><span>닉네임 탭 (선택)</span><input type="text" id="dsTabNicks"></label>
         <label class="prm"><span>맵 통계 탭 (맵 상성 검증)</span><input type="text" id="dsTabMapstats"></label>
         <label class="prm"><span>선수 맵 전적 탭 (검증)</span><input type="text" id="dsTabMapplayers"></label>
         <label class="prm"><span>맵 이름 탭 (선택)</span><input type="text" id="dsTabMapnames"></label>
+        <label class="prm"><span>ASL 시트 주소 (선택)</span><input type="text" id="dsAslSheet" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/… ('보기용' 탭, 같은 서비스 계정에 뷰어 공유)"></label>
         <div class="dlg-btns left"><button type="button" id="dsSave" class="btn primary">설정 저장</button>
           <button type="button" id="dsTest" class="btn">연결 테스트</button></div>
         <h4>서비스 계정 키</h4>

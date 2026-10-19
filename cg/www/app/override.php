@@ -23,7 +23,10 @@ function field_parse(array $def, mixed $raw): array
     switch ($def['type']) {
         case 'int':
             $max = (int)($def['max'] ?? 99999);
-            if (!preg_match('/^\d{1,5}$/D', $s) || (int)$s > $max) {
+            if ($max > 99999) {
+                $s = str_replace(',', '', $s); // 큰 금액(총상금)은 "35,200,000"처럼 쉼표를 넣어도 된다
+            }
+            if (!preg_match('/^\d{1,' . max(5, strlen((string)$max)) . '}$/D', $s) || (int)$s > $max) {
                 return ['ok' => false, 'error' => "0 이상의 정수(최대 $max)만 입력할 수 있습니다."];
             }
             return ['ok' => true, 'value' => (int)$s];

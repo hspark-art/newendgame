@@ -24,6 +24,7 @@ function fx_tables(?callable $tamper = null): array
     $race = [];
     $dcWon = [];     // "선수|날짜" => 더블 찬스 세트 승리 수
     $dcMatches = []; // 선수 => 경기 수 (시도 = 경기 × 2)
+    $prizeDay = [];  // "선수|날짜" => [기본 상금, 더블 찬스 상금]
     foreach (fx_match_list() as [$d, $a, $ar, $b, $br, $aw, $bw]) {
         $race[$a] = $ar;
         $race[$b] = $br;
@@ -36,9 +37,11 @@ function fx_tables(?callable $tamper = null): array
             $w = $turn;
             $l = $w === $a ? $b : $a;
             $left[$w]--;
-            // 2·4세트를 더블 찬스 세트로 (H열 금액 > 0). 상금 열(G) 값은 프로그램이 읽지 않는다
+            // 2·4세트를 더블 찬스 세트로 (H열 금액 > 0). 상금: 이긴 세트의 G(Prize)·H 금액 (총상금 순위)
             $dc = in_array($i, [1, 3], true);
             $results[] = [$w, $race[$w], $l, $race[$l], 'Map ' . ($i + 1), $d, 100000, $dc ? 100000 : 0];
+            $prizeDay["$w|$d"] = [($prizeDay["$w|$d"][0] ?? 0) + 100000, ($prizeDay["$w|$d"][1] ?? 0) + ($dc ? 100000 : 0)];
+            $prizeDay["$l|$d"] ??= [0, 0];
             if ($dc) {
                 $dcWon["$w|$d"] = ($dcWon["$w|$d"] ?? 0) + 1;
             }
@@ -57,6 +60,12 @@ function fx_tables(?callable $tamper = null): array
     $adjust = [['날짜', '선수명', '기본 상금', '더블 찬스 상금', '더블 찬스 횟수', '메모'],
         ['2024-01-06', '나선수', 500000, 0, 1, '기존 시트 값 유지']];
     $dcWon['나선수|2024-01-06'] = 1;
+    $prizeDay['나선수|2024-01-06'] = [500000, 0]; // 상금도 보정값이 계산값을 대신한다
+    $prizeSum = [];
+    foreach ($prizeDay as $k => [$pb, $pd]) {
+        $p = explode('|', $k)[0];
+        $prizeSum[$p] = [($prizeSum[$p][0] ?? 0) + $pb, ($prizeSum[$p][1] ?? 0) + $pd];
+    }
     $stats = [['', '', '', '⚡ 끝장전 선수별 누적 통계'], [], ['선수 정보', '', '', '📊 매치 성적'],
         ['#', '선수명', '종족', '매치 승', '매치 패', '매치 승률', '세트 승', '세트 패', '세트 승률', '기본 상금', "더블 찬스\n상금",
             '합계 상금', "더블 성공\n횟수", "더블 시도\n(총매치)", "더블\n성공률"]];
@@ -66,7 +75,8 @@ function fx_tables(?callable $tamper = null): array
         foreach ($lists[$p] as [$d]) {
             $succ += $dcWon["$p|$d"] ?? 0;
         }
-        $stats[] = [++$n, $p, $race[$p], 0, 0, 0, 0, 0, 0, 999, 999, 999, $succ, $cnt * 2, $succ / ($cnt * 2)];
+        [$pb, $pd] = $prizeSum[$p];
+        $stats[] = [++$n, $p, $race[$p], 0, 0, 0, 0, 0, 0, $pb, $pd, $pb + $pd, $succ, $cnt * 2, $succ / ($cnt * 2)];
     }
     $players = [['Player', '', '', 'vs All', '', '', 'vs Zerg', '', '', 'vs Terran', '', '', 'vs Protoss', '', ''],
         ['#', 'ID', 'Race', 'W', 'L', '%', 'W', 'L', '%', 'W', 'L', '%', 'W', 'L', '%']];

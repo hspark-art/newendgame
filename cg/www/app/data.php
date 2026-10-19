@@ -32,11 +32,12 @@ function data_ready(): bool
     return data_source() === 'mock' || (sheet_config()['id'] !== '' && is_file(google_key_path()));
 }
 
-/** @return array{id:string, tabs:array<string,string>} */
+/** @return array{id:string, tabs:array<string,string>, asl_id:string} asl_id = ASL 시트 ID (선택, 빈 값이면 읽지 않음) */
 function sheet_config(): array
 {
     $tabs = json_dec(setting_get('sheet_tabs', '{}')) ?: [];
-    return ['id' => (string)setting_get('sheet_id', ''), 'tabs' => array_replace(SHEET_TABS_DEFAULT, array_intersect_key($tabs, SHEET_TABS_DEFAULT))];
+    return ['id' => (string)setting_get('sheet_id', ''), 'tabs' => array_replace(SHEET_TABS_DEFAULT, array_intersect_key($tabs, SHEET_TABS_DEFAULT)),
+        'asl_id' => (string)setting_get('asl_sheet_id', '')];
 }
 
 // ---------------------------------------------------------------- 서비스 계정 키 (비밀 폴더)
@@ -313,6 +314,8 @@ function data_check_summary(array $ds, string $now): array
         'live' => array_column($c['live'] ?? [], 'text'),
         // 결과 대기(미리 입력한 예측) 때문에 시트 집계와 숫자가 다른 경우의 설명 — 불일치가 아님
         'waiting' => array_slice($c['waiting'] ?? [], 0, 20),
+        // ASL 기록 안내 (우승자를 정할 수 없는 시즌·중복 의심 행) — CG를 막는 것은 해당 선수의 우승·준우승 항목뿐
+        'asl_notes' => array_slice($c['asl_notes'] ?? [], 0, 30),
     ];
 }
 
@@ -343,6 +346,7 @@ function data_settings_view(array $op): array
         'sources' => data_sources(),
         'admin' => $admin,
         'sheet_id' => $admin ? $cfg['id'] : ($cfg['id'] === '' ? '' : '설정됨'),
+        'asl_sheet_id' => $admin ? $cfg['asl_id'] : ($cfg['asl_id'] === '' ? '' : '설정됨'),
         'tabs' => $admin ? $cfg['tabs'] : [],
         'key_email' => $key['client_email'] ?? null,
         'key_dir_public' => $admin && secrets_in_web_root(),
@@ -363,6 +367,12 @@ function data_settings_save(array $in, array $op): array
     if ($id === null) {
         throw new ActionError('BAD_SHEET', 'Google 시트 주소 형식이 아닙니다. 주소창의 주소를 그대로 붙여 넣으세요.', 422);
     }
+    // ASL 시트 (선택). 보내지 않으면 지금 값 유지
+    $aslIn = array_key_exists('asl_sheet', $in) ? trim((string)$in['asl_sheet']) : null;
+    $aslId = $aslIn === null ? sheet_config()['asl_id'] : ($aslIn === '' ? '' : sheet_id_from($aslIn));
+    if ($aslId === null) {
+        throw new ActionError('BAD_SHEET', 'ASL 시트 주소 형식이 아닙니다. 주소창의 주소를 그대로 붙여 넣으세요.', 422);
+    }
     $tabs = [];
     foreach (SHEET_TABS_DEFAULT as $k => $def) {
         $t = trim((string)($in['tabs'][$k] ?? $def));
@@ -371,10 +381,11 @@ function data_settings_save(array $in, array $op): array
         }
         $tabs[$k] = $t;
     }
-    db_tx(function () use ($source, $id, $tabs, $op) {
+    db_tx(function () use ($source, $id, $aslId, $tabs, $op) {
         $prev = data_source();
         setting_set('data_source', $source);
         setting_set('sheet_id', $id);
+        setting_set('asl_sheet_id', $aslId);
         setting_set('sheet_tabs', json_enc($tabs));
         cg_log('data', 'SOURCE_SET', $op, ['detail' => '데이터 소스: ' . data_sources()[$source] . ($prev !== $source ? ' (변경)' : '')]);
         state_bump();
@@ -404,7 +415,11 @@ function data_import_xlsx(array $in, array $op): array
         throw new ActionError('BAD_FILE', '파일을 읽을 수 없습니다.', 422);
     }
     try {
-        $ds = sheet_dataset(xlsx_tables($bytes, sheet_config()['tabs']), 'xlsx', true);
+        $tables = xlsx_tables($bytes, sheet_config()['tabs']);
+        if (sheet_config()['asl_id'] !== '') {
+            $tables['asl_error'] = 'xlsx 가져오기는 ASL 시트를 읽지 않습니다 (Google 시트 새로고침으로 불러오세요)';
+        }
+        $ds = sheet_dataset($tables, 'xlsx', true);
     } catch (ProviderError $e) {
         throw new ActionError('SOURCE_ERROR', $e->getMessage() . ($e->problems ? ': ' . implode(' / ', array_slice($e->problems, 0, 5)) : ''), 422);
     }

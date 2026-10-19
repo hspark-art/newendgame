@@ -350,6 +350,12 @@ function text_rate_paren(?int $t): string
     return $t === null ? '(자료 없음)' : '(' . fmt_rate($t) . '%)';
 }
 
+/** "35,200,000원" 또는 "—" */
+function text_won(?int $won): string
+{
+    return $won === null ? '—' : number_format($won) . '원';
+}
+
 /** "73.6%" 또는 "—" */
 function text_pct(?int $t): string
 {

@@ -171,8 +171,8 @@ test('오늘 매치: 저장 → 2인 CG 한 번에 추가(상대 종족 자동·
     assert_throws(ActionError::class, fn() => match_today_save(['a' => '가선수', 'b' => '없는선수'], op()), 'BAD_PARAMS');
     $v = match_today_save(['a' => '가선수', 'b' => '나선수'], op());
     assert_same('가선수 (Z) vs 나선수 (P)', $v['text']);
-    assert_same(['race-win-rate', 'head-to-head', 'online-h2h', 'double-chance', 'full-set', 'match-preview', 'map-record'],
-        array_column($v['templates'], 'slug'), '2인 CG (표시 순서)');
+    assert_same(['race-win-rate', 'head-to-head', 'online-h2h', 'double-chance', 'full-set', 'match-preview', 'map-record',
+        'asl-record', 'asl-race'], array_column($v['templates'], 'slug'), '2인 CG (표시 순서)');
     assert_same('가선수 (Z) vs 나선수 (P)', panel_state(op())['match']['text']);
 
     $r = match_pages_add(['a' => '가선수', 'b' => '나선수', 'templates' => ['race-win-rate', 'match-preview', 'map-record'], 'map' => ''], op());

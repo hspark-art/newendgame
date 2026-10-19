@@ -790,3 +790,60 @@ function stats_records_crosscheck(array $ds, array $out, string $a, string $b): 
     unset($it);
     return $out;
 }
+
+// ---------------------------------------------------------------- 총상금·ASL (v0.9.0)
+
+/**
+ * 총상금 순위: 합계 상금이 많은 순, 같은 금액은 공동 순위 (이름순으로 나열).
+ * @param array<string, array{0:int,1:int,2:int}> $prize sheet_dataset의 prize (선수 => [기본, 더블 찬스, 합계])
+ * @return list<array{player:string, base:int, dc:int, total:int, rank:int}>
+ */
+function stats_prize_ranking(array $prize, array $players, int $limit): array
+{
+    $rows = [];
+    foreach ($prize as $p => [$base, $dc, $total]) {
+        $rows[] = ['player' => (string)$p, 'base' => $base, 'dc' => $dc, 'total' => $total];
+    }
+    usort($rows, static fn($x, $y) => [$y['total'], $players[$x['player']]['name'] ?? $x['player']]
+        <=> [$x['total'], $players[$y['player']]['name'] ?? $y['player']]);
+    return array_slice(stats_rank($rows, static fn($r) => $r['total']), 0, $limit);
+}
+
+/**
+ * ASL 선수 기록: 우승·준우승 횟수, 4강 이상 진출 시즌 수, 세트 전적, 세트 수(0이면 ASL 기록에 없는 선수).
+ * 우승자를 정하지 못한 시즌(undetermined)에 4강 이상인 선수는 unsure에 그 시즌 이름이 들어간다.
+ * @return array{games:int, titles:int, runner:int, semis:int, wins:int, losses:int, unsure:list<string>}
+ */
+function stats_asl_record(array $asl, string $pid): array
+{
+    $r = ['games' => 0, 'titles' => 0, 'runner' => 0, 'semis' => 0, 'wins' => 0, 'losses' => 0, 'unsure' => []];
+    foreach ($asl['games'] ?? [] as $g) {
+        if ($g['winner'] === $pid || $g['loser'] === $pid) {
+            $r['games']++;
+            $r[$g['winner'] === $pid ? 'wins' : 'losses']++;
+        }
+    }
+    foreach ($asl['seasons'] ?? [] as $s) {
+        $r['titles'] += $s['champion'] === $pid ? 1 : 0;
+        $r['runner'] += $s['runner'] === $pid ? 1 : 0;
+        $r['semis'] += in_array($pid, $s['semis'], true) ? 1 : 0;
+        if ($s['undetermined'] !== null && in_array($pid, array_merge($s['final'], $s['semis']), true)) {
+            $r['unsure'][] = $s['name'];
+        }
+    }
+    return $r;
+}
+
+/** ASL 상대 종족 세트 전적 (상대 종족 = 그 세트의 상대 종족 칸) */
+function stats_asl_race(array $asl, string $pid, string $vs): array
+{
+    $r = ['wins' => 0, 'losses' => 0];
+    foreach ($asl['games'] ?? [] as $g) {
+        if ($g['winner'] === $pid && $g['lrace'] === $vs) {
+            $r['wins']++;
+        } elseif ($g['loser'] === $pid && $g['wrace'] === $vs) {
+            $r['losses']++;
+        }
+    }
+    return $r;
+}

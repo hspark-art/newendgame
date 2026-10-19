@@ -185,7 +185,8 @@ function sheet_id_from(string $s): ?string
 
 /**
  * 시트에서 필요한 탭을 읽는다. Results 탭이 없으면 실패, 검증·예측 탭이 없으면 null (해당 기능만 검증 불가).
- * @param array{id:string, tabs:array<string,string>} $cfg
+ * ASL 시트(asl_id)가 설정되어 있으면 '보기용' 탭도 읽는다 → asl(행 목록) 또는 asl_error(실패 사유).
+ * @param array{id:string, tabs:array<string,string>, asl_id?:string} $cfg
  * @return array{results:list<array>, players:?list<array>, matches:?list<array>, predictions:?list<array>}
  */
 function sheets_fetch_tables(?array $cfg = null, ?array $key = null): array
@@ -249,5 +250,26 @@ function sheets_fetch_tables(?array $cfg = null, ?array $key = null): array
         $tables[$k] = $list;
     }
     $tables['results'] ??= [];
+    // ASL 시트 (선택, 같은 서비스 계정): 실패해도 끝장전 새로고침은 그대로 성공하고 ASL CG만 막는다 (sheet_dataset)
+    if (($cfg['asl_id'] ?? '') !== '') {
+        try {
+            $tables['asl'] = sheets_fetch_asl($cfg['asl_id'], $token);
+        } catch (ProviderError $e) {
+            $tables['asl_error'] = $e->getMessage();
+        }
+    }
     return $tables;
+}
+
+/** ASL 시트의 '보기용' 탭 A:H → 행 목록 */
+function sheets_fetch_asl(string $id, string $token): array
+{
+    $range = "'" . str_replace("'", "''", ASL_TAB_DEFAULT) . "'!" . ASL_RANGE;
+    $batch = sheets_get(rawurlencode($id) . '/values:batchGet?ranges=' . rawurlencode($range)
+        . '&majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING', $token);
+    $vr = (array)($batch['valueRanges'] ?? []);
+    if (count($vr) !== 1) {
+        throw new ProviderError('ASL 시트 응답의 탭 수가 요청과 다릅니다.');
+    }
+    return array_map(static fn($row) => is_array($row) ? array_values($row) : [], (array)($vr[0]['values'] ?? []));
 }
