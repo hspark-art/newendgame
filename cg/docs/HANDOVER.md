@@ -35,6 +35,13 @@
 - 서버 파일 7개: `app/sheet_data.php`, `app/stats.php`, `app/data.php`, `app/cli.php`, `assets/panel.js`, `app/manifest.sha256`, `app/version.json`. 전달물 `dist/EndgameCG_web_0.8.0-0.8.2_files.zip`, `dist/EndgameCG_v0.8.2_INSTALL_KR.md`.
 - 기준·검증: tests/VALIDATION.md 12-8절. 다음에 할 일: 최신 시트 xlsx를 받으면 임성춘 114/113·+7669 2.8%/2.9%를 직접 대조, 시트 스크립트(MAP 통계·상대전적조회NEW) 동작 확인.
 
+## 4-3. v0.9.0 (총상금 랭킹·ASL 기록, 2026-10-19, DB 구조 6 그대로)
+- 사용자 결정: "A안, C안 만들어주고, 끝장전 총상금 랭킹은 제안 준 대로" → 새 CG 3종 `prize-ranking`(#17), `asl-record`(#18), `asl-race`(#19). 기존 16종 크기 변경 없음.
+- ASL 데이터: 별도 스프레드시트 '보기용' A:H, 설정 화면 'ASL 시트 주소'에 입력, 서비스 계정에 뷰어 공유 필요. xlsx 가져오기는 ASL 미지원.
+- 상금 규칙: (날짜, 선수)별 이긴 세트의 G 합 + H 합, '상금 보정' 탭 C/D가 덮어씀 — 실데이터 31/31 일치.
+- 서버 파일 19개, 전달물 `dist/EndgameCG_web_0.8.0-0.9.0_files.zip`, `dist/EndgameCG_v0.9.0_INSTALL_KR.md`. 0.8.0→0.9.0 리허설 141개 일치.
+- 미확인: 서버에서의 ASL Google 조회, 데이터 설정 화면 브라우저 확인, 시즌 우승자 판정(결승 세트 다승) 사용자 확인.
+
 ## 5. 남은 작업
 - 사용자 답변 ①②를 받으면: `RECORDS_FULL_HISTORY`(stats.php) 조정, 'N번째 출전·맞대결'·'세트 연승'·'역전승' 추가 여부, 매치 프리뷰 "첫 맞대결" 문구.
 - 서버 적용 후 운영자 확인 결과(OBS 화면 크기·위치, 기록 상세 가독성) 받기.
