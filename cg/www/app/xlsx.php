@@ -67,7 +67,7 @@ function xlsx_tables(string $bytes, array $tabs): array
         foreach ($tabs as $k => $title) {
             $file = $sheetFile[$title] ?? null;
             $sx = $file === null ? null : $xml($file);
-            // Google API와 같은 열만 남긴다 (상금 열 등은 버림)
+            // Google API와 같은 열만 남긴다 (SHEET_RANGES 밖의 열은 버림)
             $keep = array_map(static fn($c) => [col_index($c), col_index((string)substr($c, strpos($c, ':') + 1))], SHEET_RANGES[$k] ?? []);
             $out[$k] = $sx === null ? null : xlsx_rows($sx, $strings, $dateStyles, $keep);
         }

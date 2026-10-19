@@ -6,7 +6,8 @@ declare(strict_types=1);
  * - 시트는 공개하지 않는다. 시트 소유자가 서비스 계정 이메일에 "뷰어" 권한만 준다.
  * - 권한 범위는 읽기 전용(spreadsheets.readonly). 액세스 토큰은 새로고침할 때마다 새로 받고 저장하지 않는다.
  * - 서비스 계정 키는 비밀 폴더(data.php의 secrets_dir)에만 두고 화면·로그·오류 메시지에 내보내지 않는다.
- * - 필요한 탭·열만 읽는다. 상금 열(Results G, 상금 보정 C·D, 선수별 통계 J~L)은 읽지 않는다.
+ * - 필요한 탭·열만 읽는다. 상금 열(Results G·H, 상금 보정 C·D, 선수별 통계 J~L)은 총상금 순위용으로 읽는다 (v0.9.0).
+ *   Players 탭 P열 이후 상금은 읽지 않는다.
  */
 
 const GOOGLE_TOKEN_URI = 'https://oauth2.googleapis.com/token';
@@ -15,12 +16,12 @@ const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly';
 
 /** 탭별로 읽을 열 (한 탭에서 떨어진 열은 범위를 나눠 읽고, 원래 열 위치에 맞춰 합친다) */
 const SHEET_RANGES = [
-    'results' => ['A:F', 'H:H'],      // Winner·Race·Loser·Race·Map·Date + Double Chance (G: Prize는 읽지 않음)
+    'results' => ['A:H'],             // Winner·Race·Loser·Race·Map·Date·Prize·Double Chance (G·H 금액은 총상금 순위용)
     'players' => ['A:O'],             // ID·Race·W/L (P열 이후 상금은 읽지 않음)
     'matches' => ['A:I'],
     'predictions' => ['A:Q'],
-    'adjust' => ['A:B', 'E:E'],       // 날짜·선수명·더블 찬스 횟수
-    'stats' => ['B:B', 'M:N'],        // 선수명·더블 성공 횟수·더블 시도
+    'adjust' => ['A:E'],              // 날짜·선수명·기본 상금·더블 찬스 상금·더블 찬스 횟수
+    'stats' => ['B:B', 'J:N'],        // 선수명·기본 상금·더블 찬스 상금·합계 상금·더블 성공 횟수·더블 시도
     'nicks' => ['A:B'],               // 선수명·닉네임 (선택 탭)
     'mapstats' => ['A:O'],            // 맵 이름·총 세트·종족별 승·사용일
     'mapplayers' => ['A:G'],          // 선수명·종족·맵 이름·세트·승·패
