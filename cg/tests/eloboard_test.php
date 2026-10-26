@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-// v0.10.0: eloboard 온라인 전적 — 화면 읽기·안전 장치·조회 → AUTO (가짜 HTML만 사용, 실제 페이지를 저장하지 않는다)
+// v0.10.0·v0.10.1: eloboard 온라인 전적 (#6 맞대결 1페이지, #20 종족전 2페이지) — 화면 읽기·안전 장치·조회 → AUTO (가짜 HTML만 사용, 실제 페이지를 저장하지 않는다)
 
 /** 맞대결 탭을 흉내 낸 가짜 HTML. $c = <!-- --> 조각 넣기 */
 function elo_fx_rivals(string $a, string $b, string $games, string $pa, string $pb, bool $c = false): string
@@ -59,7 +59,18 @@ function elo_setup(): void
 
 function elo_params(string $since = '', string $until = ''): array
 {
-    return ['a' => ['player' => 'jo-iljang', 'vs' => 'P'], 'b' => ['player' => 'jang-yunchul', 'vs' => 'Z'], 'since' => $since, 'until' => $until];
+    return ['a' => ['player' => 'jo-iljang'], 'b' => ['player' => 'jang-yunchul'], 'since' => $since, 'until' => $until];
+}
+
+function elo_race_params(): array
+{
+    return ['a' => ['player' => 'jo-iljang', 'vs' => 'P'], 'b' => ['player' => 'jang-yunchul', 'vs' => 'Z']];
+}
+
+/** 지금 PREVIEW의 상태 */
+function elo_pv_state(): array
+{
+    return instance_state(instance_get(channel_get('preview')['instance_id']), current_session_id());
 }
 
 test('eloboard: 맞대결 읽기 (쉼표·<!-- --> 조각), 스크립트 안 숫자는 무시', function () {
@@ -119,7 +130,7 @@ test('eloboard: 선수 연결 저장은 관리자만, 잘못된 주소 거부', 
     assert_throws(ActionError::class, fn() => online_fetch(['params' => elo_params()], op()), 'ELO_NO_MAP');
 });
 
-test('eloboard: 전체 기간 조회 → AUTO 채움 (3페이지), PROGRAM은 그대로, 수동 수정 우선', function () {
+test('eloboard #6: 맞대결 1페이지만 → AUTO 채움 (양쪽 승률), PROGRAM은 그대로, 수동 수정 우선', function () {
     elo_setup();
     $r = page_add(['template' => 'online-h2h', 'params' => elo_params()], op());
     cue_page($r['page_no']);
@@ -128,57 +139,113 @@ test('eloboard: 전체 기간 조회 → AUTO 채움 (3페이지), PROGRAM은 �
     $pgBefore = channel_get('program');
     $log = elo_fake(['tab=rivals' => elo_fx_rivals('573', '534', '1,107', '51.8', '48.2', true), 'tab=races' => elo_fx_races()]);
     try {
-        $res = online_fetch(['params' => elo_params()], op());
+        $res = online_fetch(['template' => 'online-h2h', 'params' => elo_params()], op());
     } finally {
         elo_unfake();
     }
-    assert_same(3, count($log['urls']));
+    assert_same(1, count($log['urls']), '맞대결만');
+    assert_true(str_contains($log['urls'][0], 'tab=rivals'));
     assert_true(str_contains($res['info'], '전체') && str_contains($res['info'], '1,107경기'), $res['info']);
     assert_same(null, $res['error']);
-    $st = instance_state(instance_get($pv['instance_id']), current_session_id());
+    $st = elo_pv_state();
     assert_same('온라인 상대 전적', $st['final']['title']);
-    assert_same([1487, 961, 445, 368, 573, 534], [$st['final']['a.wins'], $st['final']['a.losses'], $st['final']['b.wins'],
-        $st['final']['b.losses'], $st['final']['h.a'], $st['final']['h.b']], 'A vs P, B vs Z');
+    assert_same([573, 534, 518, 482], [$st['final']['h.a'], $st['final']['h.b'], $st['final']['h.ra'], $st['final']['h.rb']]);
+    assert_same(['573승 534패', '(51.8%)', '534승 573패', '(48.2%)'], [$st['view']['cols'][0]['record'], $st['view']['cols'][0]['rate'],
+        $st['view']['cols'][1]['record'], $st['view']['cols'][1]['rate']]);
     assert_same($pgBefore, channel_get('program'), 'PROGRAM 그대로');
     preview_save($pv['instance_id'], ['h.a' => '1'], op());
-    $st = instance_state(instance_get($pv['instance_id']), current_session_id());
-    assert_same(1, $st['final']['h.a'], '수동 수정 우선');
+    assert_same(1, elo_pv_state()['final']['h.a'], '수동 수정 우선');
 });
 
-test('eloboard: 기간 지정 → 종족전 조회 안 함·비움 + 안내, 캐시는 네트워크 없이', function () {
+test('eloboard #6: 기간 지정 → 맞대결만으로 송출 가능 (막지 않음), 캐시는 네트워크 없이', function () {
     elo_setup();
     $p = elo_params('2026-01-01', '2026-10-26');
     $log = elo_fake(['tab=rivals' => elo_fx_rivals('217', '180', '397', '54.7', '45.3')]);
     try {
-        $res = online_fetch(['params' => $p], op());
-        assert_same(1, count($log['urls']), '맞대결만');
-        assert_same(ELO_PERIOD_NOTE, $res['note']);
-        online_fetch(['params' => $p], op());
+        $res = online_fetch(['params' => $p], op()); // template 없으면 #6
+        assert_same(1, count($log['urls']));
+        assert_true(str_contains($log['urls'][0], 'since=2026-01-01&until=2026-10-26'));
+        assert_true(!array_key_exists('note', $res));
+        online_fetch(['template' => 'online-h2h', 'params' => $p], op());
         assert_same(1, count($log['urls']), '6시간 캐시');
     } finally {
         elo_unfake();
     }
     $r = page_add(['template' => 'online-h2h', 'params' => $p], op());
     cue_page($r['page_no']);
-    $st = instance_state(instance_get(channel_get('preview')['instance_id']), current_session_id());
-    assert_same(['온라인 전적 26.01.01~10.26', 217, 180, null], [$st['final']['title'], $st['final']['h.a'], $st['final']['h.b'], $st['final']['a.wins']]);
-    assert_true($st['problems'] !== [], '종족전 직접 입력 전 송출 불가');
+    $st = elo_pv_state();
+    assert_same(['온라인 전적 26.01.01~10.26', 217, 180], [$st['final']['title'], $st['final']['h.a'], $st['final']['h.b']]);
+    assert_same([], $st['problems'], '기간 지정도 송출 가능');
+    assert_true(str_contains(cg_render($st['view']), '<b>217 : 180</b>'));
+    take_now();
 });
 
-test('eloboard: 요청 사이 2초, 접속 오류는 이전 값 유지, 읽기 실패는 비움, 잠금 중이면 거부', function () {
+test('eloboard #20: 종족전 2페이지 (A·B 종족별 전적) → AUTO, 2초 간격, 캐시', function () {
+    elo_setup();
+    $log = elo_fake(['tab=races' => elo_fx_races(), 'tab=rivals' => elo_fx_rivals('1', '1', '2', '50.0', '50.0')]);
+    try {
+        $res = online_fetch(['template' => 'online-race', 'params' => elo_race_params()], op());
+        assert_same(['https://eloboard.com/players/22?tab=races', 'https://eloboard.com/players/12?tab=races'], $log['urls']);
+        assert_same(1, count($log['sleeps']), '2번째 요청 전 대기');
+        assert_true($log['sleeps'][0] > 1.6 && $log['sleeps'][0] <= 2.001);
+        assert_true(str_contains($res['info'], '통산'), $res['info']);
+        online_fetch(['template' => 'online-race', 'params' => elo_race_params()], op());
+        assert_same(2, count($log['urls']), '6시간 캐시');
+    } finally {
+        elo_unfake();
+    }
+    $r = page_add(['template' => 'online-race', 'params' => elo_race_params()], op());
+    cue_page($r['page_no']);
+    $st = elo_pv_state();
+    assert_same([], $st['problems']);
+    assert_same(['온라인 상대 종족 전적 (통산)', 1487, 961, 445, 368], [$st['final']['title'], $st['final']['a.wins'], $st['final']['a.losses'],
+        $st['final']['b.wins'], $st['final']['b.losses']], 'A vs P, B vs Z');
+    assert_same(['1487승 961패', '(60.7%)'], [$st['view']['cols'][0]['record'], $st['view']['cols'][0]['rate']]);
+    // 같은 선수의 #6 페이지에는 종족전 결과가 섞이지 않는다
+    $r = page_add(['template' => 'online-h2h', 'params' => elo_params()], op());
+    cue_page($r['page_no']);
+    assert_same(12, elo_pv_state()['final']['h.a'], 'MOCK 맞대결 그대로');
+});
+
+test('eloboard: v0.10.0에 저장한 #6 페이지 (a.vs·b.vs 파라미터, a.wins 수동값) → 오류 없이 맞대결로 표시', function () {
+    elo_setup();
+    $old = ['a' => ['player' => 'jo-iljang', 'vs' => 'P'], 'b' => ['player' => 'jang-yunchul', 'vs' => 'Z'], 'since' => '', 'until' => ''];
+    $r = page_add(['template' => 'online-h2h', 'params' => $old], op());
+    // 예전 필드의 수동값·뺀 항목이 DB에 남아 있는 경우
+    $iid = (int)db_one('SELECT instance_id FROM cg_rundown WHERE page_no = ?', [$r['page_no']])['instance_id'];
+    db_exec('UPDATE cg_instances SET params_json = ?, hidden_json = ? WHERE id = ?', [json_enc($old), '["a.rate","a.wins"]', $iid]);
+    db_exec('INSERT INTO cg_overrides (session_id, instance_id, field, value_json, auto_at_set_json, keep_next, updated_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)',
+        [current_session_id(), $iid, 'a.wins', '5', 'null', 'test', now(), now()]);
+    $log = elo_fake(['tab=rivals' => elo_fx_rivals('217', '180', '397', '54.7', '45.3')]);
+    try {
+        online_fetch(['template' => 'online-h2h', 'params' => $old], op());
+    } finally {
+        elo_unfake();
+    }
+    cue_page($r['page_no']);
+    $st = elo_pv_state();
+    assert_same([], $st['problems']);
+    assert_same(217, $st['final']['h.a']);
+    assert_true(!isset($st['final']['a.wins']));
+    $html = cg_render($st['view']);
+    assert_true(str_contains($html, 'cg-online') && !str_contains($html, 'cg-vs'));
+});
+
+test('eloboard: 요청 사이 2초 (두 CG 공통), 접속 오류는 이전 값 유지, 읽기 실패는 비움, 잠금 중이면 거부', function () {
     elo_setup();
     $p = elo_params();
     $log = elo_fake(['tab=rivals' => elo_fx_rivals('573', '534', '1,107', '51.8', '48.2'), 'tab=races' => elo_fx_races()]);
     try {
+        online_fetch(['template' => 'online-race', 'params' => elo_race_params()], op());
         online_fetch(['params' => $p], op());
-        assert_same(2, count($log['sleeps']), '2·3번째 요청 전 대기');
+        assert_same(2, count($log['sleeps']), '2·3번째 요청 전 대기 (조회를 이어 눌러도)');
         foreach ($log['sleeps'] as $s) {
             assert_true($s > 1.6 && $s <= 2.001, "대기 $s");
         }
     } finally {
         elo_unfake();
     }
-    $key = elo_result_key($p, elo_map());
+    $key = elo_result_key('online-h2h', $p, elo_map());
     @unlink(elo_cache_path());
     elo_fake(['tab=rivals' => ['status' => 503, 'body' => '']]);
     try {

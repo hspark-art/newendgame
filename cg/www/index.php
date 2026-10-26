@@ -236,7 +236,7 @@ $op = guard_control();
         <tbody id="miBody"></tbody></table></div>
     </section>
     <section class="tabpane" data-pane="elo" hidden>
-      <p class="hint">온라인 상대 전적 CG의 [eloboard 조회]에 쓰는 연결입니다. 시트 선수마다 eloboard 선수 주소(예: https://eloboard.com/players/22)를
+      <p class="hint">온라인 상대 전적·온라인 상대 종족 전적 CG의 [eloboard 조회]에 쓰는 연결입니다. 시트 선수마다 eloboard 선수 주소(예: https://eloboard.com/players/22)를
         직접 확인해 입력하세요. 이름으로 자동 연결하지 않습니다. 비우고 저장하면 연결을 지웁니다.</p>
       <p class="notice" id="emNotAdmin" hidden>eloboard 연결은 관리자만 바꿀 수 있습니다.</p>
       <div class="dc-list"><table class="grid-table"><thead><tr><th>선수</th><th>종족</th><th>eloboard 선수 주소</th><th></th></tr></thead>

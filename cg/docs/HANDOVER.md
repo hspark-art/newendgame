@@ -57,6 +57,13 @@
 
 - v0.10.0 서버 적용 (2026-10-26 22:42): 사용자 점검 142개 일치·실패 없음, 카페24 → eloboard robots.txt 200. 선수 대응표 등록·실제 조회 결과는 사용자 확인 대기.
 
+## 4-5. v0.10.1 (온라인 전적 메뉴 2개로 나눔, 2026-10-26, DB 구조 6 그대로)
+- 이유: eloboard 맞대결 탭은 기간을 따르지만 종족별 전적 탭은 통산만 → 기간 지정 시 #6 종족 칸이 비어 송출이 막혔음. 사용자 결정으로 분리, 두 메뉴 모두 v0.10.0 #6과 같은 `.cg-online` 상자(크기 동일, 측정 확인).
+- #6 `online-h2h` '온라인 상대 전적': 맞대결만(파라미터 a/b 선수·since·until, 필드 title·a/b.name·h.a·h.b·h.ra·h.rb 파생 승률). 조회 1페이지. 예전 a.vs·a.wins 등 저장값은 정의에 없어 무시.
+- #20 `online-race` '온라인 상대 종족 전적'(short '온라종족'): a/b 선수·상대 종족, 통산 2페이지 조회, 화면은 정의의 `'view' => 'online-h2h'`로 같은 .view.php 사용(`template_present`/`cg_render`가 `view` 키 지원). 요약 바 `온라인 통산 A vs T · B vs Z`.
+- `online_fetch`는 `template`으로 분기, 결과 키에 CG 종류 접두(`h2h|`/`race|`) — v0.10.0 결과는 다시 조회 필요. `ELO_PERIOD_NOTE` 삭제.
+- 서버 파일 9개, 전달물 `dist/EndgameCG_web_0.10.0-0.10.1_files.zip`, `dist/EndgameCG_v0.10.1_INSTALL_KR.md`. 0.10.0→0.10.1 리허설 143개 일치.
+
 ## 5. 남은 작업
 - 사용자 답변 ①②를 받으면: `RECORDS_FULL_HISTORY`(stats.php) 조정, 'N번째 출전·맞대결'·'세트 연승'·'역전승' 추가 여부, 매치 프리뷰 "첫 맞대결" 문구.
 - 서버 적용 후 운영자 확인 결과(OBS 화면 크기·위치, 기록 상세 가독성) 받기.

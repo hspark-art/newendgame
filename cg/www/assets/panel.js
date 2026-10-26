@@ -570,12 +570,15 @@
       var tag = p.type === 'record_slots' ? 'div' : 'label';
       return '<' + tag + ' class="prm"><span>' + esc(p.label) + '</span>' + paramControl(p, getPath(params || {}, p.key)) + '</' + tag + '>';
     }).join('') + (slug === 'online-h2h'
-      // 온라인 상대 전적: 기간 빠른 선택 + eloboard 조회 (조회 결과는 패널에만 표시, CG에는 출처를 넣지 않음)
+      // 온라인 상대 전적: 기간 빠른 선택 (맞대결은 기간별로 조회됨)
       ? '<div class="prm"><span>기간 빠른 선택</span><span><button type="button" class="btn sm" data-period="all">전체</button> '
         + '<button type="button" class="btn sm" data-period="year">올해</button> '
         + '<button type="button" class="btn sm" data-period="30">최근 30일</button></span></div>'
-        + '<div class="prm"><span>온라인 전적</span><span><button type="button" class="btn sm" id="pEloFetch">eloboard 조회</button></span></div>'
-        + '<p class="hint" id="pElo">선수·기간을 고르고 [eloboard 조회]를 누르면 자동값이 채워집니다. 선수 연결은 [데이터 점검·설정] → [eloboard 선수].</p>'
+      : '') + (slug === 'online-h2h' || slug === 'online-race'
+      // eloboard 조회 (조회 결과는 패널에만 표시, CG에는 출처를 넣지 않음). 종족전은 통산만
+      ? '<div class="prm"><span>온라인 전적</span><span><button type="button" class="btn sm" id="pEloFetch">eloboard 조회</button></span></div>'
+        + '<p class="hint" id="pElo">' + (slug === 'online-h2h' ? '선수·기간을 고르고' : '선수·상대 종족을 고르고 (통산)')
+        + ' [eloboard 조회]를 누르면 자동값이 채워집니다. 선수 연결은 [데이터 점검·설정] → [eloboard 선수].</p>'
       : '');
     var linked = tpl.params.some(function (p) { return p.auto_from; });
     $('pHint').textContent = linked ? '선수를 고르면 상대 종족이 서로의 종족으로 자동 선택됩니다. 필요하면 바꾸세요.' : '';
@@ -768,9 +771,9 @@
     btn.disabled = true;
     out.className = 'hint';
     out.textContent = 'eloboard 조회 중… (요청 사이 2초 간격)';
-    api('online_fetch', { params: readParams() }, true).then(function (r) {
+    api('online_fetch', { template: $('pTemplate').value, params: readParams() }, true).then(function (r) {
       out.className = 'hint' + (r.error ? ' err' : '');
-      out.textContent = r.info + (r.error ? ' — ' + r.error : '') + (r.note ? ' · ' + r.note : '');
+      out.textContent = r.info + (r.error ? ' — ' + r.error : '');
     }, function (e) {
       out.className = 'hint err';
       out.textContent = (e.data && e.data.error) || '조회하지 못했습니다.';

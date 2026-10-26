@@ -103,14 +103,27 @@ test('CG#5 승자 예측 순위: 적중률 순위, 자리 순서 표시(1→3→
     assert_same(['9W 3L', '75.0%'], [$st['view']['rows'][0]['record'], $st['view']['rows'][0]['rate']]);
 });
 
-test('CG#6 온라인 상대 전적: 게임 단위 전적 + 온라인 맞대결', function () {
+test('CG#6 온라인 상대 전적: 온라인 맞대결 + 양쪽 맞대결 승률, 상대 종족 없음', function () {
     setup_types();
-    $st = type_state('online-h2h', ['a' => ['player' => 'jo-iljang', 'vs' => 'P'], 'b' => ['player' => 'jang-yunchul', 'vs' => 'Z']]);
+    $st = type_state('online-h2h', ['a' => ['player' => 'jo-iljang'], 'b' => ['player' => 'jang-yunchul']]);
     assert_same([], $st['problems']);
+    assert_same(['12승 8패', '(60.0%)', ''], [$st['view']['cols'][0]['record'], $st['view']['cols'][0]['rate'], $st['view']['cols'][0]['vs']]);
+    assert_same(['8승 12패', '(40.0%)'], [$st['view']['cols'][1]['record'], $st['view']['cols'][1]['rate']]);
+    assert_same('12 : 8', $st['view']['h2h']);
+    $html = cg_render($st['view']);
+    assert_true(str_contains($html, '<b>12 : 8</b>') && !str_contains($html, 'cg-vs'));
+});
+
+test('CG#20 온라인 상대 종족 전적: 게임 단위 상대 종족 전적 (통산), #6과 같은 상자', function () {
+    setup_types();
+    $st = type_state('online-race', ['a' => ['player' => 'jo-iljang', 'vs' => 'P'], 'b' => ['player' => 'jang-yunchul', 'vs' => 'Z']]);
+    assert_same([], $st['problems']);
+    assert_same('온라인 상대 종족 전적 (통산)', $st['view']['title']);
     assert_same(['37승 23패', '(61.7%)'], [$st['view']['cols'][0]['record'], $st['view']['cols'][0]['rate']]);
     assert_same(['35승 34패', '(50.7%)'], [$st['view']['cols'][1]['record'], $st['view']['cols'][1]['rate']]);
-    assert_same('12 : 8', $st['view']['h2h']);
-    assert_true(str_contains(cg_render($st['view']), '<b>12 : 8</b>'));
+    $html = cg_render($st['view']);
+    assert_true(str_contains($html, 'class="cg-box cg-rwr cg-online"') && str_contains($html, '<span class="cg-vs">vs P</span>')
+        && str_contains($html, '조일장 vs P · 장윤철 vs Z'));
 });
 
 test('CG#7 더블 찬스: 집계표 값, 집계표에 없으면 수동 입력 전까지 송출 불가', function () {
@@ -192,7 +205,7 @@ test('9종 렌더링: 모든 값 이스케이프, MOCK 표시, 빈 행 생략, �
         'head-to-head' => ['a' => ['player' => 'jo-iljang'], 'b' => ['player' => 'kim-jisung']],
         'win-ranking' => ['race' => ''],
         'prediction-ranking' => [],
-        'online-h2h' => ['a' => ['player' => 'jo-iljang', 'vs' => 'P'], 'b' => ['player' => 'jang-yunchul', 'vs' => 'Z']],
+        'online-h2h' => ['a' => ['player' => 'jo-iljang'], 'b' => ['player' => 'jang-yunchul']],
         'double-chance' => ['a' => ['player' => 'yoo-youngjin'], 'b' => ['player' => 'jo-iljang']],
         'win-streak' => [],
         'full-set' => ['a' => ['player' => 'jo-iljang'], 'b' => ['player' => 'jang-yunchul']],
@@ -200,8 +213,8 @@ test('9종 렌더링: 모든 값 이스케이프, MOCK 표시, 빈 행 생략, �
     // v0.5 새 CG 4종(미션 지수·매치 프리뷰·맵 전적·맵 상성)은 시트 데이터가 필요해 sheet_cg_test.php,
     // 자유 입력은 free_text_test.php에서 확인한다
     assert_same(array_merge(array_keys($cases), ['mission-index', 'match-preview', 'map-record', 'map-matchup', 'free-text', 'match-records', 'record-detail',
-        'prize-ranking', 'asl-record', 'asl-race']),
-        array_keys(cg_templates()), '19종, 정해진 순서'); // 매치 기록·기록 상세는 records_test.php, 총상금·ASL은 asl_test.php에서 확인
+        'prize-ranking', 'asl-record', 'asl-race', 'online-race']),
+        array_keys(cg_templates()), '20종, 정해진 순서'); // 매치 기록·기록 상세는 records_test.php, 총상금·ASL은 asl_test.php에서 확인
     foreach ($cases as $slug => $params) {
         $st = type_state($slug, $params);
         assert_same([], $st['problems'], "$slug 송출 가능");

@@ -275,8 +275,10 @@ function template_problems(string $slug, array $raw, array $params, array $issue
  */
 function template_present(string $slug, array $raw, array $params, bool $mock, array $hidden = []): array
 {
-    $view = template_get($slug)['present'](present_input($raw, $hidden), $params);
-    return ['template' => $slug, 'mock' => $mock] + $view;
+    $tpl = template_get($slug);
+    $view = $tpl['present'](present_input($raw, $hidden), $params);
+    // 'view' = 화면 파일 (다른 CG와 같은 상자를 쓰면 그 slug, 예: online-race → online-h2h)
+    return ['template' => $slug, 'view' => $tpl['view'] ?? $slug, 'mock' => $mock] + $view;
 }
 
 /**
@@ -301,7 +303,7 @@ function raw_val(array $f, string $k): mixed
 /** HTML 조각 렌더링 */
 function cg_render(array $view): string
 {
-    $file = APP_DIR . '/templates/' . basename($view['template']) . '.view.php';
+    $file = APP_DIR . '/templates/' . basename($view['view'] ?? $view['template']) . '.view.php';
     ob_start();
     (static function () use ($file, $view) {
         require $file;

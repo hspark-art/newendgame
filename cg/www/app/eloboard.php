@@ -2,8 +2,10 @@
 declare(strict_types=1);
 
 /*
- * eloboard.com 온라인 전적 조회 (#6 온라인 상대 전적, v0.10.0)
- * - 운영자가 [eloboard 조회]를 누를 때만 접속한다 (예약·일괄 조회 없음). 한 번에 최대 3페이지.
+ * eloboard.com 온라인 전적 조회 (v0.10.0, v0.10.1에 둘로 나눔)
+ *   #6 온라인 상대 전적(online-h2h): 맞대결 탭 1페이지 (기간 지정 가능)
+ *   #20 온라인 상대 종족 전적(online-race): 두 선수 종족별 전적 탭 2페이지 (통산만 제공)
+ * - 운영자가 [eloboard 조회]를 누를 때만 접속한다 (예약·일괄 조회 없음). 한 번에 최대 2페이지.
  * - 서버 전체에서 한 번에 하나만 (파일 잠금), 요청 사이 최소 2초, 같은 주소는 6시간 캐시(읽은 숫자만 저장, HTML은 저장·기록하지 않음).
  * - 주소는 숫자 id와 검증한 날짜로만 만든다. 화면을 확실히 읽지 못하면 값을 비운다 (추측 금지).
  * - 선수 ↔ eloboard id 연결은 관리자가 직접 등록한 것만 쓴다 (이름으로 추측하지 않음).
@@ -15,7 +17,6 @@ const ELO_GAP = 2.0;
 const ELO_TIMEOUT = 10;
 const ELO_RACE_KO = ['T' => '테란', 'P' => '프로토스', 'Z' => '저그'];
 const ELO_PARSE_ERROR = 'eloboard 화면을 확실히 읽지 못했습니다 — 직접 입력';
-const ELO_PERIOD_NOTE = '기간 지정 시 종족전은 eloboard가 제공하지 않음 — 직접 입력';
 
 final class EloError extends RuntimeException
 {
@@ -274,15 +275,17 @@ function elo_title(string $since, string $until): string
     return $p === '' ? '온라인 상대 전적' : '온라인 전적 ' . $p;
 }
 
-/** 결과 저장 키: 선수·상대 종족·기간·연결된 eloboard id (연결을 바꾸면 이전 결과는 쓰지 않는다) */
-function elo_result_key(array $p, array $map): ?string
+/** 결과 저장 키: CG 종류·선수·(상대 종족 | 기간)·연결된 eloboard id (연결을 바꾸면 이전 결과는 쓰지 않는다) */
+function elo_result_key(string $slug, array $p, array $map): ?string
 {
     $ea = $map[$p['a']['player']] ?? null;
     $eb = $map[$p['b']['player']] ?? null;
     if ($ea === null || $eb === null) {
         return null;
     }
-    return implode('|', [$p['a']['player'], $p['a']['vs'], $ea, $p['b']['player'], $p['b']['vs'], $eb, $p['since'] ?? '', $p['until'] ?? '']);
+    return $slug === 'online-race'
+        ? implode('|', ['race', $p['a']['player'], $p['a']['vs'], $ea, $p['b']['player'], $p['b']['vs'], $eb])
+        : implode('|', ['h2h', $p['a']['player'], $ea, $p['b']['player'], $eb, $p['since'], $p['until']]);
 }
 
 function elo_results(): array
@@ -298,67 +301,69 @@ function dataset_with_eloboard(array $ds): array
     return $ds;
 }
 
-/** 이 파라미터의 조회 결과 (없으면 null) */
-function elo_result_for(array $p, array $ds): ?array
+/** 이 CG·파라미터의 조회 결과 (없으면 null) */
+function elo_result_for(string $slug, array $p, array $ds): ?array
 {
-    $key = elo_result_key($p, $ds['eloboard']['map'] ?? []);
+    $key = elo_result_key($slug, $p, $ds['eloboard']['map'] ?? []);
     return $key === null ? null : ($ds['eloboard']['results'][$key] ?? null);
 }
 
-/** 패널 표시용 한 줄: eloboard · 기간 · 조회 시각 · N경기 */
+/** 패널 표시용 한 줄: eloboard · 기간(맞대결) 또는 통산(종족전) · 조회 시각 · N경기 */
 function elo_info(array $r): string
 {
-    $p = elo_period_text($r['since'], $r['until']);
-    return sprintf('eloboard · %s · %s 조회', $p === '' ? '전체' : $p, substr($r['at'], 5, 11))
-        . ($r['games'] === null ? '' : ' · ' . number_format($r['games']) . '경기');
+    $p = array_key_exists('since', $r) ? (elo_period_text($r['since'], $r['until']) ?: '전체') : '통산';
+    return sprintf('eloboard · %s · %s 조회', $p, substr($r['at'], 5, 11))
+        . (($r['games'] ?? null) === null ? '' : ' · ' . number_format($r['games']) . '경기');
 }
 
 /**
- * [eloboard 조회] (운영자 클릭). 읽은 숫자를 저장하고 AUTO를 다시 계산한다. PREVIEW·PROGRAM은 바꾸지 않는다.
+ * [eloboard 조회] (운영자 클릭). CG 종류(template)에 따라 맞대결 1페이지 또는 종족전 2페이지를 읽는다.
+ * 읽은 숫자를 저장하고 AUTO를 다시 계산한다. PREVIEW·PROGRAM은 바꾸지 않는다.
  * 접속·응답 오류: 이전 값 유지 + 오류. 화면을 확실히 읽지 못함: 값 비움 + 오류.
  */
 function online_fetch(array $in, array $op): array
 {
-    $params = template_params('online-h2h', is_array($in['params'] ?? null) ? $in['params'] : [], players_cache(), template_ctx());
+    $slug = ($in['template'] ?? 'online-h2h') === 'online-race' ? 'online-race' : 'online-h2h';
+    $params = template_params($slug, is_array($in['params'] ?? null) ? $in['params'] : [], players_cache(), template_ctx());
     $map = elo_map();
     $missing = array_values(array_filter([$params['a']['player'], $params['b']['player']], static fn($id) => !isset($map[$id])));
     if ($missing) {
         throw new ActionError('ELO_NO_MAP', 'eloboard 선수 연결이 없습니다: ' . implode(', ', array_map(static fn($id) =>
             pname(players_cache(), $id), $missing)) . ' — 관리자가 [데이터 점검·설정] → [eloboard 선수]에서 등록하세요.', 422);
     }
-    [$since, $until] = [$params['since'], $params['until']];
     [$ea, $eb] = [$map[$params['a']['player']], $map[$params['b']['player']]];
-    $all = $since === '' && $until === '';
-    $r = ['since' => $since, 'until' => $until, 'at' => now(), 'games' => null, 'h_a' => null, 'h_b' => null,
-        'a_wins' => null, 'a_losses' => null, 'b_wins' => null, 'b_losses' => null, 'error' => null, 'note' => $all ? null : ELO_PERIOD_NOTE];
+    $empty = $slug === 'online-race'
+        ? ['a_wins' => null, 'a_losses' => null, 'b_wins' => null, 'b_losses' => null]
+        : ['games' => null, 'h_a' => null, 'h_b' => null];
+    $r = ($slug === 'online-race' ? [] : ['since' => $params['since'], 'until' => $params['until']]) + ['at' => now()] + $empty + ['error' => null];
     $lock = elo_lock();
     try {
         try {
-            $h = elo_get(elo_url_rivals($ea, $eb, $since, $until), 'rivals', $op);
-            $r = array_replace($r, ['games' => $h['games'], 'h_a' => $h['a'], 'h_b' => $h['b']]);
-            if ($all) {
+            if ($slug === 'online-race') {
                 $ra = elo_get(elo_url_races($ea), 'races', $op)['races'][$params['a']['vs']];
                 $rb = elo_get(elo_url_races($eb), 'races', $op)['races'][$params['b']['vs']];
                 $r = array_replace($r, ['a_wins' => $ra[0], 'a_losses' => $ra[1], 'b_wins' => $rb[0], 'b_losses' => $rb[1]]);
+            } else {
+                $h = elo_get(elo_url_rivals($ea, $eb, $params['since'], $params['until']), 'rivals', $op);
+                $r = array_replace($r, ['games' => $h['games'], 'h_a' => $h['a'], 'h_b' => $h['b']]);
             }
         } catch (EloError $e) {
             if ($e->getMessage() !== ELO_PARSE_ERROR) {
                 throw new ActionError('ELO_FETCH', $e->getMessage(), 502);
             }
             // 읽지 못한 화면: 값을 모두 비운다 (일부만 맞을 수 있는 값을 남기지 않음)
-            $r = array_replace($r, ['games' => null, 'h_a' => null, 'h_b' => null, 'a_wins' => null, 'a_losses' => null,
-                'b_wins' => null, 'b_losses' => null, 'error' => ELO_PARSE_ERROR]);
+            $r = array_replace($r, $empty, ['error' => ELO_PARSE_ERROR]);
         }
     } finally {
         flock($lock, LOCK_UN);
         fclose($lock);
     }
     $results = elo_results();
-    $results[elo_result_key($params, $map)] = $r;
+    $results[elo_result_key($slug, $params, $map)] = $r;
     setting_set('eloboard_results', json_enc(array_slice($results, -100, null, true)));
     $ds = dataset_cache_get(data_source());
     if ($ds !== null) {
         data_apply($ds, $op, false);
     }
-    return ['info' => elo_info($r), 'note' => $r['note'], 'error' => $r['error']];
+    return ['info' => elo_info($r), 'error' => $r['error']];
 }
