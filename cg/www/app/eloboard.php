@@ -285,7 +285,7 @@ function elo_result_key(string $slug, array $p, array $map): ?string
     }
     return $slug === 'online-race'
         ? implode('|', ['race', $p['a']['player'], $p['a']['vs'], $ea, $p['b']['player'], $p['b']['vs'], $eb])
-        : implode('|', ['h2h', $p['a']['player'], $ea, $p['b']['player'], $eb, $p['since'], $p['until']]);
+        : implode('|', ['h2h', $p['a']['player'], $ea, $p['b']['player'], $eb, $p['since'] ?? '', $p['until'] ?? '']);
 }
 
 function elo_results(): array

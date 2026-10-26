@@ -273,3 +273,12 @@ test('eloboard: 요청 사이 2초 (두 CG 공통), 접속 오류는 이전 값 
         fclose($fp);
     }
 });
+
+test('v0.10.2: 기간 칸이 없는 예전 #6 페이지(since·until 없음)도 오류 없이 자동값 계산', function () {
+    $tpl = template_get('online-h2h');
+    $p = ['a' => ['player' => '가선수', 'vs' => 'P'], 'b' => ['player' => '나선수', 'vs' => 'Z']];
+    $ds = ['players' => ['가선수' => ['name' => '가선수'], '나선수' => ['name' => '나선수']]];
+    $auto = $tpl['auto']($p, $ds);
+    assert_same('온라인 상대 전적', $auto['title']);
+    assert_true(str_contains($tpl['summary']($p, ['players' => $ds['players']]), '전체'));
+});

@@ -20,7 +20,7 @@ return [
     ],
     'check' => static function (array $p): void {
         check_two_players($p);
-        if ($p['since'] !== '' && $p['until'] !== '' && $p['since'] > $p['until']) {
+        if (($p['since'] ?? '') !== '' && ($p['until'] ?? '') !== '' && ($p['since'] ?? '') > ($p['until'] ?? '')) {
             throw new ActionError('BAD_PARAMS', '기간: 시작이 끝보다 늦습니다.', 422);
         }
     },
@@ -34,7 +34,7 @@ return [
         'h.rb' => ['label' => '맞대결 B 승률', 'type' => 'rate', 'derived' => ['h.b', 'h.a']],
     ],
     'auto' => static function (array $p, array $ds): array {
-        $auto = ['title' => elo_title($p['since'], $p['until']),
+        $auto = ['title' => elo_title(($p['since'] ?? ''), ($p['until'] ?? '')),
             'a.name' => pname($ds['players'], $p['a']['player']), 'b.name' => pname($ds['players'], $p['b']['player'])];
         $elo = elo_result_for('online-h2h', $p, $ds);
         if ($elo !== null) {
@@ -49,7 +49,7 @@ return [
     },
     'summary' => static fn(array $p, array $ctx): string => sprintf('%s vs %s · 온라인 맞대결 %s',
         pname($ctx['players'], $p['a']['player']), pname($ctx['players'], $p['b']['player']),
-        elo_period_text($p['since'], $p['until']) ?: '전체'),
+        elo_period_text(($p['since'] ?? ''), ($p['until'] ?? '')) ?: '전체'),
     'present' => static function (array $f): array {
         // 본문: A "217승 180패 (54.7%)", B "180승 217패 (45.3%)". 타이틀 에디터에서 뺀 항목은 그 자리를 비운다 (hid)
         $col = static fn(string $s, string $w, string $l, string $r) => ['name' => (string)$f["$s.name"], 'vs' => '',
