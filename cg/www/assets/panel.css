@@ -109,7 +109,8 @@ td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: mid
 
 .fxbar { display: flex; align-items: center; gap: 12px; margin: 10px 0 8px; }
 .fxbar input[type=number] { width: 64px; }
-input[type=number], input[type=text], select { background: #0b0e13; border: 1px solid var(--line2); border-radius: 4px; padding: 3px 6px; }
+input[type=number], input[type=text], input[type=date], select { background: #0b0e13; border: 1px solid var(--line2); border-radius: 4px; padding: 3px 6px; }
+input[type=date] { color-scheme: dark; }
 input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .bigbtns { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 8px; }
 .big { min-height: 64px; border-radius: 8px; border: 1px solid var(--line2); background: var(--panel2); font-size: 18px; font-weight: 800; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
