@@ -46,6 +46,15 @@
 - ASL 연결 확인 (2026-10-26 21:37): 패널 점검 'ASL 기록 2273세트', 중복 의심 14쌍 안내(그대로 셈). CG 값·시즌 우승자 사용자 확인은 대기.
 - 미확인: 데이터 설정 화면 브라우저 확인, 시즌 우승자 판정(결승 세트 다승) 사용자 확인.
 
+## 4-4. v0.10.0 (온라인 상대 전적 eloboard 자동값, 2026-10-26, DB 구조 6 그대로)
+- 사용자 승인 동작: #6 `online-h2h`에 운영자 클릭 조회만 추가. CG 디자인·크기·.view.php 변경 없음.
+- `app/eloboard.php`(새 파일): 주소는 숫자 id·검증한 날짜로만 생성, 보이는 글자에서 구조 패턴 1건만 인정 + 경기 수 = 승+패 + 비율 0.1 이내 확인(실패 시 값 비움), 서버 전체 파일 잠금(`storage_dir/eloboard.lock`, 사용 중이면 '다른 조회가 진행 중'), 요청 간격 2초(`eloboard_last.txt`), 주소별 6시간 캐시(`eloboard_cache.json`, 숫자만), 시간 초과 10초·재시도 없음, UA `EndgameCG/버전 (+https://etalent.co.kr/cg/)`. HTML 저장·기록 없음(로그는 경로·상태·ms).
+- 저장: 설정 `eloboard_players`(시트 선수 id → eloboard id, 관리자만), `eloboard_results`(파라미터·연결 id별 결과). `dataset_prepare`가 결과를 붙이고 템플릿 auto가 읽음 → `data_apply`로 AUTO만 갱신(PROGRAM 불변, MANUAL 우선).
+- 템플릿: 파라미터 `since`/`until`(새 형식 `date_opt`, 빈 값 = 전체). 종족전은 기간 전체일 때만(races 탭은 통산만). 제목 자동값 `온라인 상대 전적` / `온라인 전적 26.01.01~10.26`.
+- 패널: 페이지 창 [전체][올해][최근 30일]·[eloboard 조회]·결과 한 줄, [데이터 점검·설정] → [eloboard 선수] 탭.
+- 서버 파일 13개, 전달물 `dist/EndgameCG_web_0.9.1-0.10.0_files.zip`, `dist/EndgameCG_v0.10.0_INSTALL_KR.md`. 0.9.1→0.10.0 리허설 142개 일치.
+- 미확인: 카페24 서버에서 eloboard.com 접속 가능 여부, 실제 eloboard 화면에서의 읽기(테스트는 가짜 HTML), Windows 폰트 넘침.
+
 ## 5. 남은 작업
 - 사용자 답변 ①②를 받으면: `RECORDS_FULL_HISTORY`(stats.php) 조정, 'N번째 출전·맞대결'·'세트 연승'·'역전승' 추가 여부, 매치 프리뷰 "첫 맞대결" 문구.
 - 서버 적용 후 운영자 확인 결과(OBS 화면 크기·위치, 기록 상세 가독성) 받기.

@@ -50,9 +50,11 @@ function google_endpoints(): array
  * HTTP 요청 (인증서 확인). cURL이 있으면 cURL, 없으면 PHP 스트림.
  * 웹호스팅은 웹에서 allow_url_fopen(스트림으로 외부 주소 열기)을 꺼 두는 경우가 많아 cURL을 먼저 쓴다.
  * 테스트는 $GLOBALS['CG_HTTP']에 같은 모양의 함수를 넣어 바꾼다.
+ * $ua: User-Agent (비우면 'EndgameCG/버전')
  * @return array{status:int, body:string}
  */
-function http_request(string $method, string $url, array $headers = [], ?string $body = null, int $timeout = 10): array
+function http_request(string $method, string $url, array $headers = [], ?string $body = null, int $timeout = 10,
+    string $ua = ''): array
 {
     if (isset($GLOBALS['CG_HTTP'])) {
         return ($GLOBALS['CG_HTTP'])($method, $url, $headers, $body);
@@ -62,7 +64,7 @@ function http_request(string $method, string $url, array $headers = [], ?string 
         curl_setopt_array($ch, [
             CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => $headers, CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => false, CURLOPT_CONNECTTIMEOUT => $timeout, CURLOPT_TIMEOUT => $timeout,
-            CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2, CURLOPT_USERAGENT => 'EndgameCG/' . APP_VERSION,
+            CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2, CURLOPT_USERAGENT => $ua ?: 'EndgameCG/' . APP_VERSION,
         ]);
         if ($body !== null) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
@@ -85,7 +87,7 @@ function http_request(string $method, string $url, array $headers = [], ?string 
     $ctx = stream_context_create([
         'http' => ['method' => $method, 'header' => implode("\r\n", array_merge($headers, ['Connection: close'])),
             'content' => $body ?? '', 'timeout' => $timeout, 'ignore_errors' => true, 'follow_location' => 0,
-            'protocol_version' => 1.1, 'user_agent' => 'EndgameCG/' . APP_VERSION],
+            'protocol_version' => 1.1, 'user_agent' => $ua ?: 'EndgameCG/' . APP_VERSION],
         'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
     ]);
     $res = @file_get_contents($url, false, $ctx);

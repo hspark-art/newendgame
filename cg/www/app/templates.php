@@ -127,6 +127,15 @@ function param_value(array $p, mixed $raw, array $ctx): mixed
                 throw new ActionError('BAD_PARAMS', "$label: 날짜를 YYYY-MM-DD로 고르세요.", 422);
             }
             return $s;
+        case 'date_opt':
+            // 기간 (빈 값 = 전체)
+            if ($s === '') {
+                return '';
+            }
+            if (!elo_date_ok($s)) {
+                throw new ActionError('BAD_PARAMS', "$label: 날짜를 YYYY-MM-DD로 고르세요. (비우면 전체)", 422);
+            }
+            return $s;
         case 'record_slots':
             // 매치 기록 종류 (MATCH_RECORD_KINDS 키) — 고른 순서가 CG 줄 순서
             $list = [];

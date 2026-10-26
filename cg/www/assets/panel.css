@@ -16,6 +16,7 @@ code { font-family: var(--mono); }
 .spacer { flex: 1; }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .hint { margin: 6px 0 0; color: var(--dim); font-size: 12px; }
+.hint.err { color: #fca5a5; }
 .inline { display: inline; margin: 0; }
 [hidden] { display: none !important; }
 
@@ -251,3 +252,4 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .tag.hold { background: rgba(255, 167, 38, .18); color: #ffb74d; }
 .rc-item .rc-act { grid-column: 3; margin-top: 3px; }
 .rc-item .rc-act .btn { margin-right: 4px; }
+#emBody .elourl { width: 100%; min-width: 340px; }

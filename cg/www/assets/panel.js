@@ -25,7 +25,7 @@
     SET: '수정', RESET: '되돌리기', KEEP: 'KEEP 설정', PAGE_ADD: '페이지 추가', PAGE_EDIT: '페이지 수정',
     PAGE_REMOVE: '페이지 삭제', PAGE_IMPORT: '가져오기', REFRESH: '데이터 새로고침', REFRESH_FAIL: '데이터 오류',
     AUTO_CHANGED: '자동값 변경', NEW_SESSION: '새 세션', KEEP_CARRY: 'KEEP 이월', DISPLAY: '위치 변경',
-    DISPLAY_LIVE: '위치 변경(송출)', MOCK_PURGE: 'MOCK 삭제', PLAYER_INFO: '닉네임'
+    DISPLAY_LIVE: '위치 변경(송출)', MOCK_PURGE: 'MOCK 삭제', PLAYER_INFO: '닉네임', ELOBOARD: 'eloboard 조회', ELOBOARD_MAP: 'eloboard 연결'
   };
 
   // ------------------------------------------------------------ 공용
@@ -546,6 +546,8 @@
         return '<select' + attr + '>' + mapOptions(v || '', p.type === 'map_any') + '</select>';
       case 'date':
         return '<input type="date"' + attr + ' value="' + esc(v || matchDate()) + '">';
+      case 'date_opt':
+        return '<input type="date"' + attr + ' value="' + esc(v || '') + '">';
       case 'record_slots':
         // 기록 후보는 선수·경기일을 고르면 불러온다 (loadRecords)
         return '<div class="rec-pick"' + attr + ' data-max="' + esc(p.max) + '" data-selected="' + esc(JSON.stringify(v || [])) + '"></div>';
@@ -567,7 +569,14 @@
       // 기록 선택은 체크박스 여러 개라 label로 감싸지 않는다 (감싸면 머리글·설명을 눌러도 첫 기록이 체크된다)
       var tag = p.type === 'record_slots' ? 'div' : 'label';
       return '<' + tag + ' class="prm"><span>' + esc(p.label) + '</span>' + paramControl(p, getPath(params || {}, p.key)) + '</' + tag + '>';
-    }).join('');
+    }).join('') + (slug === 'online-h2h'
+      // 온라인 상대 전적: 기간 빠른 선택 + eloboard 조회 (조회 결과는 패널에만 표시, CG에는 출처를 넣지 않음)
+      ? '<div class="prm"><span>기간 빠른 선택</span><span><button type="button" class="btn sm" data-period="all">전체</button> '
+        + '<button type="button" class="btn sm" data-period="year">올해</button> '
+        + '<button type="button" class="btn sm" data-period="30">최근 30일</button></span></div>'
+        + '<div class="prm"><span>온라인 전적</span><span><button type="button" class="btn sm" id="pEloFetch">eloboard 조회</button></span></div>'
+        + '<p class="hint" id="pElo">선수·기간을 고르고 [eloboard 조회]를 누르면 자동값이 채워집니다. 선수 연결은 [데이터 점검·설정] → [eloboard 선수].</p>'
+      : '');
     var linked = tpl.params.some(function (p) { return p.auto_from; });
     $('pHint').textContent = linked ? '선수를 고르면 상대 종족이 서로의 종족으로 자동 선택됩니다. 필요하면 바꾸세요.' : '';
     pageRecords();
@@ -742,6 +751,32 @@
     });
   }
 
+  function ymd(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+
+  /** 기간 빠른 선택: 전체(빈 값) · 올해(1월 1일~오늘) · 최근 30일 */
+  function setPeriod(kind) {
+    var now = new Date(), from = '', to = '';
+    if (kind === 'year') { from = now.getFullYear() + '-01-01'; to = ymd(now); }
+    if (kind === '30') { from = ymd(new Date(now.getTime() - 30 * 86400000)); to = ymd(now); }
+    $('pParams').querySelector('[data-key="since"]').value = from;
+    $('pParams').querySelector('[data-key="until"]').value = to;
+  }
+
+  /** eloboard 조회 (누를 때만 접속). 결과는 자동값으로 저장되고 PREVIEW·PROGRAM은 바꾸지 않는다 */
+  function eloFetch() {
+    var btn = $('pEloFetch'), out = $('pElo');
+    btn.disabled = true;
+    out.className = 'hint';
+    out.textContent = 'eloboard 조회 중… (요청 사이 2초 간격)';
+    api('online_fetch', { params: readParams() }, true).then(function (r) {
+      out.className = 'hint' + (r.error ? ' err' : '');
+      out.textContent = r.info + (r.error ? ' — ' + r.error : '') + (r.note ? ' · ' + r.note : '');
+    }, function (e) {
+      out.className = 'hint err';
+      out.textContent = (e.data && e.data.error) || '조회하지 못했습니다.';
+    }).then(function () { btn.disabled = false; });
+  }
+
   function readParams() {
     var out = {};
     tplBySlug($('pTemplate').value).params.forEach(function (p) {
@@ -780,6 +815,7 @@
     if (name === 'check') { loadCheck(); }
     if (name === 'players') { api('player_info').then(renderPlayerInfo); }
     if (name === 'maps') { api('map_info').then(renderMapInfo); }
+    if (name === 'elo') { api('eloboard_map').then(renderEloMap); }
     if (name === 'settings') { api('data_settings').then(renderSettings); }
   }
 
@@ -849,6 +885,16 @@
         + esc(p.sheet_nick ? '비우면 시트 값 (' + p.sheet_nick + ')' : '') + '"></td>'
         + '<td><button type="button" class="btn sm" data-act="nick">저장</button></td></tr>';
     }).join('') || '<tr><td colspan="5" class="muted">선수 목록이 없습니다. 데이터를 먼저 불러오세요.</td></tr>';
+  }
+
+  function renderEloMap(r) {
+    $('emNotAdmin').hidden = r.admin;
+    $('emBody').innerHTML = r.players.map(function (p) {
+      return '<tr data-player="' + esc(p.id) + '"><td>' + esc(p.name) + '</td><td>' + esc(p.race || '-') + '</td>'
+        + '<td><input type="text" class="elourl" maxlength="80" value="' + esc(p.elo ? 'https://eloboard.com/players/' + p.elo : '')
+        + '" placeholder="https://eloboard.com/players/숫자"' + (r.admin ? '' : ' disabled') + '></td>'
+        + '<td><button type="button" class="btn sm" data-act="elo"' + (r.admin ? '' : ' disabled') + '>저장</button></td></tr>';
+    }).join('') || '<tr><td colspan="4" class="muted">선수 목록이 없습니다. 데이터를 먼저 불러오세요.</td></tr>';
   }
 
   function renderMapInfo(r) {
@@ -1089,6 +1135,12 @@
       api('player_info_save', { player: tr.getAttribute('data-player'), nickname: tr.querySelector('.nick').value })
         .then(function (r) { renderPlayerInfo(r); toast('닉네임을 저장했습니다.', 'ok'); });
     });
+    $('emBody').addEventListener('click', function (e) {
+      if (e.target.getAttribute('data-act') !== 'elo') { return; }
+      var tr = e.target.closest('tr');
+      api('eloboard_map_save', { player: tr.getAttribute('data-player'), url: tr.querySelector('.elourl').value })
+        .then(function (r) { renderEloMap(r); toast('eloboard 연결을 저장했습니다.', 'ok'); });
+    });
     $('miBody').addEventListener('click', function (e) {
       if (e.target.getAttribute('data-act') !== 'mapko') { return; }
       var tr = e.target.closest('tr');
@@ -1165,6 +1217,11 @@
       buildParams(this.value, editingPageId ? null : matchDefaults());
       if (!editingPageId) { fillRaces(); }
     };
+    $('pParams').addEventListener('click', function (e) {
+      var per = e.target.getAttribute('data-period');
+      if (per) { setPeriod(per); }
+      if (e.target.id === 'pEloFetch') { eloFetch(); }
+    });
     $('pParams').addEventListener('change', function (e) {
       var pick = e.target.closest('.rec-pick');
       if (pick) { pickRecord(pick, e.target); return; }

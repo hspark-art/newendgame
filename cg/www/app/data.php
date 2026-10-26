@@ -241,10 +241,10 @@ function match_exclusions(): array
     return is_array($l) ? array_values(array_filter($l, 'is_string')) : [];
 }
 
-/** 캐시(원본) → 쓸 데이터: 경기 제외 확정 반영 + 닉네임 */
+/** 캐시(원본) → 쓸 데이터: 경기 제외 확정 반영 + 닉네임 + eloboard 조회 결과 */
 function dataset_prepare(array $ds): array
 {
-    return dataset_with_player_info(dataset_finalize($ds, match_exclusions()));
+    return dataset_with_eloboard(dataset_with_player_info(dataset_finalize($ds, match_exclusions())));
 }
 
 /**

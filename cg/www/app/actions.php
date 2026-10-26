@@ -74,6 +74,10 @@ function action_dispatch(string $action, array $in, array $op): mixed
         'match_add' => match_pages_add($in, $op),
         'match_apply' => match_pages_apply($in, $op),
         'match_records' => match_records_view($in),
+        // eloboard 온라인 전적 (연결 저장은 관리자만, 조회는 운영자 클릭 때만)
+        'eloboard_map' => eloboard_map_view($op),
+        'eloboard_map_save' => eloboard_map_save($in, $op),
+        'online_fetch' => online_fetch($in, $op),
         'map_info' => map_info_view(),
         'map_info_save' => map_info_save($in, $op),
         // CG 디자인 (바꾸기는 관리자만 — 함수 안에서 확인)
