@@ -1080,11 +1080,22 @@ function sheet_matches(array $games, array $pending = []): array
         $n = count($sets);
         $anomaly = $kind = null;
         $date = $sets[0]['date'];
-        $waiting = $n < 9 && max(array_column($sets, 'row')) === $lastRow
-            ? count(array_filter($pending, static fn($p) => $p['row'] > $lastRow && ($p['date'] ?? null) === $date
-                && !array_diff($p['names'] ?? [], [$a, $b]))) : 0;
-        // 완료 + 결과 대기 = 9세트(같은 날 다음 경기까지 미리 만들었으면 9의 배수)일 때만 진행 중 — 아니면 세트가 빠진 경기일 수 있다
-        $plan = $waiting > 0 && ($n + $waiting) % 9 !== 0 ? " · 결과 대기 {$waiting}행 — 예정 행 " . ($n + $waiting) . '개, 9세트 형식 확인' : '';
+        $waiting = 0;
+        if ($n < 9 && max(array_column($sets, 'row')) === $lastRow) {
+            // 마지막 완료 세트 바로 아래부터 이어지는 결과 대기 행. 날짜가 같거나 비어 있고(맵만 미리 적은 행) 다른 선수 이름이 없을 때까지
+            $next = $lastRow + 1;
+            foreach (array_filter($pending, static fn($p) => $p['row'] > $lastRow) as $p) {
+                if ($p['row'] !== $next || !in_array($p['date'] ?? null, [null, $date], true) || array_diff($p['names'] ?? [], [$a, $b])) {
+                    break;
+                }
+                $waiting++;
+                $next++;
+            }
+        }
+        // 진행 중 = 완료 + 결과 대기가 9세트 이하(남은 세트만 미리 적음) 또는 9의 배수(같은 날 다음 경기까지 미리 만듦).
+        // 9를 넘는데 9의 배수가 아니면 세트가 빠진 끝난 경기일 수 있다
+        $plan = $waiting > 0 && $n + $waiting > 9 && ($n + $waiting) % 9 !== 0
+            ? " · 결과 대기 {$waiting}행 — 예정 행 " . ($n + $waiting) . '개, 9세트 형식 확인' : '';
         $waiting = $plan === '' ? $waiting : 0;
         $raceOdd = count($races[$a]) > 1 || count($races[$b]) > 1;
         if ($raceOdd) {

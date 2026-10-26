@@ -313,3 +313,21 @@ test('리뷰 반영(v0.8.2): MAP 통계(시트 스크립트 값)가 사전 입�
         assert_same($sheetCounts ? 2 : 0, count(array_filter($ds['check']['waiting'], static fn($w) => str_starts_with($w, '맵 '))));
     }
 });
+
+test('v0.9.1: 남은 세트만 미리 적은 행(맵만, 날짜·선수 빈 칸)도 진행 중 — 1세트 완료 + 맵만 적은 1행', function () {
+    foreach (['', date('Y-m-d')] as $d) {
+        $ds = sheet_dataset(fx_tables(static function (array &$t) use ($d) {
+            (fx_live(1, 1))($t);
+            $t['results'][] = ['', '', '', '', 'Map 2', $d, 0, 0];
+        }), 'api');
+        assert_same(1, count($ds['check']['live']), '날짜 "' . $d . '"');
+        assert_same([], array_values(array_filter($ds['check']['anomalies'], static fn($a) => str_contains($a['text'], '9세트가 아님') && str_contains($a['match'] ?? '', '가선수'))));
+        assert_same([], $ds['check']['mismatches'] ?? [], json_encode($ds['check']['mismatches'] ?? [], JSON_UNESCAPED_UNICODE));
+    }
+    // 다른 날짜가 적힌 행은 다음 방송용 → 연결 안 함
+    $ds = sheet_dataset(fx_tables(static function (array &$t) {
+        (fx_live(1, 1))($t);
+        $t['results'][] = ['', '', '', '', 'Map 2', '2099-01-01', 0, 0];
+    }), 'api');
+    assert_same([], $ds['check']['live']);
+});
