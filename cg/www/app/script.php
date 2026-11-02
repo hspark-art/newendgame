@@ -32,10 +32,16 @@ function script_fetch(array $key, string $id, string $tab): array
     $base = (string)(((array)config('google', []))['docs_base'] ?? DOCS_API_BASE);
     $res = http_request('GET', $base . rawurlencode($id) . '?includeTabsContent=true', ['Authorization: Bearer ' . $token]);
     if ($res['status'] !== 200) {
-        throw new ProviderError(match ($res['status']) {
-            403 => '대본 문서에 접근할 권한이 없습니다. 문서를 서비스 계정 이메일과 "뷰어"로 공유했는지, Google Docs API를 사용 설정했는지 확인하세요.',
-            404 => '대본 문서를 찾을 수 없습니다. 문서 주소를 확인하세요.',
-            429 => 'Google 요청 한도를 넘었습니다. 잠시 뒤 다시 시도하세요.',
+        // 403의 원인 구분: Google 응답의 reason (API 꺼짐 / 공유 안 됨)
+        $err = json_decode($res['body'], true);
+        $reason = is_array($err) ? (string)($err['error']['details'][0]['reason'] ?? '') : '';
+        throw new ProviderError(match (true) {
+            $res['status'] === 403 && in_array($reason, ['SERVICE_DISABLED', 'ACCESS_TOKEN_SCOPE_INSUFFICIENT'], true)
+                => '서비스 계정의 Google Cloud 프로젝트에서 Google Docs API가 꺼져 있습니다 (' . $reason . '). 서비스 계정 이메일 @ 뒤의 프로젝트에서 사용 설정하세요.',
+            $res['status'] === 403 => '대본 문서에 접근할 권한이 없습니다. 문서를 서비스 계정 이메일과 "뷰어"로 공유했는지, Google Docs API를 사용 설정했는지 확인하세요.'
+                . ($reason !== '' ? ' (' . $reason . ')' : ''),
+            $res['status'] === 404 => '대본 문서를 찾을 수 없습니다. 문서 주소를 확인하세요.',
+            $res['status'] === 429 => 'Google 요청 한도를 넘었습니다. 잠시 뒤 다시 시도하세요.',
             default => "대본 문서 응답 오류 (HTTP {$res['status']})",
         });
     }
