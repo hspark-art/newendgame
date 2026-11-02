@@ -250,7 +250,7 @@ $op = guard_control();
         <label class="prm"><span>선수 맵 전적 탭 (검증)</span><input type="text" id="dsTabMapplayers"></label>
         <label class="prm"><span>맵 이름 탭 (선택)</span><input type="text" id="dsTabMapnames"></label>
         <label class="prm"><span>ASL 시트 주소 (선택)</span><input type="text" id="dsAslSheet" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/… ('보기용' 탭, 같은 서비스 계정에 뷰어 공유)"></label>
-        <label class="prm"><span>대본 문서 주소 (선택)</span><input type="text" id="dsScriptDoc" autocomplete="off" placeholder="https://docs.google.com/document/d/… (온라인 CG 4종, 같은 서비스 계정에 뷰어 공유)"></label>
+        <label class="prm"><span>대본 문서 주소 (선택)</span><input type="text" id="dsScriptDoc" autocomplete="off" placeholder="https://docs.google.com/document/d/… (온라인 CG 4종 · 모든 탭을 읽음, 한 번만 입력 · 같은 서비스 계정에 뷰어 공유)"></label>
         <div class="dlg-btns left"><button type="button" id="dsSave" class="btn primary">설정 저장</button>
           <button type="button" id="dsTest" class="btn">연결 테스트</button></div>
         <h4>서비스 계정 키</h4>

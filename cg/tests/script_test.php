@@ -167,7 +167,7 @@ test('대본: 새로고침 때 문서 읽기 전용 토큰으로 Docs API GET(�
         $u = array_values(array_filter($c['unavailable'], fn($x) => str_starts_with($x, '대본')));
         $st = type_state('online-h2h', ['a' => ['player' => '가선수'], 'b' => ['player' => '나선수']]);
         if ($status === 200) {
-            assert_same([[], 2], [$u, $c['counts']['script_matches']], '지정 탭(t.aaa)만');
+            assert_same([[], 3], [$u, $c['counts']['script_matches']], '주소에 탭이 붙어 있어도 모든 탭 (경기마다 탭)');
             assert_same([], $st['problems']);
         } else {
             assert_same(['대본 사용 불가: 대본 문서에 접근할 권한이 없습니다. 문서를 서비스 계정 이메일과 "뷰어"로 공유했는지, Google Docs API를 사용 설정했는지 확인하세요.'], $u);
@@ -249,4 +249,15 @@ test('대본 CG: 수동 수정·항목 빼기, 오늘 매치 2인 메뉴, 패널
     assert_same([['month', '최근 한 달'], ['total', '통산']], $tpl['online-h2h']['params'][2]['options']);
     assert_same(['온라인', '온라종족', '온라맵', '맵누적'], [$tpl['online-h2h']['short'], $tpl['online-race']['short'],
         $tpl['online-map']['short'], $tpl['online-map-cum']['short']]);
+});
+
+test('v0.11.2: 경기마다 탭을 나눈 대본 — 탭 이름이 경기 이름 (본문에 제목이 없어도), 본문에 같은 제목이 있으면 하나로', function () {
+    $body = array_slice(sd_match('1102_가선수_나선수', '가선수', '나선수'), 1); // 본문 제목 없음
+    $doc = ['tabs' => [
+        ['tabProperties' => ['tabId' => 't.a', 'title' => '1026_다선수_라선수'], 'documentTab' => ['body' => ['content' => sd_match('1026_다선수_라선수', '다선수', '라선수')]]],
+        ['tabProperties' => ['tabId' => 't.b', 'title' => '1102_가선수_나선수'], 'documentTab' => ['body' => ['content' => $body]]],
+    ]];
+    $r = script_parse_doc($doc);
+    assert_same(['1026_다선수_라선수', '1102_가선수_나선수'], array_column($r['sections'], 'key'));
+    assert_same([231, 178], $r['sections'][1]['total']);
 });

@@ -49,7 +49,8 @@ function script_fetch(array $key, string $id, string $tab): array
     if (!is_array($doc)) {
         throw new ProviderError('대본 문서 응답을 읽을 수 없습니다.');
     }
-    return script_parse_doc($doc, $tab);
+    // 경기마다 탭을 추가하는 대본: 주소에 탭이 붙어 있어도 모든 탭을 읽고, 페이지의 두 선수로 경기를 고른다 (탭마다 주소를 바꾸지 않음)
+    return script_parse_doc($doc);
 }
 
 /** 문서 JSON → {sections, notes}. 탭이 있는 문서는 모든 탭(지정한 탭만)을 순서대로 */
@@ -59,7 +60,14 @@ function script_parse_doc(array $doc, string $tab = ''): array
     $walk = static function (array $tabs) use (&$walk, &$bodies, $tab): void {
         foreach ($tabs as $t) {
             if ($tab === '' || ($t['tabProperties']['tabId'] ?? '') === $tab) {
-                $bodies[] = (array)($t['documentTab']['body']['content'] ?? []);
+                $content = (array)($t['documentTab']['body']['content'] ?? []);
+                // 경기마다 탭을 나눈 문서: 탭 이름(예: 1102_유영진_도재욱)을 본문 첫 제목으로 본다 (본문에 같은 제목이 이미 있으면 그대로)
+                $title = trim((string)($t['tabProperties']['title'] ?? ''));
+                $first = script_blocks($content)[0] ?? null;
+                if ($title !== '' && !($first && $first[0] === 'p' && trim($first[1]['t']) === $title)) {
+                    array_unshift($content, ['paragraph' => ['elements' => [['textRun' => ['content' => $title . "\n"]]]]]);
+                }
+                $bodies[] = $content;
             }
             $walk((array)($t['childTabs'] ?? []));
         }
