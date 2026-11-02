@@ -32,12 +32,16 @@ function data_ready(): bool
     return data_source() === 'mock' || (sheet_config()['id'] !== '' && is_file(google_key_path()));
 }
 
-/** @return array{id:string, tabs:array<string,string>, asl_id:string} asl_id = ASL 시트 ID (선택, 빈 값이면 읽지 않음) */
+/**
+ * @return array{id:string, tabs:array<string,string>, asl_id:string, script_id:string, script_tab:string}
+ * asl_id = ASL 시트 ID, script_id·script_tab = 대본 문서 ID·탭 (모두 선택, 빈 값이면 읽지 않음)
+ */
 function sheet_config(): array
 {
     $tabs = json_dec(setting_get('sheet_tabs', '{}')) ?: [];
     return ['id' => (string)setting_get('sheet_id', ''), 'tabs' => array_replace(SHEET_TABS_DEFAULT, array_intersect_key($tabs, SHEET_TABS_DEFAULT)),
-        'asl_id' => (string)setting_get('asl_sheet_id', '')];
+        'asl_id' => (string)setting_get('asl_sheet_id', ''), 'script_id' => (string)setting_get('script_doc_id', ''),
+        'script_tab' => (string)setting_get('script_doc_tab', '')];
 }
 
 // ---------------------------------------------------------------- 서비스 계정 키 (비밀 폴더)
@@ -241,10 +245,10 @@ function match_exclusions(): array
     return is_array($l) ? array_values(array_filter($l, 'is_string')) : [];
 }
 
-/** 캐시(원본) → 쓸 데이터: 경기 제외 확정 반영 + 닉네임 + eloboard 조회 결과 */
+/** 캐시(원본) → 쓸 데이터: 경기 제외 확정 반영 + 닉네임 */
 function dataset_prepare(array $ds): array
 {
-    return dataset_with_eloboard(dataset_with_player_info(dataset_finalize($ds, match_exclusions())));
+    return dataset_with_player_info(dataset_finalize($ds, match_exclusions()));
 }
 
 /**
@@ -316,6 +320,8 @@ function data_check_summary(array $ds, string $now): array
         'waiting' => array_slice($c['waiting'] ?? [], 0, 20),
         // ASL 기록 안내 (우승자를 정할 수 없는 시즌·중복 의심 행) — CG를 막는 것은 해당 선수의 우승·준우승 항목뿐
         'asl_notes' => array_slice($c['asl_notes'] ?? [], 0, 30),
+        // 대본 안내 (승률 불일치·데이터에 없는 선수 등 — 그 값만 비움)
+        'script_notes' => array_slice($c['script_notes'] ?? [], 0, 30),
     ];
 }
 
@@ -347,6 +353,8 @@ function data_settings_view(array $op): array
         'admin' => $admin,
         'sheet_id' => $admin ? $cfg['id'] : ($cfg['id'] === '' ? '' : '설정됨'),
         'asl_sheet_id' => $admin ? $cfg['asl_id'] : ($cfg['asl_id'] === '' ? '' : '설정됨'),
+        'script_doc' => $cfg['script_id'] === '' ? '' : ($admin ? 'https://docs.google.com/document/d/' . $cfg['script_id'] . '/edit'
+            . ($cfg['script_tab'] === '' ? '' : '?tab=' . $cfg['script_tab']) : '설정됨'),
         'tabs' => $admin ? $cfg['tabs'] : [],
         'key_email' => $key['client_email'] ?? null,
         'key_dir_public' => $admin && secrets_in_web_root(),
@@ -373,6 +381,13 @@ function data_settings_save(array $in, array $op): array
     if ($aslId === null) {
         throw new ActionError('BAD_SHEET', 'ASL 시트 주소 형식이 아닙니다. 주소창의 주소를 그대로 붙여 넣으세요.', 422);
     }
+    // 대본 문서 (선택). 보내지 않으면 지금 값 유지
+    $scIn = array_key_exists('script_doc', $in) ? trim((string)$in['script_doc']) : null;
+    $sc = $scIn === null ? ['id' => sheet_config()['script_id'], 'tab' => sheet_config()['script_tab']]
+        : ($scIn === '' ? ['id' => '', 'tab' => ''] : script_ref_from($scIn));
+    if ($sc === null) {
+        throw new ActionError('BAD_SHEET', '대본 문서 주소 형식이 아닙니다. 문서 주소창의 주소를 그대로 붙여 넣으세요.', 422);
+    }
     $tabs = [];
     foreach (SHEET_TABS_DEFAULT as $k => $def) {
         $t = trim((string)($in['tabs'][$k] ?? $def));
@@ -381,11 +396,13 @@ function data_settings_save(array $in, array $op): array
         }
         $tabs[$k] = $t;
     }
-    db_tx(function () use ($source, $id, $aslId, $tabs, $op) {
+    db_tx(function () use ($source, $id, $aslId, $sc, $tabs, $op) {
         $prev = data_source();
         setting_set('data_source', $source);
         setting_set('sheet_id', $id);
         setting_set('asl_sheet_id', $aslId);
+        setting_set('script_doc_id', $sc['id']);
+        setting_set('script_doc_tab', $sc['tab']);
         setting_set('sheet_tabs', json_enc($tabs));
         cg_log('data', 'SOURCE_SET', $op, ['detail' => '데이터 소스: ' . data_sources()[$source] . ($prev !== $source ? ' (변경)' : '')]);
         state_bump();
@@ -418,6 +435,9 @@ function data_import_xlsx(array $in, array $op): array
         $tables = xlsx_tables($bytes, sheet_config()['tabs']);
         if (sheet_config()['asl_id'] !== '') {
             $tables['asl_error'] = 'xlsx 가져오기는 ASL 시트를 읽지 않습니다 (Google 시트 새로고침으로 불러오세요)';
+        }
+        if (sheet_config()['script_id'] !== '') {
+            $tables['script_error'] = 'xlsx 가져오기는 대본 문서를 읽지 않습니다 (Google 시트 새로고침으로 불러오세요)';
         }
         $ds = sheet_dataset($tables, 'xlsx', true);
     } catch (ProviderError $e) {

@@ -64,6 +64,15 @@
 - `online_fetch`는 `template`으로 분기, 결과 키에 CG 종류 접두(`h2h|`/`race|`) — v0.10.0 결과는 다시 조회 필요. `ELO_PERIOD_NOTE` 삭제.
 - 서버 파일 9개, 전달물 `dist/EndgameCG_web_0.10.0-0.10.1_files.zip`, `dist/EndgameCG_v0.10.1_INSTALL_KR.md`. 0.10.0→0.10.1 리허설 143개 일치.
 
+## 4-6. v0.11.0 (대본 Google 문서 → 온라인 CG 4종, eloboard 제거, 2026-11-02, DB 구조 6 그대로)
+- 사용자 결정: eloboard 연동을 모두 없애고 온라인 CG 값은 대본(Google 문서)에서만 읽는다. `app/eloboard.php`·`tests/eloboard_test.php` 삭제, [eloboard 조회]·[eloboard 선수] 탭·`online_fetch`/`eloboard_map*` 액션·기간(since/until, `date_opt`) 삭제. DB에 남은 `eloboard_players`·`eloboard_results` 설정은 읽지 않음(그대로 둬도 무해). 서버의 `app/eloboard.php`는 사용자가 FileZilla로 지움(manifest에 없어 check는 실패로 보지 않음).
+- `app/script.php`(새): 데이터 새로고침 때 같은 서비스 계정·별도 토큰(`documents.readonly`)으로 `GET docs/v1/documents/{id}?includeTabsContent=true`, 탭 지정(`?tab=t.…`)이면 그 탭만. 실패는 `script_error` → 점검 '대본 사용 불가'·온라인 CG만 값이 비어 막힘(시트 새로고침은 성공). 구역 = 제목 줄 `MMDD_A_B` 또는 `CG용`(선수는 세트 표 머리글). 읽는 것: 밴(머리글 BAN)·맵 목록(취소선=밴)·상대 전적(통산·최근 한 달·기간 'MM.DD~MM.DD'·최근 한 달 종족)·맵 칸(맞대결·A/B 종족 전적)·누적 종족 전적. 승률은 승/(승+패)와 0.05 이내가 아니면 그 값만 null + 점검 안내. 데이터에 없는 선수 이름의 구역은 빼고 안내. 숫자만 저장(`dataset.script`, 설정 `script_cache`·`script_error`), 문서 글 저장 없음.
+- 구역 선택 `script_pick`: 같은 두 선수 중 문서 뒤쪽(최신), 순서가 반대면 `script_swap`.
+- 템플릿: #6 `basis`(month 기본·total, 파라미터 타입 `choice`), #20 최근 한 달만(a.vs·b.vs는 필드, 요약 바 작은 글씨 = 기간 `sum.label`), #21 `online-map`(맵별 온라인 전적, `script_map` 파라미터, 밴 맵 제외), #22 `online-map-cum`(맵별 누적 종족 전적, A 종족이 오른쪽이면 돌림). 모두 `online-h2h.view.php`(.cg-online, 560×250 측정 동일), 뷰에 `sum_label`(없으면 '온라인 통산') 추가. 템플릿 `check`에 ctx 전달.
+- 설정: [데이터 설정] '대본 문서 주소 (선택)' → `script_doc_id`·`script_doc_tab`. 점검 탭 `대본 N경기`·안내 목록. 페이지 창에 쓰는 대본 경기 표시, 페이지 요약에 `대본 <키>`.
+- 전달물: 서버 파일 18개 `dist/EndgameCG_web_0.10.2-0.11.0_files.zip`, `dist/EndgameCG_v0.11.0_INSTALL_KR.md`(Docs API 사용 설정·문서 공유 안내 포함). 0.10.2→0.11.0 리허설 145개 일치.
+- 미확인: 실제 대본 문서의 API 응답·표기, 카페24에서 docs.googleapis.com 접속.
+
 ## 5. 남은 작업
 - 사용자 답변 ①②를 받으면: `RECORDS_FULL_HISTORY`(stats.php) 조정, 'N번째 출전·맞대결'·'세트 연승'·'역전승' 추가 여부, 매치 프리뷰 "첫 맞대결" 문구.
 - 서버 적용 후 운영자 확인 결과(OBS 화면 크기·위치, 기록 상세 가독성) 받기.

@@ -133,13 +133,13 @@ function google_key_parse(string $json): array
     return ['client_email' => $email, 'private_key' => $pem, 'private_key_id' => (string)($k['private_key_id'] ?? '')];
 }
 
-/** 서비스 계정 JWT(RS256) → 읽기 전용 액세스 토큰 (1시간). 저장하지 않는다 */
-function google_access_token(array $key): string
+/** 서비스 계정 JWT(RS256) → 읽기 전용 액세스 토큰 (1시간). 저장하지 않는다. $scope: 시트 또는 대본 문서(DOCS_SCOPE) */
+function google_access_token(array $key, string $scope = SHEETS_SCOPE): string
 {
     $now = time();
     $aud = google_endpoints()['token'];
     $head = b64url(json_encode(['alg' => 'RS256', 'typ' => 'JWT', 'kid' => $key['private_key_id']]));
-    $claims = b64url(json_encode(['iss' => $key['client_email'], 'scope' => SHEETS_SCOPE, 'aud' => $aud,
+    $claims = b64url(json_encode(['iss' => $key['client_email'], 'scope' => $scope, 'aud' => $aud,
         'iat' => $now, 'exp' => $now + 3600]));
     $sig = '';
     if (!openssl_sign("$head.$claims", $sig, $key['private_key'], OPENSSL_ALGO_SHA256)) {
@@ -188,6 +188,7 @@ function sheet_id_from(string $s): ?string
 /**
  * 시트에서 필요한 탭을 읽는다. Results 탭이 없으면 실패, 검증·예측 탭이 없으면 null (해당 기능만 검증 불가).
  * ASL 시트(asl_id)가 설정되어 있으면 '보기용' 탭도 읽는다 → asl(행 목록) 또는 asl_error(실패 사유).
+ * 대본 문서(script_id)가 설정되어 있으면 읽는다 → script(경기 구역) 또는 script_error (script.php).
  * @param array{id:string, tabs:array<string,string>, asl_id?:string} $cfg
  * @return array{results:list<array>, players:?list<array>, matches:?list<array>, predictions:?list<array>}
  */
@@ -258,6 +259,14 @@ function sheets_fetch_tables(?array $cfg = null, ?array $key = null): array
             $tables['asl'] = sheets_fetch_asl($cfg['asl_id'], $token);
         } catch (ProviderError $e) {
             $tables['asl_error'] = $e->getMessage();
+        }
+    }
+    // 대본 문서 (선택, 같은 서비스 계정·문서 읽기 전용 토큰): 실패해도 새로고침은 성공하고 온라인 CG만 막는다
+    if (($cfg['script_id'] ?? '') !== '') {
+        try {
+            $tables['script'] = script_fetch($key, $cfg['script_id'], $cfg['script_tab'] ?? '');
+        } catch (ProviderError $e) {
+            $tables['script_error'] = $e->getMessage();
         }
     }
     return $tables;

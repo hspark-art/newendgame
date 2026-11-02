@@ -204,7 +204,6 @@ $op = guard_control();
       <button type="button" class="tab on" data-tab="check">점검</button>
       <button type="button" class="tab" data-tab="players">선수 닉네임</button>
       <button type="button" class="tab" data-tab="maps">맵 이름</button>
-      <button type="button" class="tab" data-tab="elo">eloboard 선수</button>
       <button type="button" class="tab" data-tab="settings">데이터 설정</button>
     </div>
     <section class="tabpane" data-pane="check">
@@ -235,13 +234,6 @@ $op = guard_control();
       <div class="dc-list"><table class="grid-table"><thead><tr><th>맵 (Results 표기)</th><th>세트</th><th>시트 한글</th><th>프로그램 한글 (우선)</th><th></th></tr></thead>
         <tbody id="miBody"></tbody></table></div>
     </section>
-    <section class="tabpane" data-pane="elo" hidden>
-      <p class="hint">온라인 상대 전적·온라인 상대 종족 전적 CG의 [eloboard 조회]에 쓰는 연결입니다. 시트 선수마다 eloboard 선수 주소(예: https://eloboard.com/players/22)를
-        직접 확인해 입력하세요. 이름으로 자동 연결하지 않습니다. 비우고 저장하면 연결을 지웁니다.</p>
-      <p class="notice" id="emNotAdmin" hidden>eloboard 연결은 관리자만 바꿀 수 있습니다.</p>
-      <div class="dc-list"><table class="grid-table"><thead><tr><th>선수</th><th>종족</th><th>eloboard 선수 주소</th><th></th></tr></thead>
-        <tbody id="emBody"></tbody></table></div>
-    </section>
     <section class="tabpane" data-pane="settings" hidden>
       <p class="notice" id="dsNotAdmin" hidden>데이터 설정은 관리자만 바꿀 수 있습니다.</p>
       <div id="dsForm">
@@ -258,6 +250,7 @@ $op = guard_control();
         <label class="prm"><span>선수 맵 전적 탭 (검증)</span><input type="text" id="dsTabMapplayers"></label>
         <label class="prm"><span>맵 이름 탭 (선택)</span><input type="text" id="dsTabMapnames"></label>
         <label class="prm"><span>ASL 시트 주소 (선택)</span><input type="text" id="dsAslSheet" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/… ('보기용' 탭, 같은 서비스 계정에 뷰어 공유)"></label>
+        <label class="prm"><span>대본 문서 주소 (선택)</span><input type="text" id="dsScriptDoc" autocomplete="off" placeholder="https://docs.google.com/document/d/… (온라인 CG 4종, 같은 서비스 계정에 뷰어 공유)"></label>
         <div class="dlg-btns left"><button type="button" id="dsSave" class="btn primary">설정 저장</button>
           <button type="button" id="dsTest" class="btn">연결 테스트</button></div>
         <h4>서비스 계정 키</h4>

@@ -25,7 +25,7 @@
     SET: '수정', RESET: '되돌리기', KEEP: 'KEEP 설정', PAGE_ADD: '페이지 추가', PAGE_EDIT: '페이지 수정',
     PAGE_REMOVE: '페이지 삭제', PAGE_IMPORT: '가져오기', REFRESH: '데이터 새로고침', REFRESH_FAIL: '데이터 오류',
     AUTO_CHANGED: '자동값 변경', NEW_SESSION: '새 세션', KEEP_CARRY: 'KEEP 이월', DISPLAY: '위치 변경',
-    DISPLAY_LIVE: '위치 변경(송출)', MOCK_PURGE: 'MOCK 삭제', PLAYER_INFO: '닉네임', ELOBOARD: 'eloboard 조회', ELOBOARD_MAP: 'eloboard 연결'
+    DISPLAY_LIVE: '위치 변경(송출)', MOCK_PURGE: 'MOCK 삭제', PLAYER_INFO: '닉네임'
   };
 
   // ------------------------------------------------------------ 공용
@@ -546,8 +546,12 @@
         return '<select' + attr + '>' + mapOptions(v || '', p.type === 'map_any') + '</select>';
       case 'date':
         return '<input type="date"' + attr + ' value="' + esc(v || matchDate()) + '">';
-      case 'date_opt':
-        return '<input type="date"' + attr + ' value="' + esc(v || '') + '">';
+      case 'choice':
+        // 고르기 (예: 온라인 상대 전적의 통산 / 최근 한 달)
+        return '<select' + attr + '>' + options(p.options, v === undefined ? p.default : v) + '</select>';
+      case 'script_map':
+        // 대본 맵: 고른 두 선수의 대본 경기 맵 목록 (선수를 바꾸면 다시 채움 — scriptMaps)
+        return '<select' + attr + ' data-value="' + esc(v || '') + '"></select>';
       case 'record_slots':
         // 기록 후보는 선수·경기일을 고르면 불러온다 (loadRecords)
         return '<div class="rec-pick"' + attr + ' data-max="' + esc(p.max) + '" data-selected="' + esc(JSON.stringify(v || [])) + '"></div>';
@@ -569,20 +573,42 @@
       // 기록 선택은 체크박스 여러 개라 label로 감싸지 않는다 (감싸면 머리글·설명을 눌러도 첫 기록이 체크된다)
       var tag = p.type === 'record_slots' ? 'div' : 'label';
       return '<' + tag + ' class="prm"><span>' + esc(p.label) + '</span>' + paramControl(p, getPath(params || {}, p.key)) + '</' + tag + '>';
-    }).join('') + (slug === 'online-h2h'
-      // 온라인 상대 전적: 기간 빠른 선택 (맞대결은 기간별로 조회됨)
-      ? '<div class="prm"><span>기간 빠른 선택</span><span><button type="button" class="btn sm" data-period="all">전체</button> '
-        + '<button type="button" class="btn sm" data-period="year">올해</button> '
-        + '<button type="button" class="btn sm" data-period="30">최근 30일</button></span></div>'
-      : '') + (slug === 'online-h2h' || slug === 'online-race'
-      // eloboard 조회 (조회 결과는 패널에만 표시, CG에는 출처를 넣지 않음). 종족전은 통산만
-      ? '<div class="prm"><span>온라인 전적</span><span><button type="button" class="btn sm" id="pEloFetch">eloboard 조회</button></span></div>'
-        + '<p class="hint" id="pElo">' + (slug === 'online-h2h' ? '선수·기간을 고르고' : '선수·상대 종족을 고르고 (통산)')
-        + ' [eloboard 조회]를 누르면 자동값이 채워집니다. 선수 연결은 [데이터 점검·설정] → [eloboard 선수].</p>'
-      : '');
+    }).join('') + (/^online-/.test(slug)
+      // 온라인 CG 4종: 값은 대본(Google 문서)에서 — 쓰는 대본 경기를 보여 준다 (scriptMaps)
+      ? '<p class="hint" id="pScript"></p>' : '');
     var linked = tpl.params.some(function (p) { return p.auto_from; });
     $('pHint').textContent = linked ? '선수를 고르면 상대 종족이 서로의 종족으로 자동 선택됩니다. 필요하면 바꾸세요.' : '';
     pageRecords();
+    scriptMaps();
+  }
+
+  /** 대본에서 두 선수의 경기 (문서 뒤쪽 = 최신, 선수 순서 무관). 없으면 null */
+  function scriptSection(a, b) {
+    var list = S.script || [];
+    for (var i = list.length - 1; i >= 0; i--) {
+      var x = list[i];
+      if (a && b && ((x.a === a && x.b === b) || (x.a === b && x.b === a))) { return x; }
+    }
+    return null;
+  }
+
+  /** 온라인 CG: 쓰는 대본 경기 표시 + 대본 맵 칸 채우기 (맵별 CG — 밴 맵은 맵 온라인 전적에서 뺌) */
+  function scriptMaps() {
+    var out = $('pScript');
+    if (!out) { return; }
+    var val = function (k) { var x = $('pParams').querySelector('[data-key="' + k + '"]'); return x ? x.value : ''; };
+    var sec = scriptSection(val('a.player'), val('b.player'));
+    out.className = 'hint' + (sec ? '' : ' err');
+    out.textContent = sec ? '대본 ' + sec.key + ' 경기 값을 씁니다.' : (S.script_error
+      ? '대본을 쓸 수 없습니다: ' + S.script_error : '대본에 이 두 선수 경기가 없습니다. 데이터 설정의 대본 문서 주소·데이터 새로고침을 확인하세요.');
+    Array.prototype.forEach.call($('pParams').querySelectorAll('select[data-type="script_map"]'), function (sel) {
+      var cur = sel.value || sel.getAttribute('data-value') || '';
+      var noBan = $('pTemplate').value === 'online-map';
+      var list = sec ? sec.maps.filter(function (m) { return !(noBan && m.banned); }).map(function (m) {
+        return [m.name, m.name + (m.banned ? ' (밴)' : '')];
+      }) : [];
+      sel.innerHTML = options(withValue([['', '선택']].concat(list), cur, cur + ' (대본에 없음)'), cur);
+    });
   }
 
   /** 페이지 추가 창의 기록 후보: 지금 고른 A·B 선수와 경기일로 다시 불러온다 (고른 기록은 유지) */
@@ -754,32 +780,6 @@
     });
   }
 
-  function ymd(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
-
-  /** 기간 빠른 선택: 전체(빈 값) · 올해(1월 1일~오늘) · 최근 30일 */
-  function setPeriod(kind) {
-    var now = new Date(), from = '', to = '';
-    if (kind === 'year') { from = now.getFullYear() + '-01-01'; to = ymd(now); }
-    if (kind === '30') { from = ymd(new Date(now.getTime() - 30 * 86400000)); to = ymd(now); }
-    $('pParams').querySelector('[data-key="since"]').value = from;
-    $('pParams').querySelector('[data-key="until"]').value = to;
-  }
-
-  /** eloboard 조회 (누를 때만 접속). 결과는 자동값으로 저장되고 PREVIEW·PROGRAM은 바꾸지 않는다 */
-  function eloFetch() {
-    var btn = $('pEloFetch'), out = $('pElo');
-    btn.disabled = true;
-    out.className = 'hint';
-    out.textContent = 'eloboard 조회 중… (요청 사이 2초 간격)';
-    api('online_fetch', { template: $('pTemplate').value, params: readParams() }, true).then(function (r) {
-      out.className = 'hint' + (r.error ? ' err' : '');
-      out.textContent = r.info + (r.error ? ' — ' + r.error : '');
-    }, function (e) {
-      out.className = 'hint err';
-      out.textContent = (e.data && e.data.error) || '조회하지 못했습니다.';
-    }).then(function () { btn.disabled = false; });
-  }
-
   function readParams() {
     var out = {};
     tplBySlug($('pTemplate').value).params.forEach(function (p) {
@@ -818,7 +818,6 @@
     if (name === 'check') { loadCheck(); }
     if (name === 'players') { api('player_info').then(renderPlayerInfo); }
     if (name === 'maps') { api('map_info').then(renderMapInfo); }
-    if (name === 'elo') { api('eloboard_map').then(renderEloMap); }
     if (name === 'settings') { api('data_settings').then(renderSettings); }
   }
 
@@ -846,12 +845,14 @@
           + '<p>' + v(s.verified.sets, '세트 전적') + v(s.verified.matches, '끝장전 목록') + v(s.verified.predictions, '승자 예측')
           + v(s.verified.double, '더블 찬스') + v(s.verified.mission, '미션 지수') + v(s.verified.maps, '맵 상성')
           + v(s.verified.mapsets, '선수 맵 전적') + v(s.verified.prize, '총상금')
-          + (c.asl_games ? ' <span class="tag auto">ASL 기록 ' + c.asl_games + '세트</span>' : '') + '</p>'
+          + (c.asl_games ? ' <span class="tag auto">ASL 기록 ' + c.asl_games + '세트</span>' : '')
+          + (c.script_matches ? ' <span class="tag auto">대본 ' + c.script_matches + '경기</span>' : '') + '</p>'
           + s.unavailable.map(function (u) { return '<p class="notice err">' + esc(u) + '</p>'; }).join('')
           + (s.live || []).map(function (u) { return '<p class="notice">진행 중 경기: ' + esc(u) + '</p>'; }).join('')
           + (s.pending || []).map(function (u) { return '<p class="notice">' + esc(u) + '</p>'; }).join('')
           + (s.waiting || []).map(function (u) { return '<p class="notice">결과 대기 반영: ' + esc(u) + '</p>'; }).join('')
-          + (s.asl_notes || []).map(function (u) { return '<p class="notice">' + esc(u) + '</p>'; }).join('');
+          + (s.asl_notes || []).map(function (u) { return '<p class="notice">' + esc(u) + '</p>'; }).join('')
+          + (s.script_notes || []).map(function (u) { return '<p class="notice">' + esc(u) + '</p>'; }).join('');
       }
       $('dcSummary').innerHTML = html;
       $('dcMisCount').textContent = r.mismatches.length + '건';
@@ -890,16 +891,6 @@
     }).join('') || '<tr><td colspan="5" class="muted">선수 목록이 없습니다. 데이터를 먼저 불러오세요.</td></tr>';
   }
 
-  function renderEloMap(r) {
-    $('emNotAdmin').hidden = r.admin;
-    $('emBody').innerHTML = r.players.map(function (p) {
-      return '<tr data-player="' + esc(p.id) + '"><td>' + esc(p.name) + '</td><td>' + esc(p.race || '-') + '</td>'
-        + '<td><input type="text" class="elourl" maxlength="80" value="' + esc(p.elo ? 'https://eloboard.com/players/' + p.elo : '')
-        + '" placeholder="https://eloboard.com/players/숫자"' + (r.admin ? '' : ' disabled') + '></td>'
-        + '<td><button type="button" class="btn sm" data-act="elo"' + (r.admin ? '' : ' disabled') + '>저장</button></td></tr>';
-    }).join('') || '<tr><td colspan="4" class="muted">선수 목록이 없습니다. 데이터를 먼저 불러오세요.</td></tr>';
-  }
-
   function renderMapInfo(r) {
     var list = r.maps || r;
     $('miBody').innerHTML = list.map(function (m) {
@@ -925,6 +916,7 @@
     }).join('');
     $('dsSheet').value = r.sheet_id ? (r.admin ? 'https://docs.google.com/spreadsheets/d/' + r.sheet_id + '/edit' : r.sheet_id) : '';
     $('dsAslSheet').value = r.asl_sheet_id ? (r.admin ? 'https://docs.google.com/spreadsheets/d/' + r.asl_sheet_id + '/edit' : r.asl_sheet_id) : '';
+    $('dsScriptDoc').value = r.script_doc || '';
     TAB_INPUTS.forEach(function (x) { $(x[0]).value = (r.tabs || {})[x[1]] || ''; });
     $('dsKeyEmail').textContent = r.key_email || '없음';
     $('dsOpenssl').hidden = r.openssl;
@@ -935,7 +927,8 @@
   function saveSettings() {
     var tabs = {};
     TAB_INPUTS.forEach(function (x) { tabs[x[1]] = $(x[0]).value; });
-    return api('data_settings_save', { source: $('dsSource').value, sheet: $('dsSheet').value, asl_sheet: $('dsAslSheet').value, tabs: tabs })
+    return api('data_settings_save', { source: $('dsSource').value, sheet: $('dsSheet').value, asl_sheet: $('dsAslSheet').value,
+      script_doc: $('dsScriptDoc').value, tabs: tabs })
       .then(function (r) { renderSettings(r); toast('데이터 설정을 저장했습니다. [데이터 새로고침]으로 반영하세요.', 'ok'); });
   }
 
@@ -1138,12 +1131,6 @@
       api('player_info_save', { player: tr.getAttribute('data-player'), nickname: tr.querySelector('.nick').value })
         .then(function (r) { renderPlayerInfo(r); toast('닉네임을 저장했습니다.', 'ok'); });
     });
-    $('emBody').addEventListener('click', function (e) {
-      if (e.target.getAttribute('data-act') !== 'elo') { return; }
-      var tr = e.target.closest('tr');
-      api('eloboard_map_save', { player: tr.getAttribute('data-player'), url: tr.querySelector('.elourl').value })
-        .then(function (r) { renderEloMap(r); toast('eloboard 연결을 저장했습니다.', 'ok'); });
-    });
     $('miBody').addEventListener('click', function (e) {
       if (e.target.getAttribute('data-act') !== 'mapko') { return; }
       var tr = e.target.closest('tr');
@@ -1221,15 +1208,13 @@
       if (!editingPageId) { fillRaces(); }
     };
     $('pParams').addEventListener('click', function (e) {
-      var per = e.target.getAttribute('data-period');
-      if (per) { setPeriod(per); }
-      if (e.target.id === 'pEloFetch') { eloFetch(); }
     });
     $('pParams').addEventListener('change', function (e) {
       var pick = e.target.closest('.rec-pick');
       if (pick) { pickRecord(pick, e.target); return; }
       if (e.target.getAttribute('data-type') === 'player') { autoRace(e.target); }
       if (['player', 'date'].indexOf(e.target.getAttribute('data-type')) >= 0) { pageRecords(); }
+      if (e.target.getAttribute('data-type') === 'player') { scriptMaps(); }
     });
 
     $('rdBody').addEventListener('click', function (e) {

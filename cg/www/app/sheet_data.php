@@ -589,10 +589,21 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
     $check['asl_notes'] = $asl['notes'] ?? [];
     unset($asl['notes']);
 
+    // 대본 문서 (선택, script.php). 문제가 있으면 온라인 CG만 값이 비어 막히고 다른 데이터는 그대로 쓴다
+    $script = ['available' => false, 'error' => '대본 문서 주소가 설정되지 않았습니다', 'sections' => [], 'notes' => []];
+    if (isset($tables['script_error'])) {
+        $script['error'] = (string)$tables['script_error'];
+        $check['unavailable'][] = '대본 사용 불가: ' . $script['error'];
+    } elseif (isset($tables['script'])) {
+        $script = script_dataset($tables['script'], $players);
+    }
+    $check['script_notes'] = $script['notes'];
+    unset($script['notes']);
+
     $check['anomalies_all'] = $check['anomalies'];
     $check['counts'] = ['games' => count($games), 'matches' => count($matches), 'players' => count($players),
         'predictions' => count($predictions), 'nicknames' => $nickCount, 'maps' => count(stats_maps($games)), 'map_names' => count($mapNames),
-        'asl_games' => count($asl['games']), 'first_date' => $games ? min(array_column($games, 'date')) : null, 'last_date' => $games ? max(array_column($games, 'date')) : null];
+        'asl_games' => count($asl['games']), 'script_matches' => count($script['sections']), 'first_date' => $games ? min(array_column($games, 'date')) : null, 'last_date' => $games ? max(array_column($games, 'date')) : null];
 
     return dataset_finalize([
         'source' => 'sheet',
@@ -604,10 +615,11 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         'predictions' => $predictions,
         'predictors' => $predictors,
         'online' => [],
-        'online_available' => false,  // 온라인 기록은 시트에 없음 (eloboard 연동 전까지 수동 입력)
+        'online_available' => false,  // 온라인 기록은 시트에 없음 (온라인 CG는 대본 문서 값)
         'double_chance' => $double,   // 선수 => {wins, losses}
         'prize' => $prize,            // 선수 => [기본, 더블 찬스, 합계] (원, 끝난 경기 기준)
         'asl' => $asl,                // ASL 기록 {available, error, games, seasons, dupes}
+        'script' => $script,          // 대본 {available, error, sections} (온라인 CG 4종)
         'map_names' => $mapNames,     // 영문 => 한글 (맵 이름 탭)
         'verify' => $verify,
         'check' => $check,

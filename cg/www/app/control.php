@@ -607,6 +607,9 @@ function data_apply(array $ds, array $op, bool $fetched, bool $autoRefresh = fal
             $maps[(string)$map] = ['id' => (string)$map, 'name' => map_label($ds, (string)$map)] + $u;
         }
         setting_set('maps_cache', json_enc($maps));
+        // 대본 경기 구역 (페이지 추가 창의 대본 맵 목록·파라미터 검사·페이지 요약). 읽은 숫자만 — 문서 글은 없음
+        setting_set('script_cache', json_enc(($ds['script']['available'] ?? false) ? $ds['script']['sections'] : []));
+        setting_set('script_error', ($ds['script']['available'] ?? true) ? '' : (string)$ds['script']['error']);
         $pv = channel_get('preview');
         $changed = [];
         foreach (db_all('SELECT id FROM cg_instances ORDER BY id') as $r) {

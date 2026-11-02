@@ -171,12 +171,15 @@ function panel_state(array $op): array
         // 페이지 추가 대화상자는 템플릿의 params 정의로 입력칸을 만든다
         'templates' => array_map(static fn($t) => ['slug' => $t['slug'], 'name' => $t['name'], 'short' => $t['short'],
             'params' => array_map(static fn($p) => array_intersect_key(param_default_next($t['slug'], $p, $rundown),
-                array_flip(['key', 'label', 'type', 'auto_from', 'default_value', 'min', 'max', 'default'])), $t['params'])],
+                array_flip(['key', 'label', 'type', 'auto_from', 'default_value', 'min', 'max', 'default', 'options'])), $t['params'])],
             array_values(cg_templates())),
         'players' => array_values($players),
         'predictors' => array_values($ctx['predictors']),
         'years' => $ctx['years'],
         'maps' => array_values($ctx['maps']),
+        // 대본 경기 구역 (온라인 CG의 맵 목록·쓰는 경기 표시)
+        'script' => array_map(static fn($s) => ['key' => $s['key'], 'a' => $s['a'], 'b' => $s['b'], 'maps' => $s['maps']], $ctx['script']),
+        'script_error' => (string)setting_get('script_error', ''),
         'match' => match_view(),
         'rundown' => $rundown,
         'preview' => $preview,

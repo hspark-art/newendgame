@@ -40,7 +40,8 @@ function template_get(string $slug): array
 function template_ctx(): array
 {
     return ['players' => players_cache(), 'predictors' => json_dec(setting_get('predictors_cache', '{}')) ?: [],
-        'years' => json_dec(setting_get('years_cache', '[]')) ?: [], 'maps' => json_dec(setting_get('maps_cache', '{}')) ?: []];
+        'years' => json_dec(setting_get('years_cache', '[]')) ?: [], 'maps' => json_dec(setting_get('maps_cache', '{}')) ?: [],
+        'script' => json_dec(setting_get('script_cache', '[]')) ?: []];
 }
 
 /**
@@ -50,7 +51,7 @@ function template_ctx(): array
 function template_params(string $slug, array $in, array $players, array $ctx = []): array
 {
     $tpl = template_get($slug);
-    $ctx += ['players' => $players, 'predictors' => [], 'years' => [], 'maps' => []];
+    $ctx += ['players' => $players, 'predictors' => [], 'years' => [], 'maps' => [], 'script' => []];
     $out = [];
     foreach ($tpl['params'] as $p) {
         $raw = array_reduce(explode('.', $p['key']), static fn($c, $k) => is_array($c) ? ($c[$k] ?? null) : null, $in);
@@ -63,7 +64,7 @@ function template_params(string $slug, array $in, array $players, array $ctx = [
         unset($ref);
     }
     if (isset($tpl['check'])) {
-        $tpl['check']($out);
+        $tpl['check']($out, $ctx);
     }
     return $out;
 }
@@ -127,13 +128,19 @@ function param_value(array $p, mixed $raw, array $ctx): mixed
                 throw new ActionError('BAD_PARAMS', "$label: 날짜를 YYYY-MM-DD로 고르세요.", 422);
             }
             return $s;
-        case 'date_opt':
-            // 기간 (빈 값 = 전체)
+        case 'choice':
+            // 고르기: 보내지 않으면 기본값 (예전 페이지)
             if ($s === '') {
-                return '';
+                return $p['default'];
             }
-            if (!elo_date_ok($s)) {
-                throw new ActionError('BAD_PARAMS', "$label: 날짜를 YYYY-MM-DD로 고르세요. (비우면 전체)", 422);
+            if (!in_array($s, array_column($p['options'], 0), true)) {
+                throw new ActionError('BAD_PARAMS', "$label: 다시 고르세요.", 422);
+            }
+            return $s;
+        case 'script_map':
+            // 대본 맵 이름 (구역의 맵인지는 템플릿 check에서 — script_check_map)
+            if ($s === '' || mb_strlen($s) > 20) {
+                throw new ActionError('BAD_PARAMS', "$label: 맵을 선택하세요.", 422);
             }
             return $s;
         case 'record_slots':
