@@ -838,7 +838,7 @@
       } else {
         var c = s.counts;
         var v = function (ok, label) { return '<span class="tag ' + (ok ? 'auto">' : 'err">') + esc(label) + (ok ? ' 대조됨' : ' 대조 불가') + '</span> '; };
-        html = '<p><b>Google 시트' + (s.method === 'xlsx' ? ' (xlsx 파일)' : '') + '</b> · ' + esc(s.at) + '</p>'
+        html = '<p><b>Google 시트' + (s.format === 'new' ? ' 새 양식' : '') + (s.method === 'xlsx' ? ' (xlsx 파일)' : '') + '</b> · ' + esc(s.at) + '</p>'
           + '<p>세트 ' + c.games + ' · 끝장전 ' + c.matches + ' (통계 사용 ' + c.valid_matches + ') · 선수 ' + c.players
           + (c.nicknames ? ' (닉네임 ' + c.nicknames + '명)' : '')
           + ' · 예측 ' + c.predictions + (c.maps ? ' · 맵 ' + c.maps + (c.map_names ? ' (한글 ' + c.map_names + ')' : '') : '') + ' · 기간 ' + esc(c.first_date) + ' ~ ' + esc(c.last_date) + '</p>'
@@ -852,7 +852,8 @@
           + (s.pending || []).map(function (u) { return '<p class="notice">' + esc(u) + '</p>'; }).join('')
           + (s.waiting || []).map(function (u) { return '<p class="notice">결과 대기 반영: ' + esc(u) + '</p>'; }).join('')
           + (s.asl_notes || []).map(function (u) { return '<p class="notice">' + esc(u) + '</p>'; }).join('')
-          + (s.script_notes || []).map(function (u) { return '<p class="notice">' + esc(u) + '</p>'; }).join('');
+          + (s.script_notes || []).map(function (u) { return '<p class="notice">' + esc(u) + '</p>'; }).join('')
+          + (s.sheet_notes || []).map(function (u) { return '<p class="notice">새 양식: ' + esc(u) + '</p>'; }).join('');
       }
       $('dcSummary').innerHTML = html;
       $('dcMisCount').textContent = r.mismatches.length + '건';
@@ -915,6 +916,8 @@
       return '<option value="' + esc(k) + '"' + (k === r.source ? ' selected' : '') + '>' + esc(r.sources[k]) + '</option>';
     }).join('');
     $('dsSheet').value = r.sheet_id ? (r.admin ? 'https://docs.google.com/spreadsheets/d/' + r.sheet_id + '/edit' : r.sheet_id) : '';
+    $('dsFormat').value = r.sheet_format === 'new' ? 'new' : 'old';
+    $('dsNewSheet').value = r.new_sheet_id ? (r.admin ? 'https://docs.google.com/spreadsheets/d/' + r.new_sheet_id + '/edit' : r.new_sheet_id) : '';
     $('dsAslSheet').value = r.asl_sheet_id ? (r.admin ? 'https://docs.google.com/spreadsheets/d/' + r.asl_sheet_id + '/edit' : r.asl_sheet_id) : '';
     $('dsScriptDoc').value = r.script_doc || '';
     TAB_INPUTS.forEach(function (x) { $(x[0]).value = (r.tabs || {})[x[1]] || ''; });
@@ -928,6 +931,7 @@
     var tabs = {};
     TAB_INPUTS.forEach(function (x) { tabs[x[1]] = $(x[0]).value; });
     return api('data_settings_save', { source: $('dsSource').value, sheet: $('dsSheet').value, asl_sheet: $('dsAslSheet').value,
+      sheet_format: $('dsFormat').value, new_sheet: $('dsNewSheet').value,
       script_doc: $('dsScriptDoc').value, tabs: tabs })
       .then(function (r) { renderSettings(r); toast('데이터 설정을 저장했습니다. [데이터 새로고침]으로 반영하세요.', 'ok'); });
   }

@@ -158,6 +158,12 @@ function row_blank(array $row): bool
  */
 function sheet_dataset(array $tables, string $method, bool $serialDates = false): array
 {
+    // 새 양식 시트 (v0.12.0): 기존 양식과 같은 모양의 표로 바꿔 같은 계산·검증을 쓴다
+    $new = null;
+    if (isset($tables['new'])) {
+        $new = sheet_new_tables($tables['new']);
+        $tables = $new['tables'] + $tables;
+    }
     $lint = $dcErrors = $pending = $prizeErrors = [];
     $games = sheet_games($tables['results'] ?? [], $serialDates, $lint, $dcErrors, $pending, $prizeErrors);
     [$matches, $anomalies, $live] = sheet_matches($games, $pending);
@@ -491,16 +497,18 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
     $stats = isset($tables['stats']) ? sheet_stats_table($tables['stats']) : null;
     // CG: 끝난 경기만 (진행 중 경기는 더블 찬스 세트가 아직 안 끝났을 수 있다 — 시도 2회를 미리 세지 않음)
     $finished = array_values(array_filter($matches, static fn($m) => $m['anomaly_kind'] !== 'live'));
+    $dcCalc = static fn(array $ms) => isset($tables['dc_sets']) // 새 양식: 더블찬스 세트 승패 (sheet_new_double)
+        ? sheet_new_double($tables['dc_sets'], $ms) : sheet_double_chance($games, $ms, $adjust['rows'] ?? []);
     if ($dcErrors) {
         $check['unavailable'][] = '더블 찬스 사용 불가: ' . implode(', ', array_slice($dcErrors, 0, 3));
     } else {
         if ($adjust === null || $adjust['error'] !== null) {
             $check['unavailable'][] = '더블 찬스 보정 없이 계산: ' . ($adjust['error'] ?? '상금 보정 탭 없음');
         }
-        $double = sheet_double_chance($games, $finished, $adjust['rows'] ?? []);
+        $double = $dcCalc($finished);
         // 선수별 통계의 더블 시도 = COUNTIF(상대전적조회NEW 경기 목록) × 2 (실제 시트 수식 확인). 그 목록이 진행 중 경기를 넣는지는
         // 시트 스크립트에 달려 있어, 끝난 경기 기준 또는 진행 중 경기 포함 기준 중 하나와 같으면 일치로 본다
-        $doubleAll = count($finished) === count($matches) ? $double : sheet_double_chance($games, $matches, $adjust['rows'] ?? []);
+        $doubleAll = count($finished) === count($matches) ? $double : $dcCalc($matches);
         if ($stats === null || $stats['error'] !== null) {
             $check['unavailable'][] = '더블 찬스 검증 불가: ' . ($stats['error'] ?? '선수별 통계 탭 없음');
         } else {
@@ -539,6 +547,13 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         $adjPrize = $adjust['prize'] ?? [];
         $prize = sheet_prize($games, $liveIds, $adjPrize);
         $prizeAll = $liveIds ? sheet_prize($games, [], $adjPrize) : $prize;
+        if (isset($tables['prize_extra'])) { // 새 양식: 통계에서 뺀 이벤트 경기의 상금 (시트 총상금에 들어 있음)
+            $prize = sheet_prize_add($prize, $tables['prize_extra']);
+            $prizeAll = sheet_prize_add($prizeAll, $tables['prize_extra']);
+        }
+        // 새 양식 선수통계는 총상금 합계만 있다 → 합계만 대조
+        $samePrize = empty($tables['prize_total_only']) ? static fn(?array $s, array $c) => $s === $c
+            : static fn(?array $s, array $c) => $s !== null && $s[2] === $c[2];
         if ($adjust === null || $adjust['error'] !== null) {
             $check['unavailable'][] = '총상금 보정 없이 계산: ' . ($adjust['error'] ?? '상금 보정 탭 없음');
         }
@@ -548,19 +563,20 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         } else {
             $verify['prize']['available'] = true;
             $won = static fn(array $x) => number_format($x[2]) . '원 (기본 ' . number_format($x[0]) . ' · 더블 ' . number_format($x[1]) . ')';
+            $wonS = empty($tables['prize_total_only']) ? $won : static fn(array $x) => number_format($x[2]) . '원';
             foreach ($prize as $pid => $c) {
                 $pid = (string)$pid;
                 $s = $stats['prize'][$pid] ?? null;
                 $all = $prizeAll[$pid] ?? $c;
-                $okDone = $s !== null && $s === $c;
-                $okAll = !$okDone && $all !== $c && $s !== null && $s === $all;
+                $okDone = $s !== null && $samePrize($s, $c);
+                $okAll = !$okDone && $all !== $c && $s !== null && $samePrize($s, $all);
                 $verify['prize']['players'][$pid] = $okDone || $okAll;
                 if ($okAll) {
                     $check['waiting'][] = sprintf('총상금 %s: 끝난 경기 기준 %s (CG) / 시트 %s — 시트는 진행 중 경기도 셉니다',
                         $pid, number_format($c[2]) . '원', number_format($s[2]) . '원');
                 } elseif (!$okDone) {
                     $check['mismatches'][] = ['kind' => 'prize', 'who' => $pid, 'item' => '총상금',
-                        'sheet' => !array_key_exists($pid, $stats['prize']) ? '선수별 통계에 없음' : ($s === null ? '읽을 수 없음' : $won($s)),
+                        'sheet' => !array_key_exists($pid, $stats['prize']) ? '선수별 통계에 없음' : ($s === null ? '읽을 수 없음' : $wonS($s)),
                         'calc' => $won($c)];
                 }
             }
@@ -569,7 +585,7 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
                 $pid = (string)$pid;
                 if (!isset($prize[$pid]) && $s !== null && $s[2] > 0) {
                     $verify['prize']['extra'][] = $pid;
-                    $check['mismatches'][] = ['kind' => 'prize', 'who' => $pid, 'item' => '총상금', 'sheet' => $won($s), 'calc' => 'Results에 기록 없음'];
+                    $check['mismatches'][] = ['kind' => 'prize', 'who' => $pid, 'item' => '총상금', 'sheet' => $wonS($s), 'calc' => 'Results에 기록 없음'];
                 }
             }
         }
@@ -605,7 +621,7 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         'predictions' => count($predictions), 'nicknames' => $nickCount, 'maps' => count(stats_maps($games)), 'map_names' => count($mapNames),
         'asl_games' => count($asl['games']), 'script_matches' => count($script['sections']), 'first_date' => $games ? min(array_column($games, 'date')) : null, 'last_date' => $games ? max(array_column($games, 'date')) : null];
 
-    return dataset_finalize([
+    $ds = dataset_finalize([
         'source' => 'sheet',
         'mock' => false,
         'players' => $players,
@@ -624,6 +640,7 @@ function sheet_dataset(array $tables, string $method, bool $serialDates = false)
         'verify' => $verify,
         'check' => $check,
     ], []);
+    return $new === null ? $ds : sheet_new_finish($ds, $new['meta']);
 }
 
 /**
@@ -700,6 +717,36 @@ function sheet_double_chance(array $games, array $matches, array $adjust): array
     }
     ksort($out, SORT_STRING);
     return $out;
+}
+
+/**
+ * 새 양식 더블 찬스: 경기 => 선수 => [성공, 실패] 를 주어진 경기만 더한다 (경기에 나온 선수는 0회도 넣음).
+ * @return array<string, array{wins:int, losses:int, bad:bool}>
+ */
+function sheet_new_double(array $dcSets, array $matches): array
+{
+    $out = [];
+    foreach ($matches as $m) {
+        foreach ([$m['playerA'], $m['playerB']] as $p) {
+            $x = $dcSets[$m['id']][$p] ?? [];
+            $out[$p] ??= ['wins' => 0, 'losses' => 0, 'bad' => false];
+            $out[$p]['wins'] += $x[0] ?? 0;
+            $out[$p]['losses'] += $x[1] ?? 0;
+        }
+    }
+    ksort($out, SORT_STRING);
+    return $out;
+}
+
+/** 선수별 상금에 더한다 (새 양식 이벤트 경기). $extra = 선수 => [기본, 더블 찬스] */
+function sheet_prize_add(array $prize, array $extra): array
+{
+    foreach ($extra as $p => [$b, $d]) {
+        $x = $prize[$p] ?? [0, 0, 0];
+        $prize[$p] = [$x[0] + $b, $x[1] + $d, $x[2] + $b + $d];
+    }
+    ksort($prize, SORT_STRING);
+    return $prize;
 }
 
 /**
@@ -1531,4 +1578,465 @@ function asl_parse(array $rows): array
             . (count($dupes) > 20 ? ' …' : '');
     }
     return ['available' => true, 'error' => null, 'games' => $games, 'seasons' => $seasons, 'dupes' => $dupes, 'notes' => $notes];
+}
+
+// ---------------------------------------------------------------- 새 양식 시트 (v0.12.0)
+
+/** 새 양식 시트의 탭 (키 => 탭 이름). 열은 머리글 이름으로 찾는다 — 열 순서가 바뀌거나 열·탭이 늘어도 그대로 읽는다 */
+const SHEET_NEW_TABS = ['games' => '경기', 'sets' => '세트', 'predictions' => '예측', 'players' => '선수', 'maps' => '맵',
+    'casters' => '중계진', 'pstats' => '선수통계', 'mapstats' => '맵통계', 'ranking' => '예측순위', 'errors' => '오류'];
+const SHEET_NEW_RANGES = ['games' => ['A:DZ'], 'sets' => ['A:DZ'], 'predictions' => ['A:DZ'], 'players' => ['A:DZ'], 'maps' => ['A:DZ'],
+    'casters' => ['A:DZ'], 'pstats' => ['A:DZ'], 'mapstats' => ['A:DZ'], 'ranking' => ['A:DZ'], 'errors' => ['A:DZ']];
+const SHEET_NEW_REQUIRED = ['games', 'sets'];
+
+/**
+ * 머리글 행 찾기: 앞 $scan행 중 $need 이름이 모두 있는 첫 행. 같은 이름이 여러 번이면 첫 열.
+ * @return array{row:?int, cols:array<string,int>, missing:list<string>} cols = cell_key(이름) => 열
+ */
+function sheet_new_header(?array $rows, array $need, int $scan = 10): array
+{
+    $missing = $need;
+    foreach (array_slice($rows ?? [], 0, $scan, true) as $i => $row) {
+        $cols = [];
+        foreach ($row as $c => $v) {
+            $k = cell_key($v);
+            if ($k !== '' && !isset($cols[$k])) {
+                $cols[$k] = $c;
+            }
+        }
+        $miss = array_values(array_filter($need, static fn($n) => !isset($cols[cell_key($n)])));
+        if (!$miss) {
+            return ['row' => $i, 'cols' => $cols, 'missing' => []];
+        }
+        if (count($miss) < count($missing)) {
+            $missing = $miss;
+        }
+    }
+    return ['row' => null, 'cols' => [], 'missing' => $missing];
+}
+
+/** 머리글 이름으로 칸 값 (그 열이 없으면 '') */
+function sheet_new_cell(array $row, array $cols, string $name): mixed
+{
+    $c = $cols[cell_key($name)] ?? null;
+    return $c === null ? '' : ($row[$c] ?? '');
+}
+
+/**
+ * 새 양식 시트 → 기존 양식과 같은 모양의 표 (sheet_dataset이 그대로 계산·검증한다).
+ * - 세트 탭(시트가 경기 탭에서 자동으로 펼친 표, 1행 = 1세트)이 원본. 상태 '완료' = 세트, '결과 대기' = 결과 대기 행,
+ *   '미입력'(이벤트 경기의 치르지 않은 세트 등)은 조용히 건너뛴다. '통계 포함'이 X인 세트·경기(이벤트 경기)는 통계에서 뺀다.
+ * - 종족은 세트 탭의 승자종족·패자종족 (경기별 종족 변경이 반영된 값).
+ * - 더블 찬스: 성공 = 이긴 더블찬스 세트, 실패 = 진 더블찬스 세트, 경기 탭 더블찬스 보정은 성공(과 참여)에 더한다 (선수통계와 같은 기준).
+ * - 상금: 세트 상금(더블 세트는 기본 + 더블 찬스, 반씩), 경기 탭 상금·더블찬스 보정이 있는 경기는 경기 탭 A·B상금(보정 포함)으로 대신한다.
+ * - 검증: 선수통계(세트·매치 승패·상대 종족·더블 찬스·총상금), 경기 탭(끝장전 목록), 예측순위, 맵통계와 대조한다.
+ * @param array<string, ?list<array>> $t SHEET_NEW_TABS 키 => 행 목록
+ * @return array{tables:array, meta:array}
+ * @throws ProviderError 경기·세트 탭의 필수 머리글이 없거나 세트 상태 값을 읽을 수 없을 때
+ */
+function sheet_new_tables(array $t): array
+{
+    $need = [
+        'sets' => ['경기번호', '날짜', '세트', '맵', '승자', '패자', '승자종족', '패자종족', '상금', '더블세트', '상태', '통계 포함'],
+        'games' => ['경기번호', '날짜', '선수A', '선수B', 'A세트승', 'B세트승', '상태', '통계 포함', 'A상금', 'B상금',
+            'A상금 보정', 'B상금 보정', 'A더블찬스 보정', 'B더블찬스 보정'],
+    ];
+    $h = [];
+    foreach ($need as $k => $names) {
+        $h[$k] = sheet_new_header($t[$k] ?? null, $names);
+        if ($h[$k]['row'] === null) {
+            throw new ProviderError("새 양식 '" . SHEET_NEW_TABS[$k] . "' 탭의 머리글을 찾을 수 없습니다: " . implode(', ', $h[$k]['missing']));
+        }
+    }
+    $meta = ['names' => [], 'casters' => [], 'events' => [], 'notes' => [], 'lint' => [], 'match_wl' => null, 'prize_extra' => []];
+
+    // 세트 탭
+    $sc = $h['sets']['cols'];
+    $get = static fn(array $r, string $n) => sheet_new_cell($r, $sc, $n);
+    $done = $wait = $unit = $dcWon = $dcSets = $order = $mapDates = $mapRec = [];
+    $bad = [];
+    foreach ($t['sets'] as $i => $r) {
+        $id = cell_str($get($r, '경기번호'));
+        if ($i <= $h['sets']['row'] || $id === '') {
+            continue;
+        }
+        $state = cell_str($get($r, '상태'));
+        if ($state === '미입력') {
+            continue;
+        }
+        if (cell_key($get($r, '통계 포함')) === 'x') {
+            $meta['events'][$id] = true;
+            continue;
+        }
+        $order[$id] = true;
+        $map = $get($r, '맵');
+        $date = $get($r, '날짜');
+        if ($state === '결과 대기') {
+            $wait[$id][] = ['', '', '', '', $map, $date, '', ''];
+            continue;
+        }
+        if ($state !== '완료') {
+            $bad[] = '세트 탭 ' . ($i + 1) . "행: 상태 '" . mb_substr($state, 0, 10) . "'을(를) 읽을 수 없음 (완료·결과 대기·미입력)";
+            continue;
+        }
+        $w = $get($r, '승자');
+        $prize = money_norm($get($r, '상금'));
+        $dc = cell_key($get($r, '더블세트')) === 'o';
+        $dcp = $dc && $prize !== null ? intdiv($prize, 2) : null;
+        $base = $prize === null ? $get($r, '상금') : $prize - (int)$dcp;
+        $done[$id][] = [$w, $get($r, '승자종족'), $get($r, '패자'), $get($r, '패자종족'), $map, $date, $base, $dcp ?? ''];
+        $unit[$id] ??= $prize === null ? null : ($dc ? $dcp : $prize);
+        if ($dc && ($wn = name_norm($w)) !== null) {
+            $dcWon[$id][$wn] = ($dcWon[$id][$wn] ?? 0) + 1;
+        }
+        if ($dc && ($wn = name_norm($w)) !== null && ($ln = name_norm($get($r, '패자'))) !== null) {
+            $pair = [$wn, $ln];
+            sort($pair, SORT_STRING);
+            $mk = (date_norm($date, true) ?? cell_str($date)) . '|' . implode('|', $pair);
+            $dcSets[$mk][$wn][0] = ($dcSets[$mk][$wn][0] ?? 0) + 1;
+            $dcSets[$mk][$ln][1] = ($dcSets[$mk][$ln][1] ?? 0) + 1;
+        }
+        $m = cell_str($map);
+        foreach ([[$w, 0], [$get($r, '패자'), 1]] as [$p, $k]) {
+            if ($m !== '' && ($p = name_norm($p)) !== null) {
+                $mapRec[$p][$m][$k] = ($mapRec[$p][$m][$k] ?? 0) + 1;
+            }
+        }
+        if ($m !== '' && ($d = date_norm($date, true)) !== null) {
+            $mapDates[$m][] = $d;
+        }
+    }
+    if ($bad) {
+        throw new ProviderError('새 양식 세트 탭 형식 오류 ' . count($bad) . '건 — 시트를 고친 뒤 다시 불러오세요', array_slice($bad, 0, 30));
+    }
+    // Results 모양으로: 끝난 경기 → 마지막으로 결과 대기 행이 있는 경기(진행 중) → 나머지 결과 대기 행 (sheet_matches의 진행 중 판단과 같은 순서)
+    $live = null;
+    foreach (array_keys($order) as $id) {
+        if (isset($wait[$id], $done[$id])) {
+            $live = $id;
+        }
+    }
+    $results = [['Winner', 'Race', 'Loser', 'Race', 'Map', 'Date', 'Prize', 'Double Chance']];
+    foreach (array_keys($order) as $id) {
+        if ($id !== $live) {
+            array_push($results, ...($done[$id] ?? []));
+        }
+    }
+    if ($live !== null) {
+        array_push($results, ...$done[$live], ...$wait[$live]);
+    }
+    foreach ($wait as $id => $rows) {
+        if ($id !== $live) {
+            array_push($results, ...$rows);
+        }
+    }
+
+    // 경기 탭: 끝장전 목록(검증), 상금·더블 찬스 보정, 이벤트 경기 상금
+    $gc = $h['games']['cols'];
+    $g = static fn(array $r, string $n) => sheet_new_cell($r, $gc, $n);
+    $list = [['출전 날짜', '요일', '출전 선수', '종족', '상대 선수', '종족', '승(세트)', '패(세트)']];
+    $day = [];
+    foreach ($t['games'] as $i => $r) {
+        $id = cell_str($g($r, '경기번호'));
+        if ($i <= $h['games']['row'] || $id === '' || cell_str($g($r, '상태')) !== '종료') {
+            continue;
+        }
+        $a = name_norm($g($r, '선수A'));
+        $b = name_norm($g($r, '선수B'));
+        if ($a === null || $b === null) {
+            continue;
+        }
+        if (cell_key($g($r, '통계 포함')) === 'x') {
+            $meta['events'][$id] = true;
+            foreach (['A' => $a, 'B' => $b] as $s => $p) {
+                $meta['prize_extra'][$p][0] = ($meta['prize_extra'][$p][0] ?? 0) + (int)money_norm($g($r, "{$s}상금"));
+                $meta['prize_extra'][$p][1] = 0;
+            }
+            continue;
+        }
+        // 종족: 경기별 종족 열(있고 값이 있으면) → A종족·B종족 열 → 세트 탭에서 그 선수가 쓴 종족
+        $race = static function (string $s, string $p) use ($g, $r, $done, $id): string {
+            foreach (["{$s}종족(경기)", "{$s}종족"] as $col) {
+                $v = strtoupper(cell_str($g($r, $col)));
+                if ($v !== '') {
+                    return $v;
+                }
+            }
+            foreach ($done[$id] ?? [] as $x) {
+                if (name_norm($x[0]) === $p || name_norm($x[2]) === $p) {
+                    return strtoupper(cell_str(name_norm($x[0]) === $p ? $x[1] : $x[3]));
+                }
+            }
+            return '';
+        };
+        $ra = $race('A', $a);
+        $rb = $race('B', $b);
+        $date = $g($r, '날짜');
+        $pair = [$a, $b];
+        sort($pair, SORT_STRING);
+        $mk = (date_norm($date, true) ?? cell_str($date)) . '|' . implode('|', $pair);
+        $list[] = [$date, '', $a, $ra, $b, $rb, $g($r, 'A세트승'), $g($r, 'B세트승')];
+        $list[] = [$date, '', $b, $rb, $a, $ra, $g($r, 'B세트승'), $g($r, 'A세트승')];
+        foreach (['A' => $a, 'B' => $b] as $s => $p) {
+            $adjP = sint_norm(is_string($g($r, "{$s}상금 보정")) ? preg_replace('/[\s,₩￦원]/u', '', $g($r, "{$s}상금 보정")) : $g($r, "{$s}상금 보정")) ?? 0;
+            $adjD = sint_norm($g($r, "{$s}더블찬스 보정")) ?? 0;
+            if ($adjD !== 0) { // 선수통계: 더블찬스 성공·참여 모두 보정값만큼 더한다
+                $dcSets[$mk][$p][0] = ($dcSets[$mk][$p][0] ?? 0) + $adjD;
+            }
+            $c = max(0, min(2, ($dcWon[$id][$p] ?? 0) + $adjD));
+            $total = money_norm($g($r, "{$s}상금"));
+            $u = $unit[$id] ?? null;
+            $k = $p . '|' . (date_norm($date, true) ?? cell_str($date));
+            $day[$k] ??= ['date' => $date, 'p' => $p, 'base' => 0, 'dc' => 0, 'n' => 0, 'adj' => false, 'ok' => true];
+            if ($total === null || $u === null) {
+                $day[$k]['ok'] = false;
+            } else {
+                $day[$k]['base'] += $total - $c * $u;
+                $day[$k]['dc'] += $c * $u;
+            }
+            $day[$k]['n'] += $c;
+            $day[$k]['adj'] = $day[$k]['adj'] || $adjP !== 0 || $adjD !== 0;
+        }
+    }
+    $adjust = [['날짜', '선수명', '기본 상금', '더블 찬스 상금', '더블 찬스 횟수']];
+    foreach ($day as $x) {
+        if ($x['adj']) {
+            $adjust[] = [$x['date'], $x['p'], $x['ok'] ? $x['base'] : '', $x['ok'] ? $x['dc'] : '', $x['n']];
+        }
+    }
+
+    $used = [];
+    foreach ($results as $i => $r) {
+        if ($i > 0 && ($p = name_norm($r[0])) !== null) {
+            $used[$p] = true;
+            $used[(string)name_norm($r[2])] = true;
+        }
+    }
+
+    // 선수 탭: 표시 이름·종족·닉네임
+    $races = [];
+    $nicks = [['선수명', '닉네임']];
+    $ph = sheet_new_header($t['players'] ?? null, ['구분 이름', '표시 이름', '종족', '닉네임']);
+    if ($ph['row'] === null) {
+        $meta['notes'][] = "선수 탭 머리글(" . implode(', ', $ph['missing']) . ")을 찾을 수 없어 표시 이름·종족·닉네임을 쓰지 않았습니다";
+    } else {
+        foreach ($t['players'] as $i => $r) {
+            $p = name_norm(sheet_new_cell($r, $ph['cols'], '구분 이름'));
+            if ($i <= $ph['row'] || $p === null) {
+                continue;
+            }
+            $disp = name_norm(sheet_new_cell($r, $ph['cols'], '표시 이름'));
+            if ($disp !== null && $disp !== $p) {
+                $meta['names'][$p] = $disp;
+            }
+            $races[$p] = strtoupper(cell_str(sheet_new_cell($r, $ph['cols'], '종족')));
+            $nick = sheet_new_cell($r, $ph['cols'], '닉네임');
+            if (isset($used[$p]) && cell_str($nick) !== '') {
+                $nicks[] = [$p, $nick];
+            }
+        }
+    }
+
+    // 선수통계 탭 → Players(세트 전적)·선수별 통계(더블 찬스·총상금) 모양 + 매치 승패
+    $players = $stats = null;
+    $sh = sheet_new_header($t['pstats'] ?? null, ['구분 이름', '매치 승', '매치 패', '세트 승', '세트 패', 'vsT 세트승', 'vsT 세트패',
+        'vsZ 세트승', 'vsZ 세트패', 'vsP 세트승', 'vsP 세트패', '더블찬스 참여', '더블찬스 성공', '총상금']);
+    if ($sh['row'] === null) {
+        $meta['notes'][] = $t['pstats'] === null ? '선수통계 탭이 없습니다' : '선수통계 탭 머리글(' . implode(', ', $sh['missing']) . ')을 찾을 수 없습니다';
+    } else {
+        $players = [['', '', 'vs All', '', 'vs Zerg', '', 'vs Terran', '', 'vs Protoss', ''],
+            ['ID', 'Race', 'W', 'L', 'W', 'L', 'W', 'L', 'W', 'L']];
+        $stats = [['선수명', '기본 상금', '더블 찬스 상금', '합계 상금', '더블 성공 횟수', '더블 시도(총매치)']];
+        $meta['match_wl'] = [];
+        foreach ($t['pstats'] as $i => $r) {
+            $v = static fn(string $n) => sheet_new_cell($r, $sh['cols'], $n);
+            $p = name_norm($v('구분 이름'));
+            if ($i <= $sh['row'] || $p === null) {
+                continue;
+            }
+            $players[] = [$p, $races[$p] ?? '', $v('세트 승'), $v('세트 패'), $v('vsZ 세트승'), $v('vsZ 세트패'),
+                $v('vsT 세트승'), $v('vsT 세트패'), $v('vsP 세트승'), $v('vsP 세트패')];
+            $stats[] = [$p, 0, 0, $v('총상금'), $v('더블찬스 성공'), $v('더블찬스 참여')];
+            $mw = int_norm($v('매치 승'));
+            $ml = int_norm($v('매치 패'));
+            $meta['match_wl'][$p] = $mw === null || $ml === null ? null : [$mw, $ml];
+        }
+    }
+
+    // 예측 탭 + 예측순위 → 기존 예측 탭 모양 (왼쪽 기록, 오른쪽 순위표). 중계진은 '구분 이름'(예: 박상현 캐스터)
+    $pred = null;
+    $eh = sheet_new_header($t['predictions'] ?? null, ['세트', '중계진', '선택', '갯수', '날짜', '결과']);
+    if ($eh['row'] === null) {
+        $meta['notes'][] = $t['predictions'] === null ? '예측 탭이 없습니다' : '예측 탭 머리글(' . implode(', ', $eh['missing']) . ')을 찾을 수 없습니다';
+    } else {
+        $pred = [['날짜', '선수1', '선수2', '세트', '맵', '갯수', '중계진', '선택', '성공/실패', '', '이름', '전체', '승', '지수', '수익률']];
+        foreach ($t['predictions'] as $i => $r) {
+            $v = static fn(string $n) => sheet_new_cell($r, $eh['cols'], $n);
+            if ($i <= $eh['row'] || cell_str($v('중계진')) === '' && cell_str($v('결과')) === '') {
+                continue;
+            }
+            $res = cell_str($v('결과'));
+            $pred[] = [$v('날짜'), '', '', $v('세트'), '', $v('갯수'), $v('중계진'), $v('선택'), $res === '결과 대기' ? '' : $v('결과')];
+        }
+        $rh = sheet_new_header($t['ranking'] ?? null, ['중계진(구분)', '예측 수(완료)', '성공', '지수', '수익률']);
+        if ($rh['row'] !== null) {
+            $n = 1;
+            foreach ($t['ranking'] as $i => $r) {
+                $v = static fn(string $c) => sheet_new_cell($r, $rh['cols'], $c);
+                $who = predictor_name(cell_str($v('중계진(구분)')));
+                if ($i <= $rh['row'] || $who === null) {
+                    continue;
+                }
+                $pred[$n] ??= array_fill(0, 9, '');
+                $pred[$n] = array_pad($pred[$n], 10, '');
+                array_push($pred[$n], $who, $v('예측 수(완료)'), $v('성공'), $v('지수'), $v('수익률'));
+                $n++;
+            }
+        }
+    }
+    // 중계진 탭: 표시 이름
+    $ch = sheet_new_header($t['casters'] ?? null, ['구분 이름', '표시 이름']);
+    foreach ($ch['row'] === null ? [] : $t['casters'] as $i => $r) {
+        $id = predictor_name(cell_str(sheet_new_cell($r, $ch['cols'], '구분 이름')));
+        $disp = name_norm(sheet_new_cell($r, $ch['cols'], '표시 이름'));
+        if ($i > $ch['row'] && $id !== null && $disp !== null && $disp !== $id) {
+            $meta['casters'][$id] = $disp;
+        }
+    }
+
+    // 맵 탭: 한글 이름 (세트에 나온 맵만)
+    $mapNames = [['영문', '한글']];
+    $mh = sheet_new_header($t['maps'] ?? null, ['맵', '한글 이름']);
+    foreach ($mh['row'] === null ? [] : $t['maps'] as $i => $r) {
+        $m = cell_str(sheet_new_cell($r, $mh['cols'], '맵'));
+        if ($i > $mh['row'] && isset($mapDates[$m]) && cell_str(sheet_new_cell($r, $mh['cols'], '한글 이름')) !== '') {
+            $mapNames[] = [$m, sheet_new_cell($r, $mh['cols'], '한글 이름')];
+        }
+    }
+
+    // 맵통계 탭 → MAP 통계 모양 (사용일은 세트 탭에서). 매치업 행: 앞 종족 승·뒤 종족 승, 맵 전체 사용 횟수
+    $mapStats = null;
+    $th = sheet_new_header($t['mapstats'] ?? null, ['맵', '앞 종족', '뒤 종족', '앞 종족 승', '뒤 종족 승', '맵 전체 사용 횟수']);
+    if ($th['row'] === null) {
+        $meta['notes'][] = $t['mapstats'] === null ? '맵통계 탭이 없습니다' : '맵통계 탭 머리글(' . implode(', ', $th['missing']) . ')을 찾을 수 없습니다';
+    } else {
+        $agg = [];
+        $pairs = ['ZP' => ['Z', 'P'], 'TZ' => ['T', 'Z'], 'PT' => ['P', 'T']];
+        foreach ($t['mapstats'] as $i => $r) {
+            $v = static fn(string $c) => sheet_new_cell($r, $th['cols'], $c);
+            $m = cell_str($v('맵'));
+            if ($i <= $th['row'] || $m === '') {
+                continue;
+            }
+            $agg[$m]['sets'] = $v('맵 전체 사용 횟수');
+            $x = strtoupper(cell_str($v('앞 종족')));
+            $y = strtoupper(cell_str($v('뒤 종족')));
+            foreach ($pairs as $k => [$p, $q]) {
+                if ([$x, $y] === [$p, $q]) {
+                    $agg[$m][$k] = [$v('앞 종족 승'), $v('뒤 종족 승')];
+                } elseif ([$x, $y] === [$q, $p]) {
+                    $agg[$m][$k] = [$v('뒤 종족 승'), $v('앞 종족 승')];
+                }
+            }
+        }
+        $mapStats = [['#', '맵 이름', '총 세트', 'Z 승', 'P 승', '', 'T 승', 'Z 승', '', 'P 승', 'T 승', '', '최초 사용일', '최종 사용일']];
+        foreach ($agg as $m => $a) {
+            if ((int)int_norm($a['sets']) === 0 && !isset($mapDates[$m])) {
+                continue; // 아직 쓰지 않은 맵
+            }
+            $d = $mapDates[$m] ?? [];
+            $mapStats[] = ['', $m, $a['sets'], ...($a['ZP'] ?? [0, 0]), '', ...($a['TZ'] ?? [0, 0]), '', ...($a['PT'] ?? [0, 0]), '',
+                $d ? min($d) : '', $d ? max($d) : ''];
+        }
+    }
+    // 선수 맵 전적: 새 양식에는 따로 집계한 탭이 없어 세트 탭(시트가 펼친 표)의 승자·패자·맵으로 센다
+    $mapPlayers = [['선수명', '종족', '맵 이름', '세트', '승', '패']];
+    foreach ($mapRec as $p => $maps) {
+        foreach ($maps as $m => $x) {
+            $mapPlayers[] = [$p, '', $m, ($x[0] ?? 0) + ($x[1] ?? 0), $x[0] ?? 0, $x[1] ?? 0];
+        }
+    }
+
+    // 오류 탭: 시트가 스스로 찾은 입력 오류 → 시트 입력 점검 (CG를 막지 않음)
+    $oh = sheet_new_header($t['errors'] ?? null, ['탭', '행', '내용']);
+    foreach ($oh['row'] === null ? [] : $t['errors'] as $i => $r) {
+        $v = static fn(string $c) => cell_str(sheet_new_cell($r, $oh['cols'], $c));
+        if ($i <= $oh['row'] || $v('탭') === '' || $v('내용') === '') {
+            continue;
+        }
+        $row = (int)int_norm($v('행'));
+        $meta['lint'][] = ['row' => $row, 'text' => "시트 오류 탭: {$v('탭')} {$v('행')}행" . ($v('열 이름') !== '' ? " {$v('열 이름')}" : '')
+            . " — {$v('내용')}" . ($v('종류') !== '' ? " ({$v('종류')})" : '')];
+    }
+
+    return ['tables' => ['results' => $results, 'players' => $players, 'matches' => $list, 'predictions' => $pred, 'adjust' => $adjust,
+        'stats' => $stats, 'nicks' => $nicks, 'mapstats' => $mapStats, 'mapplayers' => $mapPlayers, 'mapnames' => $mapNames,
+        'prize_extra' => $meta['prize_extra'], 'prize_total_only' => true, 'dc_sets' => $dcSets], 'meta' => $meta];
+}
+
+/**
+ * 새 양식: 계산을 마친 데이터에 표시 이름·매치 승패 대조·안내를 더한다.
+ * 문구 속 기존 탭 이름은 새 양식 탭 이름으로 바꾼다 (Results 행 번호는 세트 탭을 변환한 순서).
+ */
+function sheet_new_finish(array $ds, array $meta): array
+{
+    foreach ($meta['names'] as $p => $disp) {
+        if (isset($ds['players'][$p])) {
+            $ds['players'][$p]['name'] = $disp;
+        }
+    }
+    foreach ($meta['casters'] as $id => $disp) {
+        if (isset($ds['predictors'][$id])) {
+            $ds['predictors'][$id]['name'] = $disp;
+        }
+    }
+    $c = &$ds['check'];
+    // 매치 승패 (선수통계): 통계에 쓰는 끝난 경기 기준
+    if ($meta['match_wl'] !== null && $ds['verify']['matches']['available']) {
+        $calc = [];
+        foreach ($ds['matches_all'] as $m) {
+            if ($m['anomaly'] !== null) {
+                continue;
+            }
+            $aWin = $m['scoreA'] > $m['scoreB'];
+            $calc[$m['playerA']][$aWin ? 0 : 1] = ($calc[$m['playerA']][$aWin ? 0 : 1] ?? 0) + 1;
+            $calc[$m['playerB']][$aWin ? 1 : 0] = ($calc[$m['playerB']][$aWin ? 1 : 0] ?? 0) + 1;
+        }
+        foreach ($calc as $pid => $x) {
+            $pid = (string)$pid;
+            $x = [$x[0] ?? 0, $x[1] ?? 0];
+            $s = $meta['match_wl'][$pid] ?? null;
+            if ($s !== $x) {
+                $ds['verify']['matches']['list_ok'][$pid] = false;
+                $c['mismatches'][] = ['kind' => 'matches', 'who' => $pid, 'item' => '매치 승패',
+                    'sheet' => $s === null ? '선수통계에 없음' : "{$s[0]}승 {$s[1]}패", 'calc' => "{$x[0]}승 {$x[1]}패"];
+            }
+        }
+    }
+    $rename = static fn(string $s) => strtr($s, ['상대전적조회NEW 탭' => '경기 탭', '상대전적조회NEW' => '경기 탭', 'MAP 선수별 전적 탭' => '세트 탭',
+        'MAP 선수별 전적' => '세트 탭', 'MAP 통계 탭' => '맵통계 탭', 'MAP 통계' => '맵통계', '선수별 통계 탭' => '선수통계 탭',
+        '선수별 통계' => '선수통계', 'Players 탭' => '선수통계 탭', '상금 보정 탭' => '경기 탭 보정 열', 'Results' => '세트(변환)']);
+    $c['unavailable'] = array_map($rename, $c['unavailable']);
+    $c['waiting'] = array_map($rename, $c['waiting']);
+    foreach (['anomalies_all', 'live', 'pending', 'lint'] as $k) {
+        foreach ($c[$k] as &$x) {
+            $x['text'] = $rename($x['text']);
+        }
+        unset($x);
+    }
+    foreach ($c['mismatches'] as &$x) {
+        $x['sheet'] = $rename($x['sheet']);
+        $x['calc'] = $rename($x['calc']);
+    }
+    unset($x);
+    array_push($c['lint'], ...$meta['lint']);
+    $c['format'] = 'new';
+    $c['sheet_notes'] = $meta['notes'];
+    if ($meta['events']) {
+        $c['sheet_notes'][] = '통계 포함 X(이벤트) 경기 ' . count($meta['events']) . '건은 통계에서 뺐습니다 (총상금에는 넣음): '
+            . implode(', ', array_slice(array_keys($meta['events']), 0, 10));
+    }
+    $c['sheet_notes'][] = '선수 맵 전적은 새 양식에 따로 집계한 탭이 없어 세트 탭 기준으로 확인합니다';
+    unset($c);
+    return dataset_finalize($ds, []);
 }

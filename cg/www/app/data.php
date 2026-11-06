@@ -29,19 +29,22 @@ function data_source(): string
 /** 시트를 자동으로 읽을 준비가 되었는지 (시트 주소·서비스 계정 키 등록). 아니면 패널이 자동 새로고침을 하지 않는다 */
 function data_ready(): bool
 {
-    return data_source() === 'mock' || (sheet_config()['id'] !== '' && is_file(google_key_path()));
+    $cfg = sheet_config();
+    return data_source() === 'mock' || (($cfg['format'] === 'new' ? $cfg['new_id'] : $cfg['id']) !== '' && is_file(google_key_path()));
 }
 
 /**
- * @return array{id:string, tabs:array<string,string>, asl_id:string, script_id:string, script_tab:string}
+ * @return array{id:string, tabs:array<string,string>, asl_id:string, script_id:string, script_tab:string, format:string, new_id:string}
  * asl_id = ASL 시트 ID, script_id·script_tab = 대본 문서 ID·탭 (모두 선택, 빈 값이면 읽지 않음)
+ * format = 시트 형식 'old'(기존, 기본) | 'new'(새 양식), new_id = 새 양식 시트 ID (v0.12.0)
  */
 function sheet_config(): array
 {
     $tabs = json_dec(setting_get('sheet_tabs', '{}')) ?: [];
     return ['id' => (string)setting_get('sheet_id', ''), 'tabs' => array_replace(SHEET_TABS_DEFAULT, array_intersect_key($tabs, SHEET_TABS_DEFAULT)),
         'asl_id' => (string)setting_get('asl_sheet_id', ''), 'script_id' => (string)setting_get('script_doc_id', ''),
-        'script_tab' => (string)setting_get('script_doc_tab', '')];
+        'script_tab' => (string)setting_get('script_doc_tab', ''),
+        'format' => setting_get('sheet_format', 'old') === 'new' ? 'new' : 'old', 'new_id' => (string)setting_get('new_sheet_id', '')];
 }
 
 // ---------------------------------------------------------------- 서비스 계정 키 (비밀 폴더)
@@ -322,6 +325,9 @@ function data_check_summary(array $ds, string $now): array
         'asl_notes' => array_slice($c['asl_notes'] ?? [], 0, 30),
         // 대본 안내 (승률 불일치·데이터에 없는 선수 등 — 그 값만 비움)
         'script_notes' => array_slice($c['script_notes'] ?? [], 0, 30),
+        // 새 양식 시트 (v0.12.0): 형식 표시·안내 (이벤트 경기 제외 등)
+        'format' => $c['format'] ?? 'old',
+        'sheet_notes' => array_slice($c['sheet_notes'] ?? [], 0, 30),
     ];
 }
 
@@ -353,6 +359,8 @@ function data_settings_view(array $op): array
         'admin' => $admin,
         'sheet_id' => $admin ? $cfg['id'] : ($cfg['id'] === '' ? '' : '설정됨'),
         'asl_sheet_id' => $admin ? $cfg['asl_id'] : ($cfg['asl_id'] === '' ? '' : '설정됨'),
+        'sheet_format' => $cfg['format'],
+        'new_sheet_id' => $admin ? $cfg['new_id'] : ($cfg['new_id'] === '' ? '' : '설정됨'),
         'script_doc' => $cfg['script_id'] === '' ? '' : ($admin ? 'https://docs.google.com/document/d/' . $cfg['script_id'] . '/edit'
             . ($cfg['script_tab'] === '' ? '' : '?tab=' . $cfg['script_tab']) : '설정됨'),
         'tabs' => $admin ? $cfg['tabs'] : [],
@@ -381,6 +389,16 @@ function data_settings_save(array $in, array $op): array
     if ($aslId === null) {
         throw new ActionError('BAD_SHEET', 'ASL 시트 주소 형식이 아닙니다. 주소창의 주소를 그대로 붙여 넣으세요.', 422);
     }
+    // 시트 형식·새 양식 시트 주소 (v0.12.0). 보내지 않으면 지금 값 유지
+    $format = (string)($in['sheet_format'] ?? sheet_config()['format']);
+    if (!in_array($format, ['old', 'new'], true)) {
+        throw new ActionError('BAD_SHEET', '알 수 없는 시트 형식입니다.', 422);
+    }
+    $newIn = array_key_exists('new_sheet', $in) ? trim((string)$in['new_sheet']) : null;
+    $newId = $newIn === null ? sheet_config()['new_id'] : ($newIn === '' ? '' : sheet_id_from($newIn));
+    if ($newId === null) {
+        throw new ActionError('BAD_SHEET', '새 양식 시트 주소 형식이 아닙니다. 주소창의 주소를 그대로 붙여 넣으세요.', 422);
+    }
     // 대본 문서 (선택). 보내지 않으면 지금 값 유지
     $scIn = array_key_exists('script_doc', $in) ? trim((string)$in['script_doc']) : null;
     $sc = $scIn === null ? ['id' => sheet_config()['script_id'], 'tab' => sheet_config()['script_tab']]
@@ -396,7 +414,7 @@ function data_settings_save(array $in, array $op): array
         }
         $tabs[$k] = $t;
     }
-    db_tx(function () use ($source, $id, $aslId, $sc, $tabs, $op) {
+    db_tx(function () use ($source, $id, $aslId, $sc, $tabs, $op, $format, $newId) {
         $prev = data_source();
         setting_set('data_source', $source);
         setting_set('sheet_id', $id);
@@ -404,7 +422,11 @@ function data_settings_save(array $in, array $op): array
         setting_set('script_doc_id', $sc['id']);
         setting_set('script_doc_tab', $sc['tab']);
         setting_set('sheet_tabs', json_enc($tabs));
-        cg_log('data', 'SOURCE_SET', $op, ['detail' => '데이터 소스: ' . data_sources()[$source] . ($prev !== $source ? ' (변경)' : '')]);
+        $prevFormat = sheet_config()['format'];
+        setting_set('sheet_format', $format);
+        setting_set('new_sheet_id', $newId);
+        cg_log('data', 'SOURCE_SET', $op, ['detail' => '데이터 소스: ' . data_sources()[$source] . ($prev !== $source ? ' (변경)' : '')
+            . ($format === 'new' || $prevFormat !== $format ? ' · 시트 형식: ' . ($format === 'new' ? '새 양식' : '기존') . ($prevFormat !== $format ? ' (변경)' : '') : '')]);
         state_bump();
     });
     return data_settings_view($op);
@@ -432,7 +454,9 @@ function data_import_xlsx(array $in, array $op): array
         throw new ActionError('BAD_FILE', '파일을 읽을 수 없습니다.', 422);
     }
     try {
-        $tables = xlsx_tables($bytes, sheet_config()['tabs']);
+        // 새 양식이면 새 양식 탭을 읽는다 (탭·열은 머리글 이름으로 찾음)
+        $tables = sheet_config()['format'] === 'new' ? ['new' => xlsx_tables($bytes, SHEET_NEW_TABS, SHEET_NEW_RANGES)]
+            : xlsx_tables($bytes, sheet_config()['tabs']);
         if (sheet_config()['asl_id'] !== '') {
             $tables['asl_error'] = 'xlsx 가져오기는 ASL 시트를 읽지 않습니다 (Google 시트 새로고침으로 불러오세요)';
         }

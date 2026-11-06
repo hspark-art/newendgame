@@ -238,7 +238,9 @@ $op = guard_control();
       <p class="notice" id="dsNotAdmin" hidden>데이터 설정은 관리자만 바꿀 수 있습니다.</p>
       <div id="dsForm">
         <label class="prm"><span>데이터 소스</span><select id="dsSource"></select></label>
-        <label class="prm"><span>Google 시트 주소</span><input type="text" id="dsSheet" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…"></label>
+        <label class="prm"><span>시트 형식</span><select id="dsFormat"><option value="old">기존 (Results 등)</option><option value="new">새 양식 (경기·세트·예측 탭)</option></select></label>
+        <label class="prm"><span>새 양식 시트 주소</span><input type="text" id="dsNewSheet" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/… (시트 형식이 새 양식일 때 읽음 · 같은 서비스 계정에 뷰어 공유)"></label>
+        <label class="prm"><span>Google 시트 주소 (기존)</span><input type="text" id="dsSheet" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…"></label>
         <label class="prm"><span>끝장전 기록 탭</span><input type="text" id="dsTabResults"></label>
         <label class="prm"><span>세트 집계 탭 (검증)</span><input type="text" id="dsTabPlayers"></label>
         <label class="prm"><span>끝장전 목록 탭 (검증)</span><input type="text" id="dsTabMatches"></label>

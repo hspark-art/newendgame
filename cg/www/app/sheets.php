@@ -189,13 +189,14 @@ function sheet_id_from(string $s): ?string
  * 시트에서 필요한 탭을 읽는다. Results 탭이 없으면 실패, 검증·예측 탭이 없으면 null (해당 기능만 검증 불가).
  * ASL 시트(asl_id)가 설정되어 있으면 '보기용' 탭도 읽는다 → asl(행 목록) 또는 asl_error(실패 사유).
  * 대본 문서(script_id)가 설정되어 있으면 읽는다 → script(경기 구역) 또는 script_error (script.php).
- * @param array{id:string, tabs:array<string,string>, asl_id?:string} $cfg
+ * 새 양식(format=new)이면 new_id 시트의 탭을 읽어 ['new' => 키 => 행 목록]으로 돌려준다 (sheet_dataset이 변환).
+ * @param array{id:string, tabs:array<string,string>, asl_id?:string, format?:string, new_id?:string} $cfg
  * @return array{results:list<array>, players:?list<array>, matches:?list<array>, predictions:?list<array>}
  */
 function sheets_fetch_tables(?array $cfg = null, ?array $key = null): array
 {
     $cfg ??= sheet_config();
-    if ($cfg['id'] === '') {
+    if ($cfg['id'] === '' && ($cfg['format'] ?? 'old') !== 'new') {
         throw new ProviderError('Google 시트 주소가 설정되지 않았습니다. 데이터 설정에서 입력하세요.');
     }
     $key ??= google_key_load();
@@ -203,31 +204,70 @@ function sheets_fetch_tables(?array $cfg = null, ?array $key = null): array
         throw new ProviderError('서비스 계정 키가 등록되지 않았습니다. 데이터 설정에서 키 파일을 등록하세요.');
     }
     $token = google_access_token($key);
-    $meta = sheets_get(rawurlencode($cfg['id']) . '?fields=' . rawurlencode('sheets.properties.title'), $token);
-    $titles = array_map(static fn($s) => (string)($s['properties']['title'] ?? ''), (array)($meta['sheets'] ?? []));
+    if (($cfg['format'] ?? 'old') === 'new') {
+        // 새 양식 시트 (v0.12.0): 탭·열은 머리글 이름으로 찾는다 (sheet_new_tables)
+        if (($cfg['new_id'] ?? '') === '') {
+            throw new ProviderError('새 양식 시트 주소가 설정되지 않았습니다. 데이터 설정에서 입력하세요.');
+        }
+        $tables = ['new' => sheets_batch_tables($cfg['new_id'], $token, SHEET_NEW_TABS, SHEET_NEW_RANGES, SHEET_NEW_REQUIRED)];
+    } else {
+        $tables = sheets_batch_tables($cfg['id'], $token, $cfg['tabs'] + SHEET_TABS_DEFAULT, SHEET_RANGES, ['results']);
+        $tables['results'] ??= [];
+    }
+    // ASL 시트 (선택, 같은 서비스 계정): 실패해도 끝장전 새로고침은 그대로 성공하고 ASL CG만 막는다 (sheet_dataset)
+    if (($cfg['asl_id'] ?? '') !== '') {
+        try {
+            $tables['asl'] = sheets_fetch_asl($cfg['asl_id'], $token);
+        } catch (ProviderError $e) {
+            $tables['asl_error'] = $e->getMessage();
+        }
+    }
+    // 대본 문서 (선택, 같은 서비스 계정·문서 읽기 전용 토큰): 실패해도 새로고침은 성공하고 온라인 CG만 막는다
+    if (($cfg['script_id'] ?? '') !== '') {
+        try {
+            $tables['script'] = script_fetch($key, $cfg['script_id'], $cfg['script_tab'] ?? '');
+        } catch (ProviderError $e) {
+            $tables['script_error'] = $e->getMessage();
+        }
+    }
+    return $tables;
+}
+
+/**
+ * 시트의 여러 탭을 한 번에 읽는다 (batchGet). 없는 탭은 null, $required 탭이 없으면 실패.
+ * @param array<string,string> $titles 키 => 탭 이름
+ * @param array<string,list<string>> $ranges 키 => 읽을 열 범위
+ * @return array<string, ?list<array>> 키 => 빈 칸을 ''로 채운 행 목록
+ */
+function sheets_batch_tables(string $id, string $token, array $titles, array $ranges, array $required): array
+{
+    $meta = sheets_get(rawurlencode($id) . '?fields=' . rawurlencode('sheets.properties.title'), $token);
+    $have = array_map(static fn($s) => (string)($s['properties']['title'] ?? ''), (array)($meta['sheets'] ?? []));
     $want = []; // [키, 시작 열, 범위]
-    foreach (SHEET_RANGES as $k => $cols) {
-        $title = $cfg['tabs'][$k] ?? SHEET_TABS_DEFAULT[$k];
-        if (in_array($title, $titles, true)) {
+    foreach ($ranges as $k => $cols) {
+        $title = $titles[$k];
+        if (in_array($title, $have, true)) {
             foreach ($cols as $c) {
                 $want[] = [$k, col_index($c), "'" . str_replace("'", "''", $title) . "'!" . $c];
             }
         }
     }
-    if (!in_array('results', array_column($want, 0), true)) {
-        throw new ProviderError("시트에 '" . ($cfg['tabs']['results'] ?? 'Results') . "' 탭이 없습니다. 탭 이름을 확인하세요.");
+    foreach ($required as $k) {
+        if (!in_array($k, array_column($want, 0), true)) {
+            throw new ProviderError("시트에 '" . $titles[$k] . "' 탭이 없습니다. 탭 이름을 확인하세요.");
+        }
     }
     $q = implode('&', array_map(static fn($w) => 'ranges=' . rawurlencode($w[2]), $want))
         . '&majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING';
-    $batch = sheets_get(rawurlencode($cfg['id']) . '/values:batchGet?' . $q, $token);
-    $ranges = (array)($batch['valueRanges'] ?? []);
-    if (count($ranges) !== count($want)) {
+    $batch = sheets_get(rawurlencode($id) . '/values:batchGet?' . $q, $token);
+    $vr = (array)($batch['valueRanges'] ?? []);
+    if (count($vr) !== count($want)) {
         throw new ProviderError('Google 시트 응답의 탭 수가 요청과 다릅니다.');
     }
-    $tables = array_fill_keys(array_keys(SHEET_RANGES), null);
+    $tables = array_fill_keys(array_keys($ranges), null);
     foreach ($want as $i => [$k, $offset]) {
         $tables[$k] ??= [];
-        foreach ((array)($ranges[$i]['values'] ?? []) as $r => $row) {
+        foreach ((array)($vr[$i]['values'] ?? []) as $r => $row) {
             foreach (is_array($row) ? array_values($row) : [] as $j => $v) {
                 $tables[$k][$r][$offset + $j] = $v;
             }
@@ -251,23 +291,6 @@ function sheets_fetch_tables(?array $cfg = null, ?array $key = null): array
             $list[] = $line;
         }
         $tables[$k] = $list;
-    }
-    $tables['results'] ??= [];
-    // ASL 시트 (선택, 같은 서비스 계정): 실패해도 끝장전 새로고침은 그대로 성공하고 ASL CG만 막는다 (sheet_dataset)
-    if (($cfg['asl_id'] ?? '') !== '') {
-        try {
-            $tables['asl'] = sheets_fetch_asl($cfg['asl_id'], $token);
-        } catch (ProviderError $e) {
-            $tables['asl_error'] = $e->getMessage();
-        }
-    }
-    // 대본 문서 (선택, 같은 서비스 계정·문서 읽기 전용 토큰): 실패해도 새로고침은 성공하고 온라인 CG만 막는다
-    if (($cfg['script_id'] ?? '') !== '') {
-        try {
-            $tables['script'] = script_fetch($key, $cfg['script_id'], $cfg['script_tab'] ?? '');
-        } catch (ProviderError $e) {
-            $tables['script_error'] = $e->getMessage();
-        }
     }
     return $tables;
 }

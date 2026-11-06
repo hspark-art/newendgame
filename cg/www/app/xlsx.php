@@ -12,9 +12,10 @@ const XLSX_MAX_UNPACKED = 80 * 1024 * 1024;   // 풀었을 때 합계
 
 /**
  * @param array<string,string> $tabs 키 => 탭 이름 (SHEET_TABS_DEFAULT 모양)
+ * @param ?array<string,list<string>> $ranges 키 => 읽을 열 (기본 SHEET_RANGES, 새 양식은 SHEET_NEW_RANGES)
  * @return array<string, ?list<array>> 키 => 행 목록 (탭이 없으면 null)
  */
-function xlsx_tables(string $bytes, array $tabs): array
+function xlsx_tables(string $bytes, array $tabs, ?array $ranges = null): array
 {
     if (!class_exists('ZipArchive')) {
         throw new ProviderError('이 PHP에 zip 확장이 없어 xlsx 파일을 읽을 수 없습니다. (php.ini의 extension=zip 확인)');
@@ -68,7 +69,7 @@ function xlsx_tables(string $bytes, array $tabs): array
             $file = $sheetFile[$title] ?? null;
             $sx = $file === null ? null : $xml($file);
             // Google API와 같은 열만 남긴다 (SHEET_RANGES 밖의 열은 버림)
-            $keep = array_map(static fn($c) => [col_index($c), col_index((string)substr($c, strpos($c, ':') + 1))], SHEET_RANGES[$k] ?? []);
+            $keep = array_map(static fn($c) => [col_index($c), col_index((string)substr($c, strpos($c, ':') + 1))], ($ranges ?? SHEET_RANGES)[$k] ?? []);
             $out[$k] = $sx === null ? null : xlsx_rows($sx, $strings, $dateStyles, $keep);
         }
         $zip->close();

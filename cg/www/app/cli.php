@@ -150,7 +150,8 @@ if ($v['status'] === 'no_manifest') {
 if ($dbReady) {
     $src = source_status();
     $sheet = sheet_config();
-    cli_line('안내', 'Google 시트: 주소 ' . ($sheet['id'] !== '' ? '설정됨' : '없음') . ' · 키 ' . (is_file(google_key_path()) ? '등록됨' : '없음')
+    cli_line('안내', 'Google 시트: 형식 ' . ($sheet['format'] === 'new' ? '새 양식' : '기존') . ' · 주소 '
+        . (($sheet['format'] === 'new' ? $sheet['new_id'] : $sheet['id']) !== '' ? '설정됨' : '없음') . ' · 키 ' . (is_file(google_key_path()) ? '등록됨' : '없음')
         . ' · 마지막 정상 ' . ($src['last_success_at'] ?? '없음') . ($src['status'] === 'ERROR' ? ' · 최근 새로고침 실패' : ''));
     // 실패 원인 (화면 표시용 문구 — 키·토큰은 들어 있지 않다)
     if ($src['status'] === 'ERROR' && (string)($src['last_error'] ?? '') !== '') {
