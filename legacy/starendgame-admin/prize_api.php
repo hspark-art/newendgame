@@ -135,8 +135,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = $body['act'] ?? $act;
 }
 
-// 로그인 확인 — 공개 리더보드 읽기(predict_public)만 로그인 없이 허용
-if (!admin_logged_in() && $act !== 'toto_public') {
+// 로그인 확인 — 모든 요청은 로그인 필요
+if (!admin_logged_in()) {
     http_response_code(401);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['error' => '로그인이 필요합니다']);
@@ -186,147 +186,6 @@ if ($act === 'overlay_set') {
     $ov['seq'] = (int)($cur['seq'] ?? 0) + 1;
     jwrite('overlay.json', $ov);
     out(['ok' => true, 'seq' => $ov['seq']]);
-}
-
-// ── 승부토토 — 하루 가상 포인트 배팅 (합동배당) ──────────────────
-// toto_day.json    오늘 상태 {date,open,players:{계정:{n,bal,betW,betL,bust}},round,rounds,feed}
-// toto_season.json 시즌 누적 {players:{계정:{n,days,champ,betW,betL,totalFinal,bestBal}},days:[]}
-// 규칙: '도전'=참여(10,000P) · '이름 금액' 첫 베팅 고정 · 배당=총풀/승자풀 ·
-//       승자 없으면 전원 환불 · 파산=그날 끝 · 하루 마감 때 시즌 누적
-if ($act === 'toto_get') {
-    out(['day' => jread('toto_day.json', null),
-         'season' => jread('toto_season.json', ['players' => [], 'days' => []])]);
-}
-if ($act === 'toto_save') {
-    jwrite('toto_day.json', $body['day'] ?? null);
-    out(['ok' => true]);
-}
-if ($act === 'toto_settle') {
-    // 정산은 서버가 단독 수행 — 서버에 같은 라운드가 있을 때만 (이중 정산 방지)
-    $day = $body['day'] ?? null;
-    $srv = jread('toto_day.json', null);
-    if (!$day || !$srv || !is_array($day['round'] ?? null)
-        || (string)(($srv['round']['id'] ?? '')) !== (string)($day['round']['id'] ?? '')) {
-        out(['error' => '정산할 베팅 라운드가 없습니다 (이미 정산됐을 수 있어요)'], 400);
-    }
-    $winner = (($body['winner'] ?? 'a') === 'b') ? 'b' : 'a';
-    $round = (array)$day['round'];
-    $bets = (array)($round['bets'] ?? []);
-    $pl = (array)($day['players'] ?? []);
-    $poolA = 0; $poolB = 0;
-    foreach ($bets as $v) { $v = (array)$v;
-        if ((($v['p'] ?? 'a')) === 'b') $poolB += (int)($v['amt'] ?? 0);
-        else $poolA += (int)($v['amt'] ?? 0); }
-    $total = $poolA + $poolB;
-    $pw = ($winner === 'a') ? $poolA : $poolB;
-    $refund = ($pw <= 0);                    // 승자 쪽에 아무도 없음 → 전원 환불
-    $odds = $refund ? 0 : round($total / max(1, $pw), 2);
-    $hit = 0; $top = [];
-    foreach ($bets as $bid => $v) {
-        $v = (array)$v; $amt = (int)($v['amt'] ?? 0);
-        $pick = (($v['p'] ?? 'a') === 'b') ? 'b' : 'a';
-        $p = (array)($pl[$bid] ?? ['n' => $v['n'] ?? '', 'bal' => 0, 'betW' => 0, 'betL' => 0, 'bust' => false]);
-        if ($refund) { $p['bal'] = (int)$p['bal'] + $amt; }
-        elseif ($pick === $winner) {
-            $gain = (int)floor($amt * $total / $pw);
-            $p['bal'] = (int)$p['bal'] + $gain;
-            $p['betW'] = (int)($p['betW'] ?? 0) + 1; $hit++;
-            $top[] = ['n' => (string)($p['n'] ?? ''), 'gain' => $gain - $amt];
-        } else { $p['betL'] = (int)($p['betL'] ?? 0) + 1; }
-        if ((int)$p['bal'] <= 0) { $p['bal'] = 0; $p['bust'] = true; }   // 파산 — 오늘 끝
-        $pl[$bid] = $p;
-    }
-    usort($top, function ($x, $y) { return $y['gain'] <=> $x['gain']; });
-    $day['players'] = $pl;
-    $rl = (array)($day['rounds'] ?? []);
-    array_unshift($rl, ['a' => (string)($round['a'] ?? ''), 'b' => (string)($round['b'] ?? ''),
-        'winner' => $winner, 'poolA' => $poolA, 'poolB' => $poolB, 'odds' => $odds,
-        'hit' => $hit, 'bets' => count($bets), 'refund' => $refund, 'at' => date('H:i')]);
-    $day['rounds'] = array_slice($rl, 0, 40);
-    $day['round'] = null;
-    $fd = (array)($day['feed'] ?? []);
-    $wname = ($winner === 'a') ? (string)($round['a'] ?? '') : (string)($round['b'] ?? '');
-    array_unshift($fd, ['type' => 'settle', 'at' => date('H:i:s'),
-        'msg' => $refund ? '⚖ 적중자 없음 — 전원 환불'
-                         : ('🏆 ' . $wname . ' 승 · 배당 ' . number_format($odds, 2) . '배 · 적중 ' . $hit . '명')]);
-    $day['feed'] = array_slice($fd, 0, 80);
-    jwrite('toto_day.json', $day);
-    out(['ok' => true, 'refund' => $refund, 'odds' => $odds, 'hit' => $hit, 'bets' => count($bets),
-         'poolA' => $poolA, 'poolB' => $poolB, 'wname' => $wname, 'top' => array_slice($top, 0, 5)]);
-}
-if ($act === 'toto_closeday') {
-    $day = $body['day'] ?? jread('toto_day.json', null);
-    if (!$day || !is_array($day['players'] ?? null) || !count((array)$day['players'])) {
-        out(['error' => '마감할 참가자가 없습니다'], 400);
-    }
-    $rows = [];
-    foreach ((array)$day['players'] as $pid => $p) { $p = (array)$p;
-        $rows[] = ['id' => (string)$pid, 'n' => (string)($p['n'] ?? ''), 'bal' => (int)($p['bal'] ?? 0),
-                   'betW' => (int)($p['betW'] ?? 0), 'betL' => (int)($p['betL'] ?? 0)]; }
-    usort($rows, function ($x, $y) { return $y['bal'] <=> $x['bal']; });
-    $season = jread('toto_season.json', ['players' => [], 'days' => []]);
-    $sp = (array)($season['players'] ?? []);
-    foreach ($rows as $i => $r) {
-        $s2 = (array)($sp[$r['id']] ?? ['n' => '', 'days' => 0, 'champ' => 0, 'betW' => 0,
-                                        'betL' => 0, 'totalFinal' => 0, 'bestBal' => 0]);
-        if ($r['n'] !== '') $s2['n'] = $r['n'];
-        $s2['days'] = (int)$s2['days'] + 1;
-        if ($i === 0) $s2['champ'] = (int)$s2['champ'] + 1;
-        $s2['betW'] = (int)$s2['betW'] + $r['betW'];
-        $s2['betL'] = (int)$s2['betL'] + $r['betL'];
-        $s2['totalFinal'] = (int)$s2['totalFinal'] + $r['bal'];
-        if ($r['bal'] > (int)$s2['bestBal']) $s2['bestBal'] = $r['bal'];
-        $sp[$r['id']] = $s2;
-    }
-    $season['players'] = $sp;
-    $days = (array)($season['days'] ?? []);
-    array_unshift($days, ['date' => (string)($day['date'] ?? date('Y-m-d')), 'entries' => count($rows),
-        'champ' => ['n' => $rows[0]['n'], 'bal' => $rows[0]['bal']],
-        'top' => array_map(function ($r) { return ['n' => $r['n'], 'bal' => $r['bal']]; }, array_slice($rows, 0, 5))]);
-    $season['days'] = array_slice($days, 0, 120);
-    jwrite('toto_season.json', $season);
-    jwrite('toto_day.json', null);
-    out(['ok' => true, 'entries' => count($rows),
-         'rank' => array_map(function ($r) { return ['n' => $r['n'], 'bal' => $r['bal']]; }, array_slice($rows, 0, 10))]);
-}
-if ($act === 'toto_public') {
-    // 공개 리더보드 — 로그인 불필요, 닉네임만 (계정 비공개)
-    $day = jread('toto_day.json', null);
-    $dayOut = null;
-    if (is_array($day)) {
-        $rows = [];
-        foreach ((array)($day['players'] ?? []) as $p) { $p = (array)$p;
-            $rows[] = ['n' => (string)($p['n'] ?? ''), 'bal' => (int)($p['bal'] ?? 0),
-                       'betW' => (int)($p['betW'] ?? 0), 'betL' => (int)($p['betL'] ?? 0),
-                       'bust' => !empty($p['bust'])]; }
-        usort($rows, function ($x, $y) { return $y['bal'] <=> $x['bal']; });
-        $roundPub = null;
-        if (is_array($day['round'] ?? null)) {
-            $r = (array)$day['round']; $pa = 0; $pb = 0; $nb = 0;
-            foreach ((array)($r['bets'] ?? []) as $v) { $v = (array)$v; $nb++;
-                if ((($v['p'] ?? 'a')) === 'b') $pb += (int)($v['amt'] ?? 0);
-                else $pa += (int)($v['amt'] ?? 0); }
-            $roundPub = ['a' => (string)($r['a'] ?? ''), 'b' => (string)($r['b'] ?? ''),
-                         'state' => (string)($r['state'] ?? ''), 'poolA' => $pa, 'poolB' => $pb, 'bets' => $nb];
-        }
-        $dayOut = ['date' => (string)($day['date'] ?? ''), 'open' => !empty($day['open']),
-            'entries' => count($rows), 'rows' => array_slice($rows, 0, 200), 'round' => $roundPub,
-            'rounds' => array_slice((array)($day['rounds'] ?? []), 0, 20),
-            'feed' => array_slice((array)($day['feed'] ?? []), 0, 40)];
-    }
-    $season = jread('toto_season.json', ['players' => [], 'days' => []]);
-    $sr = [];
-    foreach ((array)($season['players'] ?? []) as $p) { $p = (array)$p;
-        $w = (int)($p['betW'] ?? 0); $l = (int)($p['betL'] ?? 0);
-        $sr[] = ['n' => (string)($p['n'] ?? ''), 'days' => (int)($p['days'] ?? 0),
-                 'champ' => (int)($p['champ'] ?? 0), 'betW' => $w, 'betL' => $l,
-                 'rate' => ($w + $l) ? round($w * 100 / ($w + $l)) : 0,
-                 'totalFinal' => (int)($p['totalFinal'] ?? 0), 'bestBal' => (int)($p['bestBal'] ?? 0)]; }
-    usort($sr, function ($x, $y) {
-        return [$y['champ'], $y['totalFinal']] <=> [$x['champ'], $x['totalFinal']]; });
-    out(['day' => $dayOut,
-         'season' => ['players' => array_slice($sr, 0, 200),
-                      'days' => array_slice((array)($season['days'] ?? []), 0, 30)]]);
 }
 
 // ── 당첨자 장부 ──
@@ -594,20 +453,6 @@ if ($act === 'session_set') {
 }
 
 // ── 채팅 로그 — 방송 날짜별 파일에 이어 붙입니다 (초기화 전까지 보존) ──
-if ($act === 'toto_chatlog') {
-    // 승부예측 진행 중 전 채팅 원본 + 운영 이벤트 마커 (검증·분쟁 근거)
-    $date = preg_replace('/[^0-9-]/', '', (string)($body['date'] ?? date('Y-m-d')));
-    $lines = array_slice(is_array($body['lines'] ?? null) ? $body['lines'] : [], 0, 2000);
-    if ($lines && $date !== '') {
-        $txt = '';
-        foreach ($lines as $l) {
-            $txt .= json_encode($l, JSON_UNESCAPED_UNICODE) . "
-";
-        }
-        file_put_contents(PZ . '/toto_chatlog-' . $date . '.jsonl', $txt, FILE_APPEND | LOCK_EX);
-    }
-    out(['ok' => true]);
-}
 if ($act === 'chat_log') {
     $date = preg_replace('/[^0-9-]/', '', (string)($body['date'] ?? date('Y-m-d')));
     $lines = array_slice(is_array($body['lines'] ?? null) ? $body['lines'] : [], 0, 2000);
