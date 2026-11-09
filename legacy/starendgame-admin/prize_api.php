@@ -2,6 +2,7 @@
 // 상품 추첨 저장소 API — 로그인한 관리자만 쓸 수 있습니다.
 declare(strict_types=1);
 require __DIR__ . '/auth.php';
+require __DIR__ . '/winners_db.php';
 admin_boot();
 
 const PZ = __DIR__ . '/pz';
@@ -127,6 +128,19 @@ function note_check(string $cookie): array
                                : '로그인 세션이 아닙니다 — 쿠키를 다시 확인하세요'];
 }
 
+/** 당첨자 장부: SQLite(구글시트 자동 반영). DB 를 못 열면 예전 winners.json 으로 보여 줍니다. */
+function winners_state(): array
+{
+    try {
+        wdb_sync();
+        return wdb_list();
+    } catch (Throwable $e) {
+        $w = jread('winners.json', ['list' => []]);
+        $w['sheet'] = ['ok' => '', 'error' => $e->getMessage()];
+        return $w;
+    }
+}
+
 pz_boot();
 $act = $_GET['act'] ?? '';
 $body = [];
@@ -171,7 +185,7 @@ if ($act === 'live') {
 if ($act === 'state') {
     out([
         'prizes' => jread('prizes.json', ['items' => []]),
-        'winners' => jread('winners.json', ['list' => []]),
+        'winners' => winners_state(),
         'settings' => jread('settings.json', new stdClass()),
         'overlay' => jread('overlay.json', ['seq' => 0, 'kind' => 'none']),
         'session' => jread('session.json', ['on' => false, 'date' => '', 'startedAt' => '']),
@@ -188,48 +202,37 @@ if ($act === 'overlay_set') {
     out(['ok' => true, 'seq' => $ov['seq']]);
 }
 
-// ── 당첨자 장부 ──
+// ── 당첨자 장부 (SQLite) ──
+if (in_array($act, ['pick', 'winner_del', 'winner_update', 'fill_sids', 'sheet_sync'], true)) {
+    try {
+        wdb();
+    } catch (Throwable $e) {
+        out(['error' => $e->getMessage()], 500);
+    }
+}
 if ($act === 'pick') {
     $nick = trim((string)($body['nick'] ?? ''));
     if ($nick === '') {
         out(['error' => '닉네임이 없습니다'], 400);
     }
-    $w = jread('winners.json', ['list' => []]);
-    $w['list'][] = [
-        'id' => uniqid('w'),
-        'date' => $body['date'] ?? date('Y-m-d'),
-        'nick' => $nick,
-        'sid' => (string)($body['sid'] ?? ''),   // SOOP 아이디 (있으면 정확한 대조 키)
-        'prize' => (string)($body['prize'] ?? ''),
-        'how' => (string)($body['how'] ?? '지명'),
-        'at' => date('H:i'),
-    ];
-    jwrite('winners.json', $w);
+    wdb_add(['date' => (string)($body['date'] ?? date('Y-m-d')), 'nick' => $nick,
+        'sid' => (string)($body['sid'] ?? ''), 'prize' => (string)($body['prize'] ?? ''),
+        'how' => (string)($body['how'] ?? '지명')]);
     out(['ok' => true]);
 }
 if ($act === 'winner_del') {
-    $w = jread('winners.json', ['list' => []]);
-    $w['list'] = array_values(array_filter($w['list'],
-        fn($x) => ($x['id'] ?? '') !== ($body['id'] ?? '-')));
-    jwrite('winners.json', $w);
-    out(['ok' => true]);
+    $err = wdb_delete((string)($body['id'] ?? ''));
+    out($err ? ['error' => $err] : ['ok' => true]);
 }
 if ($act === 'winner_update') {
-    $w = jread('winners.json', ['list' => []]);
-    foreach ($w['list'] as &$x) {
-        if (($x['id'] ?? '') === ($body['id'] ?? '')) {
-            foreach (['date', 'nick', 'sid', 'prize', 'how', 'sent', 'memo'] as $k) {
-                if (array_key_exists($k, $body)) { $x[$k] = (string)$body[$k]; }
-            }
-            break;
-        }
-    }
-    unset($x);
-    jwrite('winners.json', $w);
-    out(['ok' => true]);
+    $err = wdb_update((string)($body['id'] ?? ''), $body);
+    out($err ? ['error' => $err] : ['ok' => true]);
+}
+if ($act === 'sheet_sync') {
+    out(wdb_sync(true));
 }
 if ($act === 'fill_sids') {
-    // 모든 방송의 uid(닉→SOOP아이디)를 모아, 비어 있는 SOOP계정을 닉으로 자동 채웁니다.
+    // 모든 방송의 uid(닉→SOOP아이디)를 모아, 관제 화면 기록 중 비어 있는 SOOP계정을 닉으로 자동 채웁니다.
     $map = [];
     foreach (glob(PZ . '/stats-*.json') ?: [] as $f) {
         $j = json_decode((string)@file_get_contents($f), true);
@@ -242,18 +245,15 @@ if ($act === 'fill_sids') {
             }
         }
     }
-    $w = jread('winners.json', ['list' => []]);
+    $rows = wdb()->query("SELECT id, nick FROM winners WHERE source = 'live' AND sid = ''")->fetchAll();
+    $up = wdb()->prepare('UPDATE winners SET sid = ? WHERE id = ?');
     $filled = 0;
-    foreach ($w['list'] as &$row) {
-        if (trim((string)($row['sid'] ?? '')) !== '') { continue; }
-        $nick = trim((string)($row['nick'] ?? ''));
-        if ($nick === '') { continue; }
-        $key = mb_strtolower(preg_replace('/\s+/u', '', $nick));
-        if ($key !== '' && isset($map[$key])) { $row['sid'] = $map[$key]; $filled++; }
+    foreach ($rows as $row) {
+        $key = mb_strtolower(preg_replace('/\s+/u', '', (string)$row['nick']));
+        if ($key !== '' && isset($map[$key])) { $up->execute([strtolower($map[$key]), $row['id']]); $filled++; }
     }
-    unset($row);
-    if ($filled > 0) { jwrite('winners.json', $w); }
-    out(['filled' => $filled, 'known' => count($map), 'total' => count($w['list'])]);
+    $total = (int)wdb()->query('SELECT COUNT(*) FROM winners')->fetchColumn();
+    out(['filled' => $filled, 'known' => count($map), 'total' => $total]);
 }
 if ($act === 'cumulative') {
     // 여러 방송(stats-날짜.json)을 모아 누적 순위를 냅니다.
