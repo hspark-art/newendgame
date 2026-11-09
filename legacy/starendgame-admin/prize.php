@@ -11,9 +11,10 @@ h1{font-size:18px;margin:4px 0 12px;display:flex;gap:10px;align-items:center;fle
 @media(max-width:1100px){.grid{grid-template-columns:1fr}}
 .card{background:#141821;border:1px solid #232a38;border-radius:12px;padding:12px;min-width:0}
 .ct{font-weight:800;margin-bottom:8px;display:flex;gap:8px;align-items:center}
-.ct .n{color:#8a93a6;font-weight:500;font-size:11.5px}
+.ct button{white-space:nowrap}
+.ct .n{color:#a3acbd;font-weight:500;font-size:12.5px}
 .scroll{overflow:auto;max-height:520px}
-#chat{resize:vertical;max-height:none;min-height:160px}   /* 아래 모서리 드래그로 높이 조절 */
+#chat{resize:vertical;max-height:none;min-height:160px;height:calc(100vh - 250px) !important}   /* 아래 모서리 드래그로 높이 조절 */
 #chatInner{width:100%}
 #chatInner .pill{font-size:calc(11px*var(--cz,1))}
 .chatzoom{display:flex;align-items:center;gap:8px;margin:2px 0 7px;font-size:12px;color:#8a93a6}
@@ -26,10 +27,13 @@ h1{font-size:18px;margin:4px 0 12px;display:flex;gap:10px;align-items:center;fle
 .gchip b{font-variant-numeric:tabular-nums;margin-left:1px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 td,th{padding:5px 7px;text-align:left;border-bottom:1px solid #171c25;white-space:nowrap}
-th{color:#8a93a6;font-size:11px}
+th{color:#a3acbd;font-size:12px}
 .num{text-align:right;font-variant-numeric:tabular-nums}
-.chatline{padding:3px 4px;border-bottom:1px solid #12161e;font-size:calc(13px*var(--cz,1));
-overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;border-radius:5px}
+.chatline{padding:4px 5px;border-bottom:1px solid #12161e;font-size:calc(14px*var(--cz,1));
+display:flex;align-items:center;gap:2px;white-space:nowrap;cursor:pointer;border-radius:5px}
+.chatline .cm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:#e8ecf3}
+.chatline .wend{flex:none;margin-left:6px;opacity:.9}
+.chatline .wend .wicon{margin:0 0 0 2px}
 .chatline:hover{background:#1a2130}
 .chatline b{color:#b9c1cf;font-weight:600}.balloon{color:#ffb020;font-weight:700}
 /* 등급 색은 채팅창 밖(시청자 활약표)에서도 같게 씁니다 — .chatline 안에 가두지 않습니다 */
@@ -59,7 +63,7 @@ border-radius:8px;padding:7px 9px;font-family:inherit;font-size:13px}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
 .warn{color:#ffb020;font-weight:700}.ok{color:#4ade80}
 .pill{background:#1b202b;border:1px solid #232a38;border-radius:999px;
-padding:2px 9px;font-size:11.5px;color:#8a93a6}
+padding:2px 9px;font-size:12px;color:#a3acbd}
 #kingChat td:nth-child(2),#kingBal td:nth-child(2){position:relative;z-index:0}
 .subhead{font-weight:800;font-size:13px;margin:10px 0 4px;color:#e8ecf3;display:flex;gap:7px;align-items:center}
 .subhead .n{color:#8a93a6;font-weight:500;font-size:11px}
@@ -68,7 +72,7 @@ background:linear-gradient(90deg,rgba(28,140,255,.30),rgba(255,176,32,.14));min-
 .live{color:#ff4d5a;font-weight:900}
 img.thumb{width:44px;height:44px;object-fit:cover;border-radius:8px;
 vertical-align:middle;margin-right:6px;background:#0a0d13}
-.hint{color:#8a93a6;font-size:11.5px;line-height:1.6;margin-top:6px}
+.hint{color:#9aa3b5;font-size:12.5px;line-height:1.6;margin-top:6px}
 hr{border-color:#232a38}
 a.top{color:#8a93a6;font-size:12.5px;text-decoration:none}
 a.top:hover{color:#e8ecf3}
@@ -83,6 +87,11 @@ padding:16px 18px;max-width:620px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.
 .chip.on{border-color:#1c8cff;color:#cfe6ff;background:#12283f}
 .rwrow{padding:3px 3px;border-bottom:1px solid #171c25;font-size:12.5px;
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#noteModal textarea{width:100%;min-height:190px;background:#1b202b;color:#e8ecf3;border:1px solid #232a38;border-radius:8px;padding:9px;font-family:inherit;font-size:13px;line-height:1.6}
+.nwrow{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #1d2431;cursor:pointer;font-size:13px}
+.nwrow:hover{background:#1a2130}.nwrow.sel{background:#12283f}
+.nsent{color:#4ade80;font-size:12px}
+.ubadge{cursor:pointer;color:#ffd98a;background:#2e2410;border:1px solid #5a4516;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700}
 body.maskacc .acc{filter:blur(6px);user-select:none;pointer-events:none}
 .px{background:transparent;color:#8a93a6;border:0;padding:2px 8px;font-weight:900;font-size:15px;cursor:pointer;line-height:1}
 .px:hover{color:#f87171}
@@ -121,12 +130,8 @@ body.maskacc .acc{filter:blur(6px);user-select:none;pointer-events:none}
 <a class="top" href="prize_overlay.php" target="_blank">📺 방송 장면 열기 ↗</a>
 <button class="gray" style="padding:4px 10px" onclick="openSettings()">⚙ 규칙 설정</button>
 <a class="top" href="cg.php">CG 제작 →</a>
+<a class="top" href="prize_sheet.php" style="color:#ffd166;font-weight:700">📒 당첨자 시트 (쪽지 일괄 발송) →</a>
 <span class="n">이 창을 켜 둔 동안만 채팅이 집계됩니다</span></div>
-<a href="prize_sheet.php" style="display:flex;align-items:center;gap:10px;margin:0 0 12px;
-padding:12px 16px;border-radius:12px;border:1px solid #2e3a52;text-decoration:none;
-background:linear-gradient(90deg,rgba(28,140,255,.16),rgba(255,198,61,.10));
-color:#e8ecf3;font-weight:800">&#128210; 당첨자 시트
-<span style="color:#8a93a6;font-weight:500;font-size:12.5px">날짜·상품별 정리 · SOOP계정 채우기 · 숲 쪽지 일괄 발송 →</span></a>
 <script>
 function goCh(v){
   if(v==='__demo'){location.href='prize.php?demo';return;}
@@ -140,7 +145,7 @@ function goCh(v){
 <button class="gray" style="margin-left:auto;padding:4px 10px" onclick="clearChat()" title="화면만 비웁니다 — 저장된 로그는 그대로 남습니다">채팅 지우기</button><button class="px" onclick="togglePanel('chat')" title="이 창 닫기">✕</button></div>
 <div class="chatzoom"><span>글자 크기</span><input id="chatZoom" type="range" min="50" max="200" step="10" value="100" oninput="applyChatZoom(this.value)" title="채팅 글자 크기 50%~200%"><span class="zval" id="chatZoomV">100%</span></div>
 <div class="gradebar" id="gradeBar"></div>
-<div class="scroll" id="chat" style="height:520px"><div id="chatInner"></div></div>
+<div class="scroll" id="chat"><div id="chatInner"></div></div>
 <div id="chatLegend" class="chatlegend" style="display:none"></div></div>
 
 <div class="card"><div class="ct" data-panel="users">시청자 활약 <span class="n">채팅왕 · 후원왕</span>
@@ -168,12 +173,8 @@ function goCh(v){
 <div id="dupwarn" class="hint"></div>
 <div class="row">
 <button onclick="manualPick()">지명 → 방송 장면</button>
-<button class="gray" onclick="plinko()">🎯 핀볼</button>
-<button class="gray" onclick="roulette()">🎡 룰렛</button>
-<button class="gray" onclick="kings()">👑 오늘의 왕</button>
-<button class="gray" onclick="clearOverlay()">장면 지우기</button></div>
-<div class="hint">자막은 <b>자막 창</b>(위 링크)에 나옵니다 — 방송 프로그램에서 그 창을
-잡으면 됩니다. 핀볼은 채팅·별풍선에 따라 확률이 조금 올라갑니다.</div>
+</div>
+<div class="hint">지명하면 방송 장면 창에 당첨 자막이 나옵니다. 채팅 이름 옆 ✉ 를 누르면 그 시청자에게 바로 상품 안내 쪽지를 보낼 수 있습니다.</div>
 <hr>
 <div class="ct" data-panel="prizes">상품 <span class="n">사진도 넣을 수 있습니다</span><button class="px" style="margin-left:auto" onclick="togglePanel('prizes')" title="이 창 닫기">✕</button></div>
 <div id="prizes"></div>
@@ -188,11 +189,11 @@ function goCh(v){
 <button class="gray" style="margin-left:auto;padding:4px 10px" onclick="copyLedger()">📋 복사</button>
 <button class="gray" style="padding:4px 10px" onclick="downloadLedger()">⬇ CSV</button><button class="px" onclick="togglePanel('winners')" title="이 창 닫기">✕</button></div>
 <div id="dupBanner" class="dupbanner" style="display:none"></div>
-<details id="unclaimedBox" style="display:none;margin:6px 0;border:1px solid #5a4516;background:#2e2410;border-radius:8px;padding:6px 10px"><summary style="cursor:pointer;color:#ffd98a;font-weight:700"></summary><div class="scroll" style="max-height:180px;margin-top:6px"><table><thead><tr><th>날짜</th><th>닉네임</th><th>SOOP계정</th><th>상품</th></tr></thead><tbody></tbody></table></div><div class="hint">당첨은 됐지만 수령 확인이 안 된 분들입니다 (예전 관제 기록에는 있고 구글시트 명단에는 없음). 수령이 확인되면 시트에 적어 주세요 — 몇 분 안에 여기서 빠집니다. 중복 당첨 판단에는 넣지 않습니다.</div></details>
+<details id="unclaimedBox" style="display:none;margin:4px 0"><summary class="ubadge" style="display:inline-block;list-style:none"></summary><div class="scroll" style="max-height:180px;margin-top:6px"><table><thead><tr><th>날짜</th><th>닉네임</th><th>SOOP계정</th><th>상품</th></tr></thead><tbody></tbody></table></div><div class="hint">당첨은 됐지만 수령 확인이 안 된 분들입니다 (예전 관제 기록에는 있고 구글시트 명단에는 없음). 수령이 확인되면 시트에 적어 주세요 — 몇 분 안에 여기서 빠집니다. 중복 당첨 판단에는 넣지 않습니다.</div></details>
 <div class="scroll" style="max-height:260px"><table id="winners"><thead><tr>
-<th>날짜</th><th>닉네임</th><th>SOOP계정</th><th>상품</th><th>방식</th><th></th>
+<th>날짜</th><th>닉네임</th><th>SOOP계정</th><th>상품</th><th></th>
 </tr></thead><tbody></tbody></table></div>
-<div class="hint">쪽지 ✉ 는 그 계정의 SOOP 방송국을 새 탭으로 엽니다(거기서 쪽지). 계정이
+<div class="hint">✉ 를 누르면 그 당첨 상품에 맞는 안내 쪽지를 바로 보냅니다 (✉✓ = 보냄). 계정이
 비었으면 ✏로 넣으세요 — 채팅·별풍선을 친 시청자는 자동으로 채워집니다.</div>
 <div class="row"><input id="wDate" placeholder="2026-08-13" style="width:104px">
 <input id="wNick" placeholder="닉네임" style="flex:1">
@@ -209,6 +210,23 @@ function goCh(v){
 </div>
 
 </div></div>
+<div id="noteModal" class="modal" style="display:none" onclick="if(event.target===this)closeNoteModal()">
+ <div class="modalbox" style="max-width:640px">
+  <div class="ct">✉ 상품 쪽지 <span class="n" id="nmWho"></span><span style="flex:1"></span>
+   <button class="gray" style="padding:4px 10px" onclick="closeNoteModal()">✕ 닫기</button></div>
+  <div class="subhead" style="margin-top:2px">당첨 기록 <span class="n">보낼 상품을 고르세요</span></div>
+  <div id="nmWins" class="scroll" style="max-height:170px"></div>
+  <div class="row"><span class="n">문안</span>
+   <select id="nmTpl" onchange="nmFill()"><option value="tax">제세공과금 (동의서 폼)</option><option value="free">비과세 (동의서 폼)</option><option value="code">코드 전달</option><option value="blank">직접 쓰기</option></select>
+   <span class="n" id="nmSess"></span></div>
+  <textarea id="nmText"></textarea>
+  <div class="row">
+   <button id="nmSend" onclick="nmSendServer()">🚀 서버로 바로 보내기</button>
+   <button class="gray" onclick="nmCopyOpen()">내용 복사 + 쪽지창 열기</button>
+   <button class="gray" onclick="nmMarkSent()">✅ 보냄 처리만</button></div>
+  <div id="nmStatus" class="hint"></div>
+ </div>
+</div>
 <div id="pastModal" class="modal" style="display:none" onclick="if(event.target===this)closePast()">
  <div class="modalbox">
   <div class="ct"><span id="pastTitle">지난 방송</span><span style="flex:1"></span>
@@ -485,7 +503,7 @@ function hasWonPrize(nick,prize){
   // 이 사람이 '이 상품'을 이미 받았는지 (닉 또는 SOOP계정 일치)
   if(!ST||!prize)return false;
   const n=norm(nick), sid=(uid[nick]||'').toLowerCase(), pn=norm(prize);
-  return ST.winners.list.some(w=>norm(w.prize)===pn &&
+  return ST.winners.list.some(w=>samePrize(w.prize,prize) &&
     (norm(w.nick)===n || (sid&&(w.sid||'').toLowerCase()===sid)));
 }
 function recentWin(nick){
@@ -502,30 +520,6 @@ function inGdoc(nick){
   const n=norm(nick);
   return gdoc.names.some(x=>norm(x)===n)||gdoc.names.some(x=>norm(x).includes(n)&&n.length>=2);
 }
-function drawPool(){
-  const prize=curPrize();
-  let pool=Object.keys(users).filter(n=>users[n].c+users[n].b>0);
-  if(prize)pool=pool.filter(n=>!hasWonPrize(n,prize));   // 같은 상품 중복 당첨 방지 (항상)
-  if(settings.excludeWinners)pool=pool.filter(n=>winCount(n)[0]===0);
-  if(settings.excludeWeeks)pool=pool.filter(n=>!recentWin(n));
-  return pool;
-}
-function pickFrom(pool){
-  if(!pool.length)return null;
-  const ws2=pool.map(weight), tot=ws2.reduce((a,b)=>a+b,0);
-  let r=Math.random()*tot;
-  for(let i=0;i<pool.length;i++){r-=ws2[i];if(r<=0)return pool[i];}
-  return pool[pool.length-1];
-}
-// 핀볼·룰렛 후보 슬롯 — 확률 높은 사람 위주로 채웁니다(당첨자 포함).
-function slotsFor(win,pool,k){
-  const others=pool.filter(n=>n!==win).sort((a,b)=>weight(b)-weight(a));
-  const top=others.slice(0,Math.max(0,k-1));
-  const slots=top.concat([win]);
-  for(let i=slots.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[slots[i],slots[j]]=[slots[j],slots[i]];}
-  return slots;
-}
-
 /* ── 서버 통신 ── */
 async function api(act,body){
   const r=await fetch('prize_api.php',{method:'POST',
@@ -544,28 +538,6 @@ async function manualPick(){
     photo:pz.photo||'',how:'지명'}});
   refresh();
 }
-async function draw(kind){
-  const pool=drawPool();
-  const win=pickFrom(pool);
-  if(!win)return alert('추첨할 시청자가 없습니다 (조건에 맞는 참가자가 없음)');
-  const slots=slotsFor(win,pool,kind==='roulette'?10:9);
-  const pz=prizeOf(document.getElementById('prizeSel').value)||{};
-  await api('pick',{nick:win,sid:uid[win]||'',prize:pz.name||'',how:(kind==='roulette'?'룰렛':'핀볼')+(IS_TEST_CH?'(연습)':'')});
-  await api('overlay_set',{overlay:{kind,winner:win,slots,prize:pz.name||'',photo:pz.photo||''}});
-  refresh();
-}
-const plinko=()=>draw('plinko');
-const roulette=()=>draw('roulette');
-async function kings(){
-  const arr=Object.entries(users);
-  if(!arr.length)return alert('아직 참가자가 없습니다');
-  const chatKing=arr.slice().sort((a,b)=>b[1].c-a[1].c)[0];
-  const balKing=arr.slice().sort((a,b)=>b[1].b-a[1].b)[0];
-  await api('overlay_set',{overlay:{kind:'kings',
-    chatNick:chatKing[0],chatN:chatKing[1].c,
-    balNick:balKing[0],balN:balKing[1].b}});
-}
-async function clearOverlay(){await api('overlay_set',{overlay:{kind:'none'}})}
 let photoData='';
 document.getElementById('pPhoto').addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;
@@ -684,6 +656,7 @@ function togglePanel(key){
 }
 function initPanels(){
   try{Object.assign(panelState,JSON.parse(localStorage.getItem('pzPanels')||'{}'));}catch(e){}
+  if(!('prizes' in panelState))panelState.prizes=true;   // 상품 창은 처음엔 접어 둠 (창 켜기·끄기에서 열기)
   PANELS.forEach(pr=>applyPanel(pr[0]));
   reflowGrid();renderPanelBar();
 }
@@ -726,12 +699,32 @@ function setDupM(m){dupMonths=m;try{localStorage.setItem('pzDupM',m);}catch(e){}
 const PCATS=[
   {k:'마우스패드',re:/마우스\s*패드|패드|gigantus|mousepad/i,c:'#a78bfa',i:'🟪'},
   {k:'마우스 화이트',re:/viper.*white|razer.*white|화이트/i,c:'#ffffff',i:'🖱️'},
-  {k:'마우스 CS2',re:/viper.*cs2|razer.*cs2/i,c:'#ffd166',i:'🖱️'},
+  {k:'마우스 CS2',re:/viper.*(cs2|counter\s*strike)|razer.*cs2/i,c:'#ffd166',i:'🖱️'},
   {k:'마우스 Faker',re:/faker|페이커/i,c:'#ff4d5a',i:'🖱️'},
   {k:'마우스',re:/마우스|viper|razer|mouse/i,c:'#4aa3ff',i:'🖱️'},
   {k:'유니폼',re:/유니폼|uniform|jamie/i,c:'#f87171',i:'👕'},
   {k:'안경',re:/안경|wearwhere|glass/i,c:'#4ade80',i:'👓'},
   {k:'쿠폰·코드',re:/쿠폰|포인트|코드|coupon|point|code/i,c:'#ffb020',i:'🎟️'}];
+/* 같은 상품의 다른 표기를 하나로 (서버 winners_db.php 의 wdb_prize 와 같은 규칙) */
+function canonPrize(p){
+  p=String(p||'').trim().replace(/\s+/g,' ');
+  if(/^wear\s*where/i.test(p))return 'Wearwhere 안경';
+  const k=p.toLowerCase().replace(/[^a-z0-9]/g,'');
+  if(/^(razer)?viperv3pro(faker)/.test(k))return 'Razer Viper V3 Pro Faker Edition';
+  if(/^(razer)?viperv3pro(cs2|counterstrike2)/.test(k))return 'Razer Viper V3 Pro Counter Strike 2 Edition';
+  if(/^(razer)?gigantusv2large(cs2|counterstrike2)/.test(k))return 'Razer Gigantus V2 Large Counter Strike 2 Edition';
+  if(/^(razer)?viperv3prowhite/.test(k))return 'Razer Viper V3 Pro White';
+  if(/^jamiewestuniform/.test(k))return 'Jamie West Uniform';
+  return p;
+}
+function samePrize(a,b){return norm(canonPrize(a))===norm(canonPrize(b));}
+/* 표에서 쓰는 짧은 이름 (전체 이름은 마우스를 올리면 보임) */
+function shortPrize(p){
+  const c=canonPrize(p);
+  return ({'Razer Viper V3 Pro White':'마우스 화이트','Razer Viper V3 Pro Faker Edition':'마우스 Faker',
+    'Razer Viper V3 Pro Counter Strike 2 Edition':'마우스 CS2','Razer Gigantus V2 Large Counter Strike 2 Edition':'패드 CS2',
+    'Jamie West Uniform':'유니폼','Wearwhere 안경':'안경'})[c]||c;
+}
 function prizeCat(p){for(const x of PCATS)if(x.re.test(p||''))return x;return{k:'기타',c:'#8a93a6',i:'🎁'};}
 let _rwSig='';
 async function showPastDay(date){
@@ -799,8 +792,8 @@ function findDups(){
   (ST.winners.list||[]).forEach(w=>{
     if(/연습/.test(w.how||'')||!w.prize)return;
     const person=(w.sid||'').toLowerCase()||norm(w.nick);
-    const key=person+'|'+norm(w.prize);
-    const m=map[key]||(map[key]={nick:w.nick,sid:w.sid||'',prize:w.prize,n:0,dates:[]});
+    const key=person+'|'+norm(canonPrize(w.prize));
+    const m=map[key]||(map[key]={nick:w.nick,sid:w.sid||'',prize:shortPrize(w.prize),n:0,dates:[]});
     m.n++; m.nick=w.nick; if(w.sid)m.sid=w.sid; if(w.date)m.dates.push(w.date);
   });
   return Object.values(map).filter(x=>x.n>=2).sort((a,b)=>b.n-a.n);
@@ -830,13 +823,13 @@ function renderDupBanner(){
 function renderChatLegend(){
   const el=document.getElementById('chatLegend'); if(!el||!ST)return;
   const byCat={};
-  const add=(name)=>{if(!name)return;const c=prizeCat(name);const b=byCat[c.k]||(byCat[c.k]={i:c.i,c:c.c,names:[]});if(!b.names.includes(name))b.names.push(name);};
+  const add=(name)=>{if(!name)return;name=canonPrize(name);const c=prizeCat(name);const b=byCat[c.k]||(byCat[c.k]={i:c.i,c:c.c,names:[]});if(!b.names.includes(name))b.names.push(name);};
   (ST.prizes.items||[]).forEach(x=>add(x.name));
   (ST.winners.list||[]).forEach(w=>add(w.prize));
   const keys=Object.keys(byCat);
   if(!keys.length){el.style.display='none';return;}
   el.style.display='';
-  el.innerHTML='<div class="hint" style="margin:0 0 3px">🎁 당첨 상품 아이콘 — 채팅 이름 옆에 뜹니다</div>'+
+  el.innerHTML='<div class="hint" style="margin:0 0 3px">🎁 당첨 상품 아이콘 — 채팅 줄 오른쪽 끝에 뜹니다</div>'+
     keys.map(k=>{const b=byCat[k];
       return '<div class="lgrow"><span class="wicon" style="background:'+b.c+'">'+b.i+'</span> <b style="color:'+b.c+'">'+esc(k)+'</b> '+
         '<span class="n" style="font-size:11px">'+esc(b.names.join(', '))+'</span></div>';}).join('');
@@ -939,7 +932,89 @@ function sendNote(id){
   window.open(url,'_blank','noopener');
   pzToast('✉ '+id+' 아이디 복사됨 · 쪽지 받는 사람에 붙여넣기(Ctrl+V)');
 }
-function dmBtn(e){return e.id?'<span class="dm" data-dm="'+esc(e.id)+'" title="쪽지: 아이디 복사 + SOOP 열기">✉</span>':'';}
+function dmBtn(e){return e.id?'<span class="dm" data-dm="'+esc(e.id)+'" data-dnick="'+esc(e.nick)+'" title="상품 쪽지 보내기">✉</span>':'';}
+/* ── 채팅에서 바로 상품 쪽지 ──────────────────────────────
+   ✉ → 그 시청자의 당첨 기록 중 하나를 골라 상품에 맞는 문안으로 바로 보냅니다.
+   서버 발송은 당첨자 시트에서 등록한 talent 세션을 그대로 씁니다. 보내면 그 당첨 기록에 '쪽지 보냄' 표시. */
+const NOTE_TAIL='\n\n위에 첨부된 구글폼 링크에 접속, 작성해주시면 됩니다.\n\n기타 문의 사항은 숲 중계진 계정으로 쪽지 혹은 help@etalent.co.kr 로 보내주시면 됩니다\n\n앞으로도 저희 스타 끝장전에 많은 시청과 사랑, 관심 부탁드립니다.\n감사합니다!';
+const NOTE_HEAD='안녕하세요.\n\n구글 플레이 x 스타 끝장전 시청자 이벤트 안내 드립니다.\n\n아래 링크의 폼을 작성해주세요.\n\n스타 끝장전 시청자 이벤트 개인정보 수집·이용에 관한 동의서\n';
+const NOTE_TPL={
+  tax:NOTE_HEAD+'링크 : https://forms.gle/AhPLwkWZwuNhkHn6A'+NOTE_TAIL,
+  free:NOTE_HEAD+'링크 : https://forms.gle/VLEkozjSJRVZije26'+NOTE_TAIL,
+  code:'안녕하세요. {nick}님! 주식회사 중계진입니다.\n\n금일 중계진 분들께서 전달 주신 구글 플레이 5000 포인트 코드 전달 드립니다\n\n코드 번호 : \n\n코드는 Google play 앱 -> 결제 및 정기 결제 -> 기프트 코드 사용 메뉴에서 등록할 수 있습니다.\n\n2026년 12월 31일 23:59에 만료되니 참고 부탁드립니다.\n\n항상 저희 끝장전 및 주식회사 중계진 콘텐츠에 관심과 성원 보내주셔서 감사합니다!',
+  blank:''};
+function noteTypeOf(prize){
+  if(/안경|유니폼|wearwhere|uniform|jamie/i.test(prize||''))return 'free';
+  if(/코드|쿠폰|포인트|code|coupon|point/i.test(prize||''))return 'code';
+  return 'tax';
+}
+let nm={nick:'',sid:'',wins:[],sel:null};
+function openNoteModal(nick,sid){
+  sid=String(sid||'').toLowerCase().replace(/\(\d+\)$/,'');
+  const nn=norm(nick);
+  const wins=(ST?ST.winners.list:[]).filter(w=>(sid&&(w.sid||'').toLowerCase()===sid)||(nn&&norm(w.nick)===nn))
+    .slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  nm={nick:nick||(wins[0]&&wins[0].nick)||sid,sid:sid||((wins[0]&&wins[0].sid)||''),wins,sel:null};
+  // 아직 쪽지를 안 보낸 가장 최근 당첨을 먼저 고름
+  nm.sel=(wins.find(w=>!w.sent)||wins[0]||null);
+  document.getElementById('nmWho').textContent=nm.nick+(nm.sid?' · '+nm.sid:'');
+  nmRenderWins();
+  document.getElementById('nmTpl').value=nm.sel?noteTypeOf(nm.sel.prize):'blank';
+  nmFill();
+  document.getElementById('nmStatus').textContent=nm.sid?'':'⚠ SOOP 아이디가 없어 보낼 수 없습니다.';
+  document.getElementById('nmSend').disabled=!nm.sid;
+  document.getElementById('noteModal').style.display='flex';
+  document.getElementById('nmSess').textContent='';
+  api('note_session_status',{}).then(j=>{
+    document.getElementById('nmSess').innerHTML=j&&j.has?'<span class="ok">세션 등록됨 ('+esc(j.savedAt||'')+')</span>'
+      :'<span class="warn">세션 없음 — <a class="top" href="prize_sheet.php">당첨자 시트</a>에서 talent 세션 등록</span>';
+    if(!(j&&j.has))document.getElementById('nmSend').disabled=true;
+  });
+}
+function closeNoteModal(){document.getElementById('noteModal').style.display='none';}
+function nmRenderWins(){
+  const host=document.getElementById('nmWins');
+  if(!nm.wins.length){host.innerHTML='<div class="hint">당첨 기록이 없습니다. 먼저 지명해서 당첨을 등록하거나, [직접 쓰기]로 보낼 수 있습니다.</div>';return;}
+  host.innerHTML=nm.wins.map((w,i)=>{const c=prizeCat(canonPrize(w.prize));
+    return '<div class="nwrow'+(w===nm.sel?' sel':'')+'" data-nw="'+i+'"><input type="radio" '+(w===nm.sel?'checked':'')+'>'+
+      '<span class="n">'+esc(w.date||'')+'</span><span class="wicon" style="background:'+c.c+'">'+c.i+'</span>'+
+      '<span style="flex:1" title="'+esc(w.prize)+'">'+esc(shortPrize(w.prize))+'</span>'+
+      (w.sent?'<span class="nsent">✉✓ '+esc(w.sent)+'</span>':'<span class="warn" style="font-size:12px">안 보냄</span>')+'</div>';}).join('');
+  host.querySelectorAll('[data-nw]').forEach(r=>r.onclick=()=>{nm.sel=nm.wins[+r.dataset.nw];nmRenderWins();
+    document.getElementById('nmTpl').value=noteTypeOf(nm.sel.prize);nmFill();});
+}
+function nmFill(){
+  const t=NOTE_TPL[document.getElementById('nmTpl').value]||'';
+  document.getElementById('nmText').value=t.replace(/\{nick\}/g,nm.nick).replace(/\{id\}/g,nm.sid)
+    .replace(/\{prize\}/g,nm.sel?nm.sel.prize:'').replace(/\{date\}/g,nm.sel?(nm.sel.date||''):'');
+}
+async function nmMark(){
+  if(!nm.sel)return;
+  await api('winner_update',{id:nm.sel.id,sent:todayStr()});
+  nm.sel.sent=todayStr();nmRenderWins();refresh();
+}
+async function nmSendServer(){
+  const content=document.getElementById('nmText').value.trim();
+  if(!nm.sid||!content)return alert('받는 사람과 쪽지 내용을 확인해 주세요.');
+  if(nm.sel&&nm.sel.sent&&!confirm('이 상품은 이미 쪽지를 보낸 기록이 있습니다 ('+nm.sel.sent+'). 다시 보낼까요?'))return;
+  if(!confirm(nm.nick+' ('+nm.sid+') 님에게 SOOP 쪽지를 보냅니다.'))return;
+  const st=document.getElementById('nmStatus'), btn=document.getElementById('nmSend');
+  btn.disabled=true;st.textContent='보내는 중…';
+  const r=await api('note_send',{to:nm.sid,content});
+  btn.disabled=false;
+  if(r&&r.ok){st.innerHTML='<span class="ok">✓ 보냈습니다'+(r.nick?' ('+esc(r.nick)+')':'')+'</span>';await nmMark();pzToast('✉ '+nm.nick+' 님에게 쪽지를 보냈습니다');}
+  else st.innerHTML='<span class="warn">✗ '+esc((r&&r.reason)||'실패')+'</span>';
+}
+function nmCopyOpen(){
+  const t=document.getElementById('nmText').value;
+  try{navigator.clipboard.writeText(t);}catch(e){}
+  window.open('https://note.sooplive.com/app/index.php?page=write','_blank','noopener');
+  document.getElementById('nmStatus').innerHTML='내용을 복사했습니다. 받는 사람에 <b>'+esc(nm.sid)+'</b> 를 넣고 붙여넣기(Ctrl+V) 하세요. 보낸 뒤 [✅ 보냄 처리만]을 눌러 주세요.';
+}
+async function nmMarkSent(){
+  if(!nm.sel)return alert('당첨 기록을 먼저 고르세요.');
+  await nmMark();document.getElementById('nmStatus').innerHTML='<span class="ok">✓ 보냄으로 표시했습니다</span>';
+}
 let _pzToastT;
 function pzToast(msg){
   let el=document.getElementById('pzToast');
@@ -997,7 +1072,7 @@ document.getElementById('prizeSel').addEventListener('change',dupCheck);
 document.getElementById('pickNick').addEventListener('keydown',function(e){if(e.key==='Enter')manualPick();});
 document.getElementById('chat').addEventListener('click',function(ev){
   const dm=ev.target.closest('[data-dm]');
-  if(dm){sendNote(dm.dataset.dm);return;}   // ✉ 클릭은 쪽지 (지명 안 함)
+  if(dm){openNoteModal(dm.dataset.dnick||'',dm.dataset.dm);return;}   // ✉ 클릭은 상품 쪽지 (지명 안 함)
   const line=ev.target.closest('.chatline[data-nick]');
   if(line&&line.dataset.nick)pickThis(line.dataset.nick);
 });
@@ -1012,9 +1087,9 @@ async function refresh(){
     '<option value="'+x.id+'">'+esc(x.name)+'</option>').join('');
   if([...sel.options].some(o=>o.value===cur))sel.value=cur;
   const givenCount={};
-  (ST.winners.list||[]).forEach(w=>{if(w.prize)givenCount[w.prize]=(givenCount[w.prize]||0)+1;});
+  (ST.winners.list||[]).forEach(w=>{if(w.prize){const k=norm(canonPrize(w.prize));givenCount[k]=(givenCount[k]||0)+1;}});
   document.getElementById('prizes').innerHTML=ST.prizes.items.map((x,i)=>{
-    const g=givenCount[x.name]||0;
+    const g=givenCount[norm(canonPrize(x.name))]||0;
     return '<div class="row">'+(x.photo?'<img class="thumb" src="'+x.photo+'">':'')+
     '<span style="flex:1">'+esc(x.name)+(g?' <span class="pill" style="color:#4ade80;border-color:#2c6b3f">✓ '+g+'회 지급</span>':'')+'</span>'+
     '<button class="gray" style="padding:3px 7px" data-mv="up" data-id="'+x.id+'"'+(i===0?' disabled':'')+'>▲</button>'+
@@ -1033,8 +1108,9 @@ async function refresh(){
   document.getElementById('wcount').textContent=wl.length+'건';
   const ul=ST.winners.unclaimed||[], ub=document.getElementById('unclaimedBox');
   ub.style.display=ul.length?'':'none';
-  ub.querySelector('summary').textContent='📭 미수령 '+ul.length+'건 — 당첨됐지만 수령 확인 안 됨';
-  ub.querySelector('tbody').innerHTML=ul.slice().reverse().map(w=>'<tr><td>'+esc(w.date)+'</td><td>'+esc(w.nick)+'</td><td class="pill acc" style="font-size:11px">'+esc(w.sid)+'</td><td>'+esc(w.prize)+'</td></tr>').join('');
+  ub.querySelector('summary').textContent='📭 미수령 '+ul.length;
+  ub.querySelector('summary').title='당첨됐지만 수령 확인이 안 된 분들 — 눌러서 보기';
+  ub.querySelector('tbody').innerHTML=ul.slice().reverse().map(w=>'<tr><td>'+esc(w.date)+'</td><td>'+esc(w.nick)+'</td><td class="pill acc" style="font-size:11px">'+esc(w.sid)+'</td><td title="'+esc(w.prize)+'">'+esc(shortPrize(w.prize))+'</td></tr>').join('');
   renderDupBanner();
   renderChatLegend();
   document.querySelector('#winners tbody').innerHTML=wl.slice().reverse().map(w=>{
@@ -1042,16 +1118,16 @@ async function refresh(){
     return '<tr><td>'+esc(w.date)+'</td><td><b>'+esc(w.nick)+'</b></td>'+
     '<td>'+(acc?'<span class="pill acc" style="font-size:11px">'+esc(acc)+'</span>'
       :'<span class="warn" style="font-size:11px">없음</span>')+'</td>'+
-    '<td>'+esc(w.prize)+'</td><td class="pill">'+esc(w.how||'')+'</td>'+
+    '<td title="'+esc(w.prize)+(w.how?' · '+esc(w.how):'')+'"><span class="wicon" style="background:'+prizeCat(canonPrize(w.prize)).c+'">'+prizeCat(canonPrize(w.prize)).i+'</span> '+esc(shortPrize(w.prize))+(w.sent?' <span class="nsent" title="쪽지 보냄 '+esc(w.sent)+'">✉✓</span>':'')+'</td>'+
     '<td style="white-space:nowrap">'+
-    (acc?'<button class="gray" style="padding:1px 6px" data-note="'+esc(acc)+'" title="쪽지">✉</button>':'')+
+    (acc?'<button class="gray" style="padding:1px 6px" data-note="'+esc(acc)+'" data-nnick="'+esc(w.nick)+'" title="상품 쪽지 보내기">✉</button>':'')+
     '<button class="gray" style="padding:1px 6px" data-wedit="'+w.id+'" title="편집">✏</button>'+
     '<button class="red" style="padding:1px 6px" data-wdel="'+w.id+'" title="삭제">×</button></td></tr>';
   }).join('');
   document.querySelectorAll('[data-wdel]').forEach(b=>b.onclick=async()=>{
     if(!confirm('이 당첨 기록을 지울까요?'))return;
     await api('winner_del',{id:b.dataset.wdel});refresh();});
-  document.querySelectorAll('[data-note]').forEach(b=>b.onclick=()=>sendNote(b.dataset.note));
+  document.querySelectorAll('[data-note]').forEach(b=>b.onclick=()=>openNoteModal(b.dataset.nnick||'',b.dataset.note));
   document.querySelectorAll('[data-wedit]').forEach(b=>b.onclick=async()=>{
     const w=wl.find(x=>x.id===b.dataset.wedit); if(!w)return;
     const nick=prompt('닉네임',w.nick); if(nick===null)return;
@@ -1102,9 +1178,9 @@ function paint(){
     const w=winInfo(nick);
     return (w.n?'🏆 당첨 '+w.n+'회':'당첨 없음')+' · 눌러서 당첨 만들기에 넣기';
   }
-  function wtag(nick){
+  function wend(nick){
     const w=winInfo(nick);
-    return w.n?' <span class="wtag">(당첨 '+w.n+'회)</span>'+w.icons:'';
+    return w.n?'<span class="wend" title="당첨 '+w.n+'회">'+w.icons+'</span>':'';
   }
   // 등급 카운트(고유 닉) + 등급 필터
   const _view=recent.slice(-CHAT_MAX);
@@ -1120,10 +1196,9 @@ function paint(){
     const prevTop=chatEl.scrollTop;
     chatInner.innerHTML=_shown.map(e=>
       e.t==='balloon'
-      ?'<div class="chatline" data-nick="'+esc(e.nick)+'" title="'+esc(wtitle(e.nick))+'">🎈 '+fbadges(e)+'<b class="'+nkClass(e)+'">'+esc(e.nick)+'</b>'+wtag(e.nick)+dmBtn(e)+' <span class="balloon">별풍선 '
-        +e.count+'개</span> <span class="pill">'+e.at+'</span></div>'
-      :'<div class="chatline" data-nick="'+esc(e.nick)+'" title="'+esc(wtitle(e.nick))+'"><span class="pill" style="margin-right:5px">'+e.at
-        +'</span>'+fbadges(e)+'<b class="'+nkClass(e)+'">'+esc(e.nick)+'</b>'+wtag(e.nick)+dmBtn(e)+' '+esc(e.msg)+'</div>').join('');
+      ?'<div class="chatline" data-nick="'+esc(e.nick)+'" title="'+esc(wtitle(e.nick))+'">🎈 '+fbadges(e)+'<b class="'+nkClass(e)+'">'+esc(e.nick)+'</b>'+dmBtn(e)+'<span class="cm"> <span class="balloon">별풍선 '
+        +e.count+'개</span></span>'+wend(e.nick)+'</div>'
+      :'<div class="chatline" data-nick="'+esc(e.nick)+'" title="'+esc(wtitle(e.nick))+'">'+fbadges(e)+'<b class="'+nkClass(e)+'">'+esc(e.nick)+'</b>'+dmBtn(e)+'<span class="cm"> '+esc(e.msg)+'</span>'+wend(e.nick)+'</div>').join('');
     chatEl.scrollTop=atBottom?chatEl.scrollHeight:prevTop;
   }
   const arr=Object.entries(users).map(([nick,u])=>({nick,c:u.c,b:u.b,wins:winCount(nick)[0]}));
