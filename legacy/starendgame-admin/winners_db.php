@@ -38,6 +38,12 @@ function wdb(): PDO
     $pdo->exec('CREATE INDEX IF NOT EXISTS winners_sid ON winners (sid)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)');
     wdb_import_json_once($pdo);
+    // 구글시트를 기준으로 하므로, 예전 winners.json 에서 옮겨 온 기록은 목록·중복 판단에서 뺍니다. (DB 에는 보관)
+    if (!$pdo->query("SELECT v FROM meta WHERE k = 'old_hidden'")->fetchColumn()) {
+        $pdo->exec("UPDATE winners SET source = 'old' WHERE source = 'live'
+            AND updated_at <= (SELECT v FROM meta WHERE k = 'json_imported')");
+        $pdo->exec("INSERT OR REPLACE INTO meta (k, v) VALUES ('old_hidden', '" . date('Y-m-d H:i:s') . "')");
+    }
     return $pdo;
 }
 
@@ -84,6 +90,20 @@ function wdb_prize(string $p): array
     $p = trim(preg_replace('/\s+/u', ' ', $p));
     if (preg_match('/^wear\s*where\b\s*(.*)$/iu', $p, $m)) {
         return ['Wearwhere 안경', trim($m[1]) !== '' ? '모델 ' . trim($m[1]) : ''];
+    }
+    // 같은 상품의 줄임 표기 → 시트의 정식 이름 (관제 화면 기록과 시트 기록이 겹치도록)
+    $k = strtolower(preg_replace('/[^a-z0-9]/i', '', $p));
+    $alias = [
+        '/^(razer)?viperv3pro(faker)/' => 'Razer Viper V3 Pro Faker Edition',
+        '/^(razer)?viperv3pro(cs2|counterstrike2)/' => 'Razer Viper V3 Pro Counter Strike 2 Edition',
+        '/^(razer)?gigantusv2large(cs2|counterstrike2)/' => 'Razer Gigantus V2 Large Counter Strike 2 Edition',
+        '/^(razer)?viperv3prowhite/' => 'Razer Viper V3 Pro White',
+        '/^jamiewestuniform/' => 'Jamie West Uniform',
+    ];
+    foreach ($alias as $re => $name) {
+        if (preg_match($re, $k)) {
+            return [$name, ''];
+        }
     }
     return [$p, ''];
 }
@@ -226,7 +246,7 @@ function wdb_sync(bool $force = false): array
 /** 관제 화면(winners.json 과 같은 모양)으로 돌려줍니다. 시트에 이미 있는 관제 기록은 한 번만 보입니다. */
 function wdb_list(): array
 {
-    $all = wdb()->query("SELECT * FROM winners ORDER BY date, source DESC, sheet_row, at, id")->fetchAll();
+    $all = wdb()->query("SELECT * FROM winners WHERE source IN ('sheet', 'live') ORDER BY date, source DESC, sheet_row, at, id")->fetchAll();
     $norm = fn($s) => mb_strtolower(preg_replace('/\s+/u', '', (string)$s));
     $sheetKeys = [];
     foreach ($all as $w) {
@@ -253,7 +273,7 @@ function wdb_add(array $w): void
 {
     wdb()->prepare("INSERT INTO winners (id, source, date, nick, sid, prize, how, at, updated_at)
         VALUES (?, 'live', ?, ?, ?, ?, ?, ?, ?)")
-        ->execute([uniqid('w'), $w['date'], $w['nick'], strtolower($w['sid']), $w['prize'], $w['how'], date('H:i'), date('Y-m-d H:i:s')]);
+        ->execute([uniqid('w'), $w['date'], $w['nick'], strtolower($w['sid']), wdb_prize($w['prize'])[0], $w['how'], date('H:i'), date('Y-m-d H:i:s')]);
 }
 
 function wdb_source(string $id): string
