@@ -188,6 +188,7 @@ function goCh(v){
 <button class="gray" style="margin-left:auto;padding:4px 10px" onclick="copyLedger()">📋 복사</button>
 <button class="gray" style="padding:4px 10px" onclick="downloadLedger()">⬇ CSV</button><button class="px" onclick="togglePanel('winners')" title="이 창 닫기">✕</button></div>
 <div id="dupBanner" class="dupbanner" style="display:none"></div>
+<details id="unclaimedBox" style="display:none;margin:6px 0;border:1px solid #5a4516;background:#2e2410;border-radius:8px;padding:6px 10px"><summary style="cursor:pointer;color:#ffd98a;font-weight:700"></summary><div class="scroll" style="max-height:180px;margin-top:6px"><table><thead><tr><th>날짜</th><th>닉네임</th><th>SOOP계정</th><th>상품</th></tr></thead><tbody></tbody></table></div><div class="hint">당첨은 됐지만 수령 확인이 안 된 분들입니다 (예전 관제 기록에는 있고 구글시트 명단에는 없음). 수령이 확인되면 시트에 적어 주세요 — 몇 분 안에 여기서 빠집니다. 중복 당첨 판단에는 넣지 않습니다.</div></details>
 <div class="scroll" style="max-height:260px"><table id="winners"><thead><tr>
 <th>날짜</th><th>닉네임</th><th>SOOP계정</th><th>상품</th><th>방식</th><th></th>
 </tr></thead><tbody></tbody></table></div>
@@ -1030,6 +1031,10 @@ async function refresh(){
     await api('overlay_set',{overlay:{kind:'prize',prize:pz.name||'',photo:pz.photo||''}});});
   const wl=ST.winners.list;
   document.getElementById('wcount').textContent=wl.length+'건';
+  const ul=ST.winners.unclaimed||[], ub=document.getElementById('unclaimedBox');
+  ub.style.display=ul.length?'':'none';
+  ub.querySelector('summary').textContent='📭 미수령 '+ul.length+'건 — 당첨됐지만 수령 확인 안 됨';
+  ub.querySelector('tbody').innerHTML=ul.slice().reverse().map(w=>'<tr><td>'+esc(w.date)+'</td><td>'+esc(w.nick)+'</td><td class="pill acc" style="font-size:11px">'+esc(w.sid)+'</td><td>'+esc(w.prize)+'</td></tr>').join('');
   renderDupBanner();
   renderChatLegend();
   document.querySelector('#winners tbody').innerHTML=wl.slice().reverse().map(w=>{

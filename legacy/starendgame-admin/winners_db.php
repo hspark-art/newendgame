@@ -249,9 +249,11 @@ function wdb_list(): array
     $all = wdb()->query("SELECT * FROM winners WHERE source IN ('sheet', 'live') ORDER BY date, source DESC, sheet_row, at, id")->fetchAll();
     $norm = fn($s) => mb_strtolower(preg_replace('/\s+/u', '', (string)$s));
     $sheetKeys = [];
+    $sheetDates = [];   // 아이디|상품 → 시트에 적힌 날짜들 (미수령 판단용)
     foreach ($all as $w) {
         if ($w['source'] === 'sheet') {
             $sheetKeys[$w['date'] . '|' . $w['sid'] . '|' . $norm($w['prize'])] = true;
+            $sheetDates[$w['sid'] . '|' . $norm($w['prize'])][] = $w['date'];
         }
     }
     $list = [];
@@ -266,7 +268,33 @@ function wdb_list(): array
             'prize' => $w['prize'], 'how' => $w['how'], 'at' => $w['at'], 'sent' => $w['sent'],
             'memo' => $w['memo'], 'src' => $w['source']];
     }
-    return ['list' => $list, 'sheet' => ['ok' => wdb_meta('sync_ok'), 'error' => wdb_meta('sync_error')]];
+    // 미수령: 예전 관제 기록에는 있는데 시트(수령 확인 명단)에는 없는 당첨
+    //  - 같은 사람·같은 상품이 시트에 7일 안쪽 날짜로 있으면 같은 건(날짜만 다르게 적힌 것)으로 봄
+    //  - 날짜 없는 기록(출연자 지급 등)은 시청자 당첨이 아니므로 제외
+    $unclaimed = [];
+    $seen = [];
+    foreach (wdb()->query("SELECT * FROM winners WHERE source = 'old' AND date <> '' ORDER BY date, at, id")->fetchAll() as $w) {
+        if (preg_match('/출연/u', $w['how']) || $w['sid'] === '') {
+            continue;
+        }
+        [$p] = wdb_prize($w['prize']);
+        $k = strtolower($w['sid']) . '|' . $norm($p);
+        $t = strtotime($w['date']);
+        foreach ($sheetDates[$k] ?? [] as $d) {
+            if (abs(strtotime($d) - $t) <= 7 * 86400) {
+                continue 2;
+            }
+        }
+        if (isset($seen[$k . '|' . $w['date']])) {
+            continue;
+        }
+        $seen[$k . '|' . $w['date']] = true;
+        $unclaimed[] = ['id' => $w['id'], 'date' => $w['date'], 'nick' => $w['nick'], 'sid' => $w['sid'],
+            'prize' => $p, 'how' => '미수령', 'at' => $w['at'], 'sent' => $w['sent'],
+            'memo' => trim('수령 확인 안 됨 · 예전 방식: ' . $w['how'] . ' ' . $w['memo']), 'src' => 'unclaimed'];
+    }
+    return ['list' => $list, 'unclaimed' => $unclaimed,
+        'sheet' => ['ok' => wdb_meta('sync_ok'), 'error' => wdb_meta('sync_error')]];
 }
 
 function wdb_add(array $w): void
